@@ -30,3 +30,11 @@ its explanation, accessibility, and constrained layout in light/dark themes.
 After changing localization resources, regenerate the ignored localization
 output through `./gen.sh i18n` before running Flutter tests. Exercise both new
 and existing Pixiv profiles when changing the configuration surface.
+
+Pixiv Favorites share one authenticated state per illustration across a Work
+and its pages. Tap an empty heart to add a Public Favorite. Hold it to choose
+Public or Private. Tap a filled heart to remove the Favorite.
+
+The Favorites regression tests use controlled Pixiv responses. Authenticated
+Android verification of Public and Private add/remove and the refreshed
+Favorites lists is pending.

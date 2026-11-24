@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:booru_clients/pixiv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../core/configs/config/types.dart';
+import '../../../core/configs/listing/types.dart';
 import '../../../core/http/client/coordination.dart';
 import '../../../core/content/content_access_provider.dart';
 import '../../../core/content/groups/group_source_provider.dart';
@@ -11,6 +14,9 @@ import '../../../core/content/widgets/native_content_grid.dart';
 import '../../../core/content/groups/group_visibility.dart';
 import '../../../core/posts/listing/types.dart';
 import '../../../core/settings/providers.dart';
+import '../../../core/navigation/destination_activity.dart';
+import '../favorites/favorite_control.dart';
+import '../favorites/favorite_state.dart';
 import 'work_mapper.dart';
 import 'work_source.dart';
 import '../posts/types.dart';
@@ -28,6 +34,7 @@ class PixivWorkGrid extends ConsumerWidget {
     this.initialPage = 1,
     this.initialScrollPosition,
     this.pageMode,
+    this.favoriteVisibility,
     super.key,
   });
   final BooruConfig config;
@@ -38,10 +45,13 @@ class PixivWorkGrid extends ConsumerWidget {
   final int initialPage;
   final int? initialScrollPosition;
   final PageMode? pageMode;
+  final PixivBookmarkVisibility? favoriteVisibility;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(contentProfileAccessProvider(config.id));
     if (access == null) return const Center(child: CircularProgressIndicator());
+    final favorites = ref.watch(pixivFavoriteStateProvider(config.id).notifier);
+    final visibility = favoriteVisibility;
     // Source loss can reach the subscription before the access-driven rebuild.
     // Observe it as async state; page requests retain their normal error UI.
     ref.watch(contentGroupSourceStateProvider(access.key));
@@ -59,18 +69,45 @@ class PixivWorkGrid extends ConsumerWidget {
       access: access,
       queryIdentity: queryIdentity,
       groupLabel: (context, _) => context.t.content_viewer.work,
+      groupQuickAction: (context, group) {
+        final illustId = pixivWorkIllustId(group.reference);
+        if (illustId == null ||
+            !config.thumbnailActions.actions.contains(
+              ThumbnailAction.defaultAction,
+            )) {
+          return null;
+        }
+        return SizedBox.square(
+          dimension: 33,
+          child: PixivFavoriteControl(
+            key: ValueKey((access.key, illustId)),
+            access: access,
+            illustId: illustId,
+            compact: true,
+          ),
+        );
+      },
       counterLabel: (context, n) => context.t.content_viewer.work_counter(n: n),
       initialPage: initialPage,
       pageMode: effectiveMode,
       initialScrollPosition: initialScrollPosition,
       allowPageModeChange: pageMode == null,
       header: header,
-      sliverHeaders: sliverHeaders,
+      sliverHeaders: [
+        ...sliverHeaders,
+        if (visibility != null)
+          _FavoritesListRefresh(profileId: config.id, visibility: visibility),
+      ],
       fetchPage: (page) async {
         final request = ApiRequestContext.current();
         final source =
             ref.read(contentGroupSourceProvider(access.key)) as PixivWorkSource;
+        final favoriteRead = favorites.beginRead(
+          config.auth,
+          access.key.authEpoch,
+        );
         final result = await fetchPage(page);
+        if (!context.mounted) throw StateError('Pixiv Work listing closed');
         final blacklist = ref
             .read(contentEffectiveBlacklistProvider(config.id))
             .requireValue;
@@ -101,6 +138,11 @@ class PixivWorkGrid extends ConsumerWidget {
                 dto,
           ],
         );
+        favorites.observe(
+          favoriteRead,
+          visible.illusts.where(pixivWorkIsVisible),
+          ownList: visibility,
+        );
         for (final dto in visible.illusts) {
           if (pixivWorkIsVisible(dto) &&
               PixivIllustType.parse(dto.type) != PixivIllustType.ugoira) {
@@ -117,6 +159,47 @@ class PixivWorkGrid extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+class _FavoritesListRefresh extends ConsumerStatefulWidget {
+  const _FavoritesListRefresh({
+    required this.profileId,
+    required this.visibility,
+  });
+  final String profileId;
+  final PixivBookmarkVisibility visibility;
+
+  @override
+  ConsumerState<_FavoritesListRefresh> createState() =>
+      _FavoritesListRefreshState();
+}
+
+class _FavoritesListRefreshState extends ConsumerState<_FavoritesListRefresh> {
+  late int _applied =
+      ref
+          .read(pixivFavoriteStateProvider(widget.profileId))
+          .listRevisions[widget.visibility] ??
+      0;
+
+  @override
+  Widget build(BuildContext context) {
+    final revision = ref.watch(
+      pixivFavoriteStateProvider(widget.profileId).select(
+        (state) => state.listRevisions[widget.visibility] ?? 0,
+      ),
+    );
+    final route = ModalRoute.of(context);
+    bool active() =>
+        mounted && NavigationActivity.of(context) && (route?.isCurrent ?? true);
+    if (active() && revision != _applied) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!active() || revision == _applied) return;
+        _applied = revision;
+        unawaited(NativeContentGrid.controllerOf(context).refresh());
+      });
+    }
+    return const SliverToBoxAdapter();
   }
 }
 

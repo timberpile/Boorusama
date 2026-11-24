@@ -13,6 +13,13 @@ ContentReference pixivWorkReference(
   int illustId,
 ) => _reference(access, ContentKind.group, 'work:$illustId');
 
+int? pixivWorkIllustId(ContentReference reference) {
+  final key = reference.sourceKey;
+  return reference.engine == BooruType.pixiv && key.startsWith('work:')
+      ? int.tryParse(key.substring('work:'.length))
+      : null;
+}
+
 ContentReference pixivPageReference(
   ContentAccessContext access,
   int illustId,

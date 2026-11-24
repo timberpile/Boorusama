@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/client_provider.dart';
 import 'package:boorusama/boorus/pixiv/configs/extra_data.dart';
+import 'package:boorusama/boorus/pixiv/favorites/favorite_control.dart';
 import 'package:boorusama/boorus/pixiv/favorites/page.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
@@ -17,6 +18,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/content_media_dio.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/posts/favorites/widgets.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/rendering.dart' show CacheExtentStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +34,74 @@ final _b = _profile(200, otherTestProfile.id);
 final _current = StateProvider<BooruConfig>((ref) => _a);
 
 void main() {
+  testWidgets('a confirmed removal refreshes the matching list on return', (
+    tester,
+  ) async {
+    final page = _Harness();
+    await page.pump(tester);
+    page.calls.single.complete(10);
+    final controller = page.controller(tester);
+    await _until(tester, () => controller.entries.length == 1);
+    final navigator = Navigator.of(
+      tester.element(find.byType(PixivFavoritesPage)),
+    );
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          body: Center(
+            child: PixivFavoriteControl(
+              access: controller.access,
+              illustId: 10,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final heart = find.byType(FavoritePostButton);
+    final glyph = find.descendant(of: heart, matching: find.byType(Icon));
+    expect(tester.widget<FavoritePostButton>(heart).isFaved, isTrue);
+    await tester.tap(heart);
+    await _until(tester, () => page.calls.length == 2);
+    expect(tester.widget<Icon>(glyph).fill, isNull);
+    expect(
+      tester
+          .widget<IconButton>(
+            find.descendant(of: heart, matching: find.byType(IconButton)),
+          )
+          .onPressed,
+      isNull,
+    );
+    page.calls.last.reply({
+      'bookmark_detail': {'is_bookmarked': true, 'restrict': 'public'},
+    });
+    await _until(tester, () => page.calls.length == 3);
+    expect(page.calls.last.options.path, '/v1/illust/bookmark/delete');
+    expect(page.calls.last.options.data, {'illust_id': 10});
+    page.calls.last.reply({});
+    await _until(tester, () => page.calls.length == 4);
+    expect(tester.widget<Icon>(glyph).fill, isNull);
+    page.calls.last.reply({
+      'bookmark_detail': {'is_bookmarked': false},
+    });
+    await _until(
+      tester,
+      () => tester.widget<FavoritePostButton>(heart).enabled,
+    );
+    await tester.pumpAndSettle();
+    expect(page.calls, hasLength(4));
+    expect(controller.entries.single.reference.sourceKey, 'work:10');
+
+    navigator.pop();
+    await _until(tester, () => page.calls.length == 5);
+    expect(page.calls.last.options.path, '/v1/user/bookmarks/illust');
+    expect(page.calls.last.options.queryParameters['restrict'], 'public');
+    expect(page.calls.last.options.queryParameters['max_bookmark_id'], isNull);
+    page.calls.last.reply({'illusts': []});
+    await _until(tester, () => controller.entries.isEmpty);
+    await page.close(tester);
+  });
+
   testWidgets(
     'Favorites starts a bounded thumbnail range before those posts enter the viewport',
     (tester) async {
@@ -554,6 +624,16 @@ class _Request {
   final RequestOptions options;
   final response = Completer<ResponseBody>();
   var cancelled = false;
+
+  void reply(Map<String, dynamic> body) => response.complete(
+    ResponseBody.fromString(
+      jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    ),
+  );
 
   void complete(
     int id, {

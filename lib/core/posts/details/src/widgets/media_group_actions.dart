@@ -22,8 +22,7 @@ import '../types/viewer_entry.dart';
 import '../types/inherited_post.dart';
 import 'group_bookmark_button.dart';
 
-/// Adds Work-only actions to the existing Post toolbar's overflow menu.
-/// Page download, sharing, favorites and image quality retain the normal UI.
+/// Composes Work actions with the selected Page's toolbar.
 class MediaGroupActions extends ConsumerStatefulWidget {
   const MediaGroupActions({
     required this.entry,
@@ -177,7 +176,8 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
     // Dropping the scope for a dialog disposed its chooser owner; dropping it
     // for a neighbor substituted the current Page's Bookmark status for Work.
     final MediaGroupState state;
-    if (NavigationActivity.of(context)) {
+    final active = NavigationActivity.of(context);
+    if (active) {
       state = ref.watch(mediaGroupProvider(widget.entry));
       _retainedState = state;
     } else {
@@ -210,6 +210,11 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         ? presentation as BooruMediaGroupBookmarkPresentation?
         : null;
     final access = state.access;
+    final entry = widget.entry;
+    final favoritePresentation = switch (presentation) {
+      final BooruMediaGroupFavoritePresentation value => value,
+      _ => null,
+    };
     final bookmarkData = access == null
         ? null
         : GroupBookmarkPresentationData(
@@ -225,6 +230,19 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         ? null
         : () => _downloadAll(state);
     return PostActionToolbarScope(
+      buildGroupFavoriteActions:
+          access == null || favoritePresentation == null || state.failed
+          ? null
+          : (builder) => favoritePresentation.buildFavoriteActions(
+              access,
+              state.details?.summary ?? entry.summary,
+              detailsVerified: active && state.details != null,
+              isCurrent: () =>
+                  _current(access) &&
+                  identical(widget.entry, entry) &&
+                  !ref.read(mediaGroupProvider(entry)).failed,
+              builder: builder,
+            ),
       bookmarkButton: GroupScopedBookmarkButton(
         entry: widget.entry,
         wholeGroup: false,
@@ -274,34 +292,38 @@ class MediaGroupSummaryActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = PostActionToolbarScope.maybeOf(context);
     final bookmark = actions?.bookmarkButton;
-    return SliverToBoxAdapter(
-      child: bookmark == null
-          ? const SizedBox.shrink()
-          : BooruMenuButtonRow(
-              buttonWidth: 48,
-              buttons: [
-                ButtonData(
-                  required: true,
-                  widget: bookmark,
-                  title: context.t.post.action.bookmark,
-                  icon: const Icon(Icons.bookmark_border),
-                ),
-                if (actions?.groupBookmarkButton case final groupButton?)
-                  ButtonData(
-                    required: true,
-                    widget: groupButton,
-                    title: context.t.content_viewer.bookmark_group,
-                    icon: const Icon(Icons.bookmark_border),
-                  ),
-                ButtonData(
-                  required: true,
-                  widget: const GroupLinkShareButton(),
-                  title: context.t.post.action.share,
-                  icon: const Icon(Icons.share),
-                ),
-                ...actions!.additionalButtons,
-              ],
+    if (bookmark == null) return const SliverToBoxAdapter();
+    Widget buildRow(BuildContext context, List<ButtonData> favorites) =>
+        BooruMenuButtonRow(
+          buttonWidth: 48,
+          buttons: [
+            ...favorites,
+            ButtonData(
+              required: true,
+              widget: bookmark,
+              title: context.t.post.action.bookmark,
+              icon: const Icon(Icons.bookmark_border),
             ),
+            if (actions?.groupBookmarkButton case final groupButton?)
+              ButtonData(
+                required: true,
+                widget: groupButton,
+                title: context.t.content_viewer.bookmark_group,
+                icon: const Icon(Icons.bookmark_border),
+              ),
+            ButtonData(
+              required: true,
+              widget: const GroupLinkShareButton(),
+              title: context.t.post.action.share,
+              icon: const Icon(Icons.share),
+            ),
+            ...actions!.additionalButtons,
+          ],
+        );
+    return SliverToBoxAdapter(
+      child:
+          actions?.buildGroupFavoriteActions?.call(buildRow) ??
+          buildRow(context, const []),
     );
   }
 }

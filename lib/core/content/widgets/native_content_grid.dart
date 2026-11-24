@@ -76,6 +76,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
     this.allowPageModeChange = false,
     this.counterLabel,
     this.groupLabel,
+    this.groupQuickAction,
     super.key,
   });
   static NativeContentController controllerOf(BuildContext context) =>
@@ -94,6 +95,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
   final bool allowPageModeChange;
   final String Function(BuildContext, int)? counterLabel;
   final String Function(BuildContext, ContentGroupSummary)? groupLabel;
+  final Widget? Function(BuildContext, ContentGroupSummary)? groupQuickAction;
   @override
   ConsumerState<NativeContentGrid> createState() => _NativeContentGridState();
 }
@@ -494,6 +496,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
       category: group == null ? null : widget.groupLabel?.call(context, group),
       name: group?.title,
       total: group?.memberCount,
+      trailingAction: group == null || _selection.isActive
+          ? null
+          : widget.groupQuickAction?.call(context, group),
       image: image.isEmpty
           ? const Center(child: Icon(Icons.image_not_supported_outlined))
           : BooruImage(

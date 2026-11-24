@@ -82,10 +82,12 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
       _session?.dispose();
       _sessionKey = sessionKey;
       final client = ref.watch(pixivClientProvider(widget.config.auth));
+      final userId = sessionKey.userId;
+      final visibility = sessionKey.visibility;
       _session = PixivWorkFavoritesSession(
         (cursor, token) => client.getUserBookmarks(
-          userId: widget.userId,
-          visibility: _visibility,
+          userId: userId,
+          visibility: visibility,
           maxBookmarkId: cursor,
           cancelToken: token,
         ),
@@ -98,6 +100,7 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
         config: widget.config,
         queryIdentity: sessionKey,
         pageMode: PageMode.infinite,
+        favoriteVisibility: _visibility,
         fetchPage: _session!.fetch,
         sliverHeaders: [
           KurumiSliverAppBar(

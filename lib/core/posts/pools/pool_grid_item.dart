@@ -36,6 +36,7 @@ class PoolGridItem extends ConsumerWidget {
     this.displayedCount,
     this.kind = PoolGridItemKind.collection,
     this.sourceIcon,
+    this.trailingAction,
     this.padding = const EdgeInsets.all(2),
     super.key,
   });
@@ -52,6 +53,7 @@ class PoolGridItem extends ConsumerWidget {
   final String? category;
   final PoolGridItemKind kind;
   final Widget? sourceIcon;
+  final Widget? trailingAction;
   final EdgeInsetsGeometry padding;
 
   String? _visibleCount(BuildContext context, double availableWidth) {
@@ -123,6 +125,12 @@ class PoolGridItem extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    if (trailingAction case final action?)
+                      PositionedDirectional(
+                        end: 4,
+                        bottom: 4,
+                        child: action,
+                      ),
                   ],
                 ),
               ),

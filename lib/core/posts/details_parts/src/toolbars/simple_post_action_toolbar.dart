@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
+import '../../../../content/groups/group_capability.dart';
 import '../../../../router.dart';
 import '../../../../widgets/adaptive_button_row.dart';
 import '../../../../widgets/booru_menu_button_row.dart';
@@ -28,6 +29,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
     super.key,
     this.onDownload,
     this.maxVisibleButtons,
+    this.favoriteActions = const [],
   });
 
   final T post;
@@ -35,6 +37,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
   final void Function(Post post)? onDownload;
   final void Function() onStartSlideshow;
   final FavoritePostButton? favoriteButton;
+  final List<ButtonData> favoriteActions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,6 +69,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
           invokeAfterClose: true,
           maxVisibleButtons: maxVisibleButtons,
           buttons: [
+            ...favoriteActions,
             if (favoriteButton case final btn?)
               ButtonData(
                 required:
@@ -219,16 +223,19 @@ class PostActionToolbarScope extends InheritedWidget {
     required super.child,
     this.bookmarkButton,
     this.groupBookmarkButton,
+    this.buildGroupFavoriteActions,
     super.key,
   });
   final List<ButtonData> additionalButtons;
   final Widget? bookmarkButton;
   final Widget? groupBookmarkButton;
+  final Widget Function(FavoriteActionRowBuilder)? buildGroupFavoriteActions;
   static PostActionToolbarScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PostActionToolbarScope>();
   @override
   bool updateShouldNotify(PostActionToolbarScope oldWidget) =>
       additionalButtons != oldWidget.additionalButtons ||
       bookmarkButton != oldWidget.bookmarkButton ||
-      groupBookmarkButton != oldWidget.groupBookmarkButton;
+      groupBookmarkButton != oldWidget.groupBookmarkButton ||
+      buildGroupFavoriteActions != oldWidget.buildGroupFavoriteActions;
 }

@@ -93,6 +93,12 @@ import 'package:boorusama/boorus/e621/e621.dart';
 import 'package:boorusama/boorus/e621/e621_builder.dart';
 import 'package:boorusama/boorus/e621/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
+import 'package:booru_clients/pixiv.dart';
+import 'package:boorusama/boorus/pixiv/client_provider.dart';
+import 'package:boorusama/boorus/pixiv/configs/extra_data.dart';
+import 'package:boorusama/boorus/pixiv/favorites/favorite_control.dart';
+import 'package:boorusama/boorus/pixiv/favorites/favorite_state.dart';
+import 'package:boorusama/core/posts/favorites/widgets.dart';
 import 'package:boorusama/boorus/pixiv/pixiv_builder.dart';
 import 'package:boorusama/boorus/pixiv/ugoira/ugoira_archive.dart';
 import 'package:boorusama/boorus/pixiv/ugoira/ugoira_frames.dart';
@@ -2815,6 +2821,144 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Pixiv Favorite responds before the Work manifest and survives Page resolution',
+    (
+      tester,
+    ) async {
+      _mobileViewport(tester);
+      final config = BooruConfig.fromJson({
+        ..._configs[2].toJson(),
+        'apiKey': 'fixture-refresh',
+        'passHash': const PixivExtraData(userId: '100').toPassHash(),
+      });
+      final access = ContentAccessContext.profile(
+        config: config,
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final dto = works.work(pageCount: 1);
+      final entry = GroupViewerEntry(
+        summary: pixivWorkSummary(dto, access),
+        occurrenceId: 'pending-work-favorite',
+        source: ViewerSourceBinding(config),
+      );
+      final manifest = Completer<void>();
+      final statusReads = List.generate(3, (_) => Completer<void>());
+      final writes = <RequestOptions>[];
+      var lookups = 0;
+      final dio = Dio(BaseOptions(baseUrl: kPixivApiBaseUrl))
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (request, handler) async {
+              var data = <String, dynamic>{};
+              if (request.method == 'GET') {
+                expect(request.queryParameters['illust_id'], 120);
+                final index = lookups++;
+                final isFavorite = writes.isNotEmpty;
+                await statusReads.elementAtOrNull(index)?.future;
+                data = {
+                  'bookmark_detail': {
+                    'is_bookmarked': isFavorite,
+                    if (isFavorite) 'restrict': 'public',
+                  },
+                };
+              } else {
+                writes.add(request);
+              }
+              handler.resolve(
+                Response(requestOptions: request, statusCode: 200, data: data),
+              );
+            },
+          ),
+        );
+      final harness = _Harness(
+        posts: const [],
+        entries: [entry],
+        configurations: [config],
+        overrides: [
+          pixivClientProvider.overrideWith(
+            (ref, _) => PixivClient(accessToken: 'fixture-access', dio: dio),
+          ),
+        ],
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (_) async {
+              await manifest.future;
+              return dto;
+            },
+          ),
+        ),
+      );
+      final heart = find.byType(FavoritePostButton).hitTestable();
+      PixivFavoriteEntry favorite() => harness.container
+          .read(pixivFavoriteStateProvider(config.id))
+          .entry(120);
+      Future<void> until(bool Function() ready, String reason) async {
+        await tester.runAsync(() => pumpUntil(tester, ready, reason: reason));
+      }
+
+      try {
+        await tester.pumpWidget(harness.build());
+        await until(
+          () => heart.evaluate().isNotEmpty && lookups == 1,
+          'Work Favorite is visible while both the manifest and status are held',
+        );
+        expect(
+          find.byType(PixivPostFavoriteToolbar).hitTestable(),
+          findsNothing,
+        );
+        await tester.tap(heart.first);
+        await tester.pump();
+        expect(tester.widget<FavoritePostButton>(heart.first).isFaved, isTrue);
+        expect(favorite().detail, isNull);
+        expect(writes, isEmpty);
+        await until(
+          () => lookups == 2,
+          'tap supersedes the pending status lookup',
+        );
+
+        manifest.complete();
+        await until(
+          () =>
+              find.byType(PostMedia<Post>).evaluate().isNotEmpty &&
+              heart.evaluate().isNotEmpty,
+          'Page toolbar is available while mutation preflight is held',
+        );
+        expect(tester.widget<FavoritePostButton>(heart.first).isFaved, isTrue);
+        statusReads[1].complete();
+        await until(
+          () => lookups == 3,
+          'the write survives the toolbar transition',
+        );
+        expect(writes.single.path, '/v2/illust/bookmark/add');
+        expect(writes.single.data, {'illust_id': 120, 'restrict': 'public'});
+        expect(favorite().pending, isTrue);
+        expect(favorite().detail, isNull);
+
+        statusReads[0].complete();
+        statusReads[2].complete();
+        await until(() => !favorite().pending, 'Favorite is confirmed');
+        expect(favorite().detail?.isBookmarked, isTrue);
+        expect(favorite().detail?.visibility, PixivBookmarkVisibility.public);
+        expect(tester.widget<FavoritePostButton>(heart.first).isFaved, isTrue);
+        expect(tester.takeException(), isNull);
+      } finally {
+        for (final gate in [manifest, ...statusReads]) {
+          if (!gate.isCompleted) gate.complete();
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        dio.close(force: true);
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
   for (final readablePage in [true, false]) {
     testWidgets(
       'Pixiv Work information shows saved creator avatar with readable Page=$readablePage at enlarged text',
@@ -2961,7 +3105,7 @@ void main() {
           reason: 'known listing tags are available in Details immediately',
         );
         expect(
-          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          find.byType(SimplePostActionToolbar<Post>).hitTestable(),
           findsNothing,
           reason: 'unresolved Pages cannot expose Post actions',
         );
@@ -3084,14 +3228,14 @@ void main() {
         final pageToolbar = find.descendant(
           of: nextDetails,
           matching: find.byType(
-            DefaultPostActionToolbar<Post>,
+            SimplePostActionToolbar<Post>,
             skipOffstage: false,
           ),
         );
         expect(pageToolbar, findsWidgets);
         expect(
           tester
-              .widget<DefaultPostActionToolbar<Post>>(pageToolbar.first)
+              .widget<SimplePostActionToolbar<Post>>(pageToolbar.first)
               .post
               .id,
           121000,
@@ -4590,8 +4734,8 @@ void main() {
       );
       expect(
         tester
-            .widgetList<DefaultPostActionToolbar<Post>>(
-              find.byType(DefaultPostActionToolbar<Post>),
+            .widgetList<SimplePostActionToolbar<Post>>(
+              find.byType(SimplePostActionToolbar<Post>),
             )
             .any((toolbar) => identical(toolbar.post, post)),
         isTrue,
@@ -4624,7 +4768,7 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(
-          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          find.byType(SimplePostActionToolbar<Post>).hitTestable(),
           findsNothing,
         );
         expect(_viewerDiagnostics(tester)['selectedMediaControllers'], 0);
@@ -4720,7 +4864,7 @@ void main() {
         );
         // A missing original slot exposes no neighboring Page as an action target.
         expect(
-          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          find.byType(SimplePostActionToolbar<Post>).hitTestable(),
           findsNothing,
         );
         await tester.drag(media, Offset(-size.width * .8, 0));
@@ -4748,11 +4892,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(pager.isExpanded, isTrue);
         expect(
-          find.byType(DefaultInheritedPostActionToolbar<Post>),
+          find.byType(PixivPostFavoriteToolbar),
           findsWidgets,
         );
         final normalToolbar = find
-            .byType(DefaultPostActionToolbar<Post>)
+            .byType(SimplePostActionToolbar<Post>)
             .hitTestable()
             .first;
         final toolbarContext = tester.element(normalToolbar);
@@ -4765,7 +4909,7 @@ void main() {
           reason: 'the shared toolbar exposes separate Work and Page targets',
         );
         final toolbarPost = tester
-            .widget<DefaultPostActionToolbar<Post>>(normalToolbar)
+            .widget<SimplePostActionToolbar<Post>>(normalToolbar)
             .post;
         final pageDetails = PostDetails.of<Post>(toolbarContext);
         final item = tester
@@ -4978,7 +5122,7 @@ void main() {
             skipOffstage: false,
           ),
           matching: find.byType(
-            DefaultPostActionToolbar<Post>,
+            SimplePostActionToolbar<Post>,
             skipOffstage: false,
           ),
         );
@@ -4989,7 +5133,7 @@ void main() {
         );
         expect(
           tester
-              .widget<DefaultPostActionToolbar<Post>>(targetDetails.first)
+              .widget<SimplePostActionToolbar<Post>>(targetDetails.first)
               .post
               .id,
           121000,
@@ -7711,7 +7855,7 @@ void main() {
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
       expect(
-        find.byType(DefaultInheritedPostActionToolbar<Post>),
+        find.byType(PixivPostFavoriteToolbar),
         findsWidgets,
       );
       _expectMedia(tester, postId: 1, host: 'pixiv.example');
@@ -9309,14 +9453,14 @@ Future<void> _capturePixivWorkModes(WidgetTester tester) async {
       pager.showAllUI();
       await tester.pumpAndSettle();
       expect(
-        find.byType(DefaultInheritedPostActionToolbar<Post>),
+        find.byType(PixivPostFavoriteToolbar),
         findsWidgets,
       );
       await capture('overlay');
       await pager.expandToSnapPoint();
       await tester.pumpAndSettle();
       expect(
-        find.byType(DefaultInheritedPostActionToolbar<Post>),
+        find.byType(PixivPostFavoriteToolbar),
         findsWidgets,
       );
       await capture('details');

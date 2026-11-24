@@ -29,6 +29,7 @@ import 'package:boorusama/core/posts/post/src/widgets/thumbnail_overlay.dart';
 import 'package:boorusama/core/posts/post/widgets.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
+import 'package:boorusama/core/themes/theme/types.dart';
 import 'package:boorusama/core/videos/player/widgets.dart';
 import 'package:boorusama/core/widgets/website_logo.dart';
 
@@ -319,16 +320,17 @@ void main() {
               (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
         ),
       );
-      expect(tester.getSize(background), const Size(24, 24));
+      expect(background, findsNothing);
       final tileRect = tester.getRect(find.byType(ImageGridItem));
-      final backgroundRect = tester.getRect(background);
-      expect(tileRect.right - backgroundRect.right, 4);
-      expect(tileRect.bottom - backgroundRect.bottom, 4);
+      final glyph = find.byIcon(Symbols.favorite);
+      final glyphRect = tester.getRect(glyph);
+      expect(tileRect.right - glyphRect.right, 6);
+      expect(tileRect.bottom - glyphRect.bottom, 6);
       expect(
-        tester.getCenter(find.byIcon(Symbols.favorite)),
-        backgroundRect.center,
+        tester.widget<Icon>(glyph).shadows,
+        const [mediaOverlayIconShadow],
       );
-      expect(tester.widget<Icon>(find.byIcon(Symbols.favorite)).size, 20);
+      expect(tester.widget<Icon>(glyph).size, 20);
       final rect = tester.getRect(button);
       await tester.tapAt(rect.topLeft + const Offset(2, 2));
       await tester.pump();
@@ -390,34 +392,28 @@ void main() {
             ),
           );
           final button = find.byType(QuickFavoriteButton);
-          final background = find.descendant(
-            of: button,
-            matching: find.byWidgetPredicate(
-              (widget) =>
-                  widget is Container &&
-                  widget.decoration is BoxDecoration &&
-                  (widget.decoration! as BoxDecoration).shape ==
-                      BoxShape.circle,
-            ),
-          );
-          void expectCentered() {
+          final glyph = find.byIcon(Symbols.favorite);
+          void expectAligned() {
             expect(
-              tester.getCenter(find.byIcon(Symbols.favorite)),
-              tester.getCenter(background),
+              tester.getCenter(glyph),
+              tester.getBottomRight(button) - const Offset(12, 12),
             );
-            expect(tester.getSize(background), const Size(24, 24));
-            expect(tester.widget<Icon>(find.byIcon(Symbols.favorite)).size, 20);
+            expect(
+              tester.widget<Icon>(glyph).shadows,
+              const [mediaOverlayIconShadow],
+            );
+            expect(tester.widget<Icon>(glyph).size, 20);
           }
 
           expect(tester.getSize(button), const Size(33, 33));
-          expectCentered();
+          expectAligned();
           // Padding still belongs to this action, even next to another action.
           await tester.tapAt(tester.getTopLeft(button) + const Offset(2, 2));
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 350));
-          expectCentered();
+          expectAligned();
           await tester.pumpAndSettle();
-          expectCentered();
+          expectAligned();
           expect(toggles, [!liked]);
           expect(neighborTaps, 0);
           if (layout.name != 'single') {

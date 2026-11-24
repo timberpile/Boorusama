@@ -31,6 +31,22 @@ abstract interface class BooruGroupStatusPresentation {
   );
 }
 
+typedef FavoriteActionRowBuilder = Widget Function(
+  BuildContext context,
+  List<ButtonData> actions,
+);
+
+/// A Group can expose its own Favorite before any member Post is available.
+abstract interface class BooruMediaGroupFavoritePresentation {
+  Widget buildFavoriteActions(
+    ContentAccessContext access,
+    ContentGroupSummary summary, {
+    required bool detailsVerified,
+    required bool Function() isCurrent,
+    required FavoriteActionRowBuilder builder,
+  });
+}
+
 /// Source-bound facts for local Group and optional current-Page actions.
 final class GroupBookmarkPresentationData {
   const GroupBookmarkPresentationData({

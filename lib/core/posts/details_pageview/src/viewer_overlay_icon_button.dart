@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../themes/theme/types.dart';
+
 /// Media chrome opts into transparent controls without changing other buttons.
 class ViewerOverlayIconButton extends StatelessWidget {
   const ViewerOverlayIconButton({
@@ -27,9 +29,7 @@ class ViewerOverlayIconButton extends StatelessWidget {
       icon: IconTheme.merge(
         data: const IconThemeData(
           size: 24,
-          shadows: [
-            Shadow(color: Colors.black54, blurRadius: 3, offset: Offset(0, 1)),
-          ],
+          shadows: [mediaOverlayIconShadow],
         ),
         child: SizedBox.square(
           dimension: 24,

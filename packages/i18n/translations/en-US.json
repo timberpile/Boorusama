@@ -2491,6 +2491,12 @@
     }
   },
   "pixiv": {
+    "favorites": {
+      "add_public": "Add Public Favorite",
+      "add_private": "Add Private Favorite",
+      "check_status": "Check Favorite status",
+      "with_visibility": "$action ($visibility)"
+    },
     "experimental": {
       "label": "Experimental",
       "description": "Pixiv support is limited and may change. Not all website features are available."

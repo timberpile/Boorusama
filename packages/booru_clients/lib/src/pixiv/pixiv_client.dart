@@ -1,8 +1,9 @@
-import '../http/request_interruption.dart';
 import 'dart:convert';
 
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 
+import '../http/request_interruption.dart';
 import 'pixiv_constants.dart';
 import 'pixiv_headers.dart';
 import 'types/types.dart';
@@ -12,7 +13,7 @@ part 'pixiv_client_following.dart';
 
 const _kFilter = 'for_ios';
 
-/// Read-only client for the Pixiv `app-api` (`https://app-api.pixiv.net`).
+/// Client for the Pixiv `app-api` (`https://app-api.pixiv.net`).
 ///
 /// Every call attaches the full required header set (Authorization,
 /// User-Agent, App-OS[-Version], App-Version, Accept-Language, Referer,
@@ -211,6 +212,7 @@ class PixivClient {
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
     bool? followRedirects,
+    bool reportUnauthorized = false,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
@@ -229,6 +231,43 @@ class PixivClient {
       return _extractBody(response.data);
     } on DioException catch (e) {
       if (isDataRequestInterruption(e)) rethrow;
+      if (reportUnauthorized) _requireFavoriteAuthentication(e);
+      throw _translateDioException(e);
+    }
+  }
+
+  Future<void> _postFavorite(
+    String path,
+    Map<String, dynamic> form,
+    CancelToken? cancelToken,
+  ) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        path,
+        data: form,
+        cancelToken: cancelToken,
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          followRedirects: false,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
+          extra: {stateChangingRequestKey: true},
+          headers: buildPixivApiHeaders(
+            accessToken: accessToken,
+            acceptLanguage: acceptLanguage,
+          ),
+        ),
+      );
+      final data = response.data;
+      if (data == null || data == '') return;
+      final decoded = data is String ? jsonDecode(data) : data;
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid Pixiv Favorite response');
+      }
+      _extractBody(decoded);
+    } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
+      _requireFavoriteAuthentication(e);
       throw _translateDioException(e);
     }
   }
@@ -243,6 +282,14 @@ class PixivClient {
 
     String two(int n) => n.toString().padLeft(2, '0');
     return '${date.year.toString().padLeft(4, '0')}-${two(date.month)}-${two(date.day)}';
+  }
+}
+
+void _requireFavoriteAuthentication(DioException error) {
+  if (error.response?.statusCode == 401 || error.error is PixivAuthException) {
+    throw const PixivAuthException(
+      'Pixiv did not authorize the Favorite request',
+    );
   }
 }
 

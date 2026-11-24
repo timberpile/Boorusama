@@ -14,6 +14,8 @@ import '../../../core/posts/details/src/types/viewer_entry.dart';
 import '../../../core/posts/listing/src/widgets/post_grid_item.dart';
 import '../../../core/posts/links/share_group_link_button.dart';
 import '../../../core/content/groups/group_members_provider.dart';
+import '../favorites/favorite_control.dart';
+import 'work_mapper.dart';
 
 /// A Work's author slots remain visible even when a Page is unavailable.
 /// It uses the Single pager's membership observer and real Post media widgets.
@@ -52,6 +54,13 @@ class _PixivWorkTimelineState extends ConsumerState<PixivWorkTimeline> {
       slivers: [
         ViewerEntryNavigationHeader(
           actions: [
+            if (pixivWorkIllustId(widget.entry.contentReference) case final id?
+                when !state.failed && state.access != null)
+              PixivFavoriteControl(
+                key: ValueKey((state.access!.key, id)),
+                access: state.access,
+                illustId: id,
+              ),
             GroupScopedBookmarkButton(entry: widget.entry, wholeGroup: true),
             const GroupLinkShareButton(),
           ],

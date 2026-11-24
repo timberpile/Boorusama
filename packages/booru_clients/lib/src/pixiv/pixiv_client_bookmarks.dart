@@ -3,6 +3,11 @@ part of 'pixiv_client.dart';
 /// `all` is intentionally absent: support for this endpoint is unverified.
 enum PixivBookmarkVisibility { public, private }
 
+typedef PixivBookmarkDetail = ({
+  bool isBookmarked,
+  PixivBookmarkVisibility? visibility,
+});
+
 class PixivBookmarkPage {
   const PixivBookmarkPage(this.illusts, {this.nextBookmarkId});
 
@@ -13,7 +18,9 @@ class PixivBookmarkPage {
     String? previousBookmarkId,
   }) {
     final raw = json['illusts'];
-    if (raw is! List) throw const FormatException('Missing Pixiv bookmark list');
+    if (raw is! List) {
+      throw const FormatException('Missing Pixiv bookmark list');
+    }
     final illusts = <PixivIllustDto>[];
     for (final value in raw) {
       if (value is! Map<String, dynamic>) {
@@ -24,9 +31,12 @@ class PixivBookmarkPage {
     final next = json['next_url'];
     if (next == null) return PixivBookmarkPage(List.unmodifiable(illusts));
     final uri = next is String ? Uri.tryParse(next) : null;
-    if (uri == null || uri.scheme != 'https' ||
-        uri.host != 'app-api.pixiv.net' || uri.userInfo.isNotEmpty ||
-        uri.port != 443 || uri.hasFragment ||
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'app-api.pixiv.net' ||
+        uri.userInfo.isNotEmpty ||
+        uri.port != 443 ||
+        uri.hasFragment ||
         uri.path != '/v1/user/bookmarks/illust') {
       throw const FormatException('Invalid Pixiv bookmark continuation');
     }
@@ -34,15 +44,19 @@ class PixivBookmarkPage {
       final values = uri.queryParametersAll[key];
       return values?.length == 1 ? values!.single : null;
     }
+
     final cursor = single('max_bookmark_id');
     if (single('user_id') != '$userId' ||
         single('restrict') != visibility.name ||
         !isPixivBookmarkCursor(cursor) ||
         (previousBookmarkId != null &&
-          BigInt.parse(cursor!) >= BigInt.parse(previousBookmarkId))) {
+            BigInt.parse(cursor!) >= BigInt.parse(previousBookmarkId))) {
       throw const FormatException('Invalid Pixiv bookmark cursor or scope');
     }
-    return PixivBookmarkPage(List.unmodifiable(illusts), nextBookmarkId: cursor);
+    return PixivBookmarkPage(
+      List.unmodifiable(illusts),
+      nextBookmarkId: cursor,
+    );
   }
 
   final List<PixivIllustDto> illusts;
@@ -54,6 +68,58 @@ bool isPixivBookmarkCursor(String? value) =>
     value != null && RegExp(r'^[1-9][0-9]{0,29}$').hasMatch(value);
 
 extension PixivBookmarksClient on PixivClient {
+  Future<PixivBookmarkDetail> getIllustBookmarkDetail({
+    required int illustId,
+    CancelToken? cancelToken,
+  }) async {
+    _requireIllustId(illustId);
+    final body = await _get(
+      '/v2/illust/bookmark/detail',
+      queryParameters: {'illust_id': illustId},
+      cancelToken: cancelToken,
+      followRedirects: false,
+      reportUnauthorized: true,
+    );
+    final detail = body['bookmark_detail'];
+    if (detail is! Map<String, dynamic> || detail['is_bookmarked'] is! bool) {
+      throw const FormatException('Invalid Pixiv Favorite detail');
+    }
+    final isBookmarked = detail['is_bookmarked'] as bool;
+    return (
+      isBookmarked: isBookmarked,
+      visibility: switch (detail['restrict']) {
+        'public' when isBookmarked => PixivBookmarkVisibility.public,
+        'private' when isBookmarked => PixivBookmarkVisibility.private,
+        _ => null,
+      },
+    );
+  }
+
+  Future<void> addIllustBookmark({
+    required int illustId,
+    required PixivBookmarkVisibility visibility,
+    CancelToken? cancelToken,
+  }) {
+    _requireIllustId(illustId);
+    return _postFavorite(
+      '/v2/illust/bookmark/add',
+      {'illust_id': illustId, 'restrict': visibility.name},
+      cancelToken,
+    );
+  }
+
+  Future<void> deleteIllustBookmark({
+    required int illustId,
+    CancelToken? cancelToken,
+  }) {
+    _requireIllustId(illustId);
+    return _postFavorite(
+      '/v1/illust/bookmark/delete',
+      {'illust_id': illustId},
+      cancelToken,
+    );
+  }
+
   Future<PixivBookmarkPage> getUserBookmarks({
     required int userId,
     PixivBookmarkVisibility visibility = PixivBookmarkVisibility.public,
@@ -75,8 +141,15 @@ extension PixivBookmarksClient on PixivClient {
       cancelToken: cancelToken,
       followRedirects: false,
     );
-    return PixivBookmarkPage.fromJson(body,
-      userId: userId, visibility: visibility, previousBookmarkId: maxBookmarkId,
+    return PixivBookmarkPage.fromJson(
+      body,
+      userId: userId,
+      visibility: visibility,
+      previousBookmarkId: maxBookmarkId,
     );
   }
+}
+
+void _requireIllustId(int illustId) {
+  if (illustId <= 0) throw ArgumentError.value(illustId, 'illustId');
 }

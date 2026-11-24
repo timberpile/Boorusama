@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // Project imports:
 import '../../core/boorus/defaults/widgets.dart';
 import '../../core/boorus/engine/types.dart';
@@ -10,6 +12,7 @@ import '../../core/posts/details_parts/types.dart';
 import '../../core/posts/details_parts/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
+import 'favorites/favorite_control.dart';
 import 'home/custom_home.dart';
 import 'favorites/page.dart';
 import 'posts/types.dart';
@@ -78,6 +81,22 @@ class PixivBuilder extends BaseBooruBuilder {
       (context) => const PixivFavoritesPage();
 
   @override
+  QuickFavoriteButtonBuilder get quickFavoriteButtonBuilder =>
+      (
+        context,
+        ref,
+        post,
+      ) {
+        final artwork = post.pixivData;
+        if (artwork == null || artwork.isRestricted) return null;
+        return PixivFavoriteControl(
+          key: ValueKey(artwork.illustId),
+          illustId: artwork.illustId,
+          compact: true,
+        );
+      };
+
+  @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
@@ -88,12 +107,10 @@ class PixivBuilder extends BaseBooruBuilder {
   @override
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
-      DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.toolbar: (context) => const PixivPostFavoriteToolbar(),
     },
     full: {
-      DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.toolbar: (context) => const PixivPostFavoriteToolbar(),
       DetailsPart.artistInfo: (context) => const PixivWorkInformation(),
       DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
