@@ -114,8 +114,9 @@ class BookmarkLibraryService {
     Iterable<Bookmark> savedRecords = const [],
     bool useDraftMembershipDates = false,
   }) {
-    if (unifiedStore == null)
+    if (unifiedStore == null) {
       throw StateError('Unified Bookmark storage unavailable');
+    }
     return _saveUnifiedDrafts(
       drafts,
       groupId,
@@ -149,8 +150,9 @@ class BookmarkLibraryService {
     final members = <int>{};
     for (final frozen in records) {
       final current = await store.read(frozen.id);
-      if (current == null || !_sameTarget(current, frozen))
+      if (current == null || !_sameTarget(current, frozen)) {
         throw StateError('Saved Bookmark changed before the action completed');
+      }
       members.add(current.id);
     }
     final writes = <Bookmark>[];
@@ -200,13 +202,15 @@ class BookmarkLibraryService {
             unifiedStore ??
             (throw StateError('Unified Bookmark storage unavailable'));
         final record = await store.read(bookmarkId);
-        final Bookmark updated = switch (record) {
-          RelatedBookmark() => record.copyWith(preferredOrder: () => order),
-          LegacyRelatedGroupBookmark() => record.copyWith(
-            preferredOrder: () => order,
-          ),
-          _ => throw StateError('The saved Related family no longer exists'),
-        };
+        final Bookmark updated;
+        switch (record) {
+          case RelatedBookmark():
+            updated = record.copyWith(preferredOrder: () => order);
+          case LegacyRelatedGroupBookmark():
+            updated = record.copyWith(preferredOrder: () => order);
+          default:
+            throw StateError('The saved Related family no longer exists');
+        }
         if (updated == record) return;
         await store.upsert(updated);
       });
@@ -221,8 +225,9 @@ class BookmarkLibraryService {
         unifiedStore ??
         (throw StateError('Unified Bookmark storage unavailable'));
     final record = await store.read(bookmarkId);
-    if (record is! ContentGroupBookmark)
+    if (record is! ContentGroupBookmark) {
       throw StateError('Saved Group is unavailable');
+    }
     final merged = authoritative
         ? snapshot
         : StoredGroupSnapshot(
@@ -312,7 +317,7 @@ class BookmarkLibraryService {
         bookmarks: bookmarks,
         records: store == null ? null : records,
         mirrors: store is BookmarkMirrorReader
-            ? await (store as BookmarkMirrorReader).readMirrorState()
+            ? await (store! as BookmarkMirrorReader).readMirrorState()
             : const BookmarkMirrorState.empty(),
         revision: store == null ? 0 : await store.readRevision(),
         pools: store == null
@@ -403,8 +408,9 @@ class BookmarkLibraryService {
           final memberships = pool.groupIds.intersection(validGroups);
           if (memberships.isEmpty) memberships.add(defaultBookmarkGroupId);
           if (memberships.length == pool.groupIds.length &&
-              memberships.containsAll(pool.groupIds))
+              memberships.containsAll(pool.groupIds)) {
             return pool;
+          }
           changed = true;
           return pool.withGroups(
             memberships,
@@ -668,13 +674,16 @@ class BookmarkLibraryService {
     Future<PostBookmark> Function()? prepareBookmark,
   }) async {
     if (unifiedStore != null) {
-      if (existingBookmark != null)
+      if (existingBookmark != null) {
         return await _addUnifiedMembers([existingBookmark], groupId) > 0;
-      if (prepareBookmark == null)
+      }
+      if (prepareBookmark == null) {
         throw ArgumentError('A prepared Post draft is required');
+      }
       final draft = await prepareBookmark();
-      if (draft.uniqueId != createBookmarkIdentity)
+      if (draft.uniqueId != createBookmarkIdentity) {
         throw const FormatException('Prepared Post identity changed');
+      }
       return (await saveDraftsToGroup([draft], groupId)).addedCount > 0;
     }
     final group = await groupRepository.getGroup(groupId);
@@ -712,8 +721,9 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkGroup> duplicateGroup(String groupId, String name) async {
-    if (unifiedStore != null)
+    if (unifiedStore != null) {
       return groupRepository.duplicateGroup(groupId, name: name);
+    }
     final source = await groupRepository.getGroup(groupId);
     if (source == null) {
       throw StateError('Bookmark group $groupId does not exist.');
@@ -838,14 +848,16 @@ class BookmarkLibraryService {
       }
       return group;
     }
-    if (parentGroupId != null)
+    if (parentGroupId != null) {
       throw StateError('Nested Groups require unified storage');
+    }
     try {
       return await groupRepository.createGroup(name, id: id);
     } catch (error, stack) {
       try {
-        if (await groupRepository.getGroup(id) case final committed?)
+        if (await groupRepository.getGroup(id) case final committed?) {
           return committed;
+        }
       } catch (_) {}
       Error.throwWithStackTrace(error, stack);
     }
@@ -865,8 +877,9 @@ class BookmarkLibraryService {
             !tree.groupsById.containsKey(parentGroupId))) {
       throw StateError('Bookmark Group no longer exists');
     }
-    if (groupIds.contains(defaultBookmarkGroupId))
+    if (groupIds.contains(defaultBookmarkGroupId)) {
       throw StateError('Default cannot be moved');
+    }
     // One ancestor walk validates the destination against every selected group.
     final destinationPath = parentGroupId == null
         ? const <String>{}
@@ -874,8 +887,9 @@ class BookmarkLibraryService {
             parentGroupId,
             ...tree.ancestors(parentGroupId).map((group) => group.id),
           };
-    if (groupIds.intersection(destinationPath).isNotEmpty)
+    if (groupIds.intersection(destinationPath).isNotEmpty) {
       throw ArgumentError('Cannot move a Group into its descendant');
+    }
     final roots = tree.selectionRoots(groupIds);
     var position = tree
         .childrenOf(parentGroupId)
@@ -900,8 +914,9 @@ class BookmarkLibraryService {
     String groupId, {
     Set<String> poolLocalIds = const {},
   }) async {
-    if (unifiedStore != null)
+    if (unifiedStore != null) {
       return _removeUnifiedMembers(bookmarks, groupId, poolLocalIds);
+    }
     final pools = poolLocalIds.isEmpty
         ? const <CollectionBookmark>[]
         : await groupRepository.getPoolBookmarks();
@@ -940,8 +955,9 @@ class BookmarkLibraryService {
     final toDelete = finalMembershipIds.map((id) => selectedById[id]!).toList();
 
     try {
-      if (affectedIds.isNotEmpty)
+      if (affectedIds.isNotEmpty) {
         await groupRepository.removeBookmarks(groupId, affectedIds);
+      }
     } catch (error, stackTrace) {
       _throwWithRollback(
         error,
@@ -996,8 +1012,9 @@ class BookmarkLibraryService {
   }
 
   Future<void> undoRemoval(BookmarkGroupRemovalResult removal) async {
-    if (unifiedStore != null && removal.removedRecords.isNotEmpty)
+    if (unifiedStore != null && removal.removedRecords.isNotEmpty) {
       return _undoUnifiedRemoval(removal);
+    }
     final groupId = removal.groupId;
     if (groupId == null || removal.removedCount == 0) return;
     final target = await groupRepository.getGroup(groupId);
@@ -1030,7 +1047,7 @@ class BookmarkLibraryService {
         }
       }
       final added = members.difference(target.bookmarkIds);
-      if (added.isNotEmpty)
+      if (added.isNotEmpty) {
         await groupRepository.replaceMemberships(
           groupId,
           {
@@ -1045,6 +1062,7 @@ class BookmarkLibraryService {
                 restored.id: removal.addedAt[old.uniqueId] ?? old.createdAt,
           },
         );
+      }
       if (removal.removedPools.isNotEmpty) {
         final next = {for (final pool in oldPools) pool.identity: pool};
         for (final old in removal.removedPools) {

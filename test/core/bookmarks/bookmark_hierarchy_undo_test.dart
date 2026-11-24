@@ -341,7 +341,7 @@ void main() {
       final parent = await service.createGroup('Parent');
       final other = await service.createGroup('Other');
       final shared = await addPost(205);
-      final date = DateTime.utc(2024, 4, 1);
+      final date = DateTime.utc(2024, 4);
       await setMembership(parent.id, {shared.id}, dates: {shared.id: date});
       await setMembership(other.id, {shared.id}, dates: {shared.id: date});
       final deletion = await service.deleteHierarchy({parent.id});
@@ -415,7 +415,7 @@ void main() {
         tag: 'opaque-survivor',
         search: 'survivor metadata',
       );
-      final date = DateTime.utc(2024, 5, 1);
+      final date = DateTime.utc(2024, 5);
       await setMembership(parent.id, {opaque.id}, dates: {opaque.id: date});
       await setMembership(other.id, {survivor.id}, dates: {survivor.id: date});
       final deletion = await service.deleteHierarchy({parent.id});
@@ -446,7 +446,7 @@ void main() {
   test('repeating undo does not duplicate the restored record', () async {
     final parent = await service.createGroup('Parent');
     final orphan = await addPost(208);
-    final date = DateTime.utc(2024, 6, 1);
+    final date = DateTime.utc(2024, 6);
     await setMembership(parent.id, {orphan.id}, dates: {orphan.id: date});
     final deletion = await service.deleteHierarchy({parent.id});
     await service.undoHierarchyDeletion(deletion);

@@ -117,7 +117,7 @@ void main() {
     final library = BookmarkLibraryState(
       bookmarks: saved,
       groups: [
-        BookmarkGroup(id: _group, name: 'Saved', bookmarkIds: {101, 102}),
+        BookmarkGroup(id: _group, name: 'Saved', bookmarkIds: const {101, 102}),
       ],
     );
     final runtime = backend.createRuntime(downloadService: downloads);

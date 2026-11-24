@@ -65,7 +65,9 @@ void main() {
 
   ProviderContainer createContainer() => ProviderContainer(
     overrides: [
-      blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+      blacklistTagsProvider.overrideWith(
+        (ref, filter) => Future.sync(() => {}),
+      ),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [profile]),
       ),
@@ -538,7 +540,7 @@ class _CountingGroups extends BookmarkGroupRepositoryHive {
         organizationBox: MemoryBox<dynamic>(),
       );
 
-  int repairs = 0;
+  var repairs = 0;
   var failReads = false;
 
   @override
@@ -556,9 +558,9 @@ class _CountingGroups extends BookmarkGroupRepositoryHive {
 
 class _CountingBookmarks implements BookmarkRepository<Post> {
   final rows = <int, PostBookmark>{};
-  int reads = 0;
-  int _nextId = 0;
-  bool throwAfterNextAdd = false;
+  var reads = 0;
+  var _nextId = 0;
+  var throwAfterNextAdd = false;
   Future<void> Function()? beforeNextAdd;
 
   @override

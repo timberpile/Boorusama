@@ -91,7 +91,7 @@ void main() {
         _key(query: 'dog'),
         _key(config: otherTestProfile),
         _key(revision: 1),
-        _key(structure: SearchQueryStructure.typedTags(['cat'])),
+        _key(structure: SearchQueryStructure.typedTags(const ['cat'])),
         _key(attemptedAt: DateTime.utc(2026, 10, 22)),
         _key(
           config: testProfile.copyWith(apiKey: 'synthetic-preview-test-token'),
@@ -122,10 +122,12 @@ void main() {
           loggerProvider.overrideWithValue(logger),
           automaticMediaLoadingEnabledProvider.overrideWithValue(true),
           originAwarePostRepoProvider.overrideWith(
-            (ref, _) => TestSearchPostRepository((_, _, _) async {
-              calls++;
-              throw StateError('private-preview-query');
-            }),
+            (ref, _) => TestSearchPostRepository(
+              (_, _, _) => Future.sync(() {
+                calls++;
+                throw StateError('private-preview-query');
+              }),
+            ),
           ),
         ],
       );

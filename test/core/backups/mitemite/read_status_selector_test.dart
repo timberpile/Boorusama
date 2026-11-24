@@ -19,7 +19,7 @@ void main() {
           child: MaterialApp(
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context)
-                  .copyWith(textScaler: TextScaler.linear(2)),
+                  .copyWith(textScaler: const TextScaler.linear(2)),
               child: KurumiTheme(
                 data: KurumiThemeData.fromMaterial(Theme.of(context)),
                 child: child!,

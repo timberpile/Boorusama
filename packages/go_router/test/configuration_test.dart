@@ -39,7 +39,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -54,7 +54,7 @@ void main() {
           navigatorKey: root,
           routes: <RouteBase>[ShellRoute(routes: shellRouteChildren)],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -93,7 +93,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -130,7 +130,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -174,7 +174,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -198,7 +198,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -239,7 +239,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -271,7 +271,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -313,7 +313,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -399,7 +399,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -410,7 +410,7 @@ void main() {
       final StatefulShellBranch branchY;
       final StatefulShellBranch branchB;
 
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'root'),
         routes: <RouteBase>[
           StatefulShellRoute.indexedStack(
@@ -468,13 +468,13 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
 
       String? initialLocation(StatefulShellBranch branch) {
-        final GoRoute? route = branch.defaultRoute;
+        final route = branch.defaultRoute;
         return route != null ? config.locationForRoute(route) : null;
       }
 
@@ -505,7 +505,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -555,7 +555,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -595,7 +595,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -639,7 +639,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         ),
@@ -680,7 +680,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -732,7 +732,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         ),
@@ -756,7 +756,7 @@ void main() {
           GoRoute(path: '/c', builder: _mockScreenBuilder),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
         navigatorKey: root,
@@ -806,7 +806,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -825,7 +825,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         );
@@ -889,7 +889,7 @@ void main() {
             ),
           ],
           redirectLimit: 10,
-          topRedirect: (BuildContext context, GoRouterState state) {
+          topRedirect: (context, state) {
             return null;
           },
         ).debugKnownRoutes(),
@@ -926,27 +926,27 @@ void main() {
       });
 
       test('preserves query parameters and fragments', () {
-        final Uri uri = RouteConfiguration.normalizeUri(Uri.parse('foo?a=b#c'));
+        final uri = RouteConfiguration.normalizeUri(Uri.parse('foo?a=b#c'));
         expect(uri.path, '/foo');
         expect(uri.queryParameters['a'], 'b');
         expect(uri.fragment, 'c');
       });
 
       test('handles hash fragments with authority', () {
-        final Uri uri = RouteConfiguration.normalizeUri(Uri.parse('http://localhost:3000/#foo'));
+        final uri = RouteConfiguration.normalizeUri(Uri.parse('http://localhost:3000/#foo'));
         expect(uri.path, '/');
         expect(uri.fragment, 'foo');
       });
 
       test('handles hash fragments without authority', () {
-        final Uri uri = RouteConfiguration.normalizeUri(Uri.parse('/#foo'));
+        final uri = RouteConfiguration.normalizeUri(Uri.parse('/#foo'));
         expect(uri.path, '/');
         expect(uri.fragment, 'foo');
       });
 
       test('returns same instance if already normalized', () {
-        final Uri uri = Uri.parse('/foo');
-        final Uri normalized = RouteConfiguration.normalizeUri(uri);
+        final uri = Uri.parse('/foo');
+        final normalized = RouteConfiguration.normalizeUri(uri);
         expect(identical(uri, normalized), isTrue);
       });
     });

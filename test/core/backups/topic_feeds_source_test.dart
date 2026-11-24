@@ -22,6 +22,7 @@ import 'package:i18n/i18n.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 import '../search/following_topics/topic_test_utils.dart';
+import '../../support/legacy_material_test_scope.dart';
 
 void main() {
   test(
@@ -298,8 +299,7 @@ Future<BuildContext> _pumpContext(WidgetTester tester, _Harness harness) async {
       container: harness.container,
       child: BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (value) {
               context = value;

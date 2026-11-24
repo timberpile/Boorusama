@@ -331,20 +331,17 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
                             child: Center(
                               child: Builder(
                                 builder: (context) {
-                                  if (!directTargets)
+                                  if (!directTargets) {
                                     return const PixivWorkPresentation()
                                         .buildBookmarkButton(context, value);
+                                  }
                                   final actions =
                                       PostActionToolbarScope.maybeOf(context);
                                   return Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (actions?.bookmarkButton
-                                          case final page?)
-                                        page,
-                                      if (actions?.groupBookmarkButton
-                                          case final group?)
-                                        group,
+                                      ?actions?.bookmarkButton,
+                                      ?actions?.groupBookmarkButton,
                                     ],
                                   );
                                 },

@@ -188,9 +188,8 @@ class BookmarkLibraryState extends Equatable {
   final Map<String, BookmarkGroup> groupsById;
   final Map<BookmarkUniqueId, Set<String>> membershipsByBookmark;
 
-  late final BookmarkGroupTree groupTree = BookmarkGroupTree(groups);
-  final _subtreeProjections =
-      LinkedHashMap<String, BookmarkSubtreeProjection>();
+  late final groupTree = BookmarkGroupTree(groups);
+  final _subtreeProjections = <String, BookmarkSubtreeProjection>{};
 
   BookmarkSubtreeProjection subtreeProjection(String groupId) {
     final cached = _subtreeProjections.remove(groupId);
@@ -203,8 +202,9 @@ class BookmarkLibraryState extends Equatable {
         );
     _subtreeProjections[groupId] = projection;
     // Only recently visited views are retained, within this immutable snapshot.
-    if (_subtreeProjections.length > 8)
+    if (_subtreeProjections.length > 8) {
       _subtreeProjections.remove(_subtreeProjections.keys.first);
+    }
     return projection;
   }
 
@@ -674,10 +674,10 @@ class BookmarkLibraryState extends Equatable {
 
   /// Retained media without proven source facts can still use their exact
   /// displayed snapshot. This never authorizes associating another Post.
-  late final Map<Post, PostBookmark> _storedByPostObject =
-      Map<Post, PostBookmark>.identity()..addEntries(
-        items.map((bookmark) => MapEntry(bookmark.post, bookmark)),
-      );
+  late final _storedByPostObject = Map<Post, PostBookmark>.identity()
+    ..addEntries(
+      items.map((bookmark) => MapEntry(bookmark.post, bookmark)),
+    );
 
   PostBookmark? storedBookmarkForPost(Post post) =>
       _storedByPostObject[post] ?? bookmarkForPost(post);
@@ -736,8 +736,7 @@ List<CollectionBookmark> _projectPoolDelta({
 }) {
   final old = previous ?? const <CollectionBookmark>[];
   final byId = <int, CollectionBookmark>{
-    for (final pool in old)
-      if (pool.bookmarkId case final id?) id: pool,
+    for (final pool in old) ?pool.bookmarkId: pool,
   };
   for (final id in changedIds) {
     final record = index.byId[id];

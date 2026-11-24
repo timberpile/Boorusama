@@ -98,8 +98,7 @@ class PoolGridItem extends ConsumerWidget {
         : displayedCount != null && displayedCount != total
         ? '$displayedCount/$total'
         : '$total';
-    final spokenLabel =
-        typeLabel + (fullCount == null ? '' : ' · ' + fullCount);
+    final spokenLabel = typeLabel + (fullCount == null ? '' : ' · $fullCount');
 
     return Padding(
       padding: padding,
@@ -137,7 +136,6 @@ class PoolGridItem extends ConsumerWidget {
             end: 4,
             child: IgnorePointer(
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (sourceIcon case final icon?) ...[
                     SizedBox.square(
@@ -181,7 +179,7 @@ class PoolGridItem extends ConsumerWidget {
                                         SvgPicture.asset(
                                           asset,
                                           key: ValueKey(
-                                            'pool-kind-' + kind.name,
+                                            'pool-kind-${kind.name}',
                                           ),
                                           width: 16,
                                           height: 16,

@@ -190,10 +190,10 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
               ref.read(contentGroupSourceStateProvider(key)).asData?.value,
               source,
             ) &&
-            ref
+            (ref
                     .read(contentAccessContextProvider(key))
-                    ?.hasSameAuthorization(access!) ==
-                true;
+                    ?.hasSameAuthorization(access!) ??
+                false);
       }
 
       return GroupTimelineSession(
@@ -363,16 +363,18 @@ class GroupTimelineSession {
             : (page) => readSharedGroupPostPage(
                 page: page,
                 read: () {
-                  if (_retired || _disposed || !accessIsCurrent())
+                  if (_retired || _disposed || !accessIsCurrent()) {
                     throw RequestCancelledError();
+                  }
                   return ref.read(groupMembersProvider(sharedKey).future);
                 },
                 loadNext: () {
                   if (_retired ||
                       _disposed ||
                       isPassive() ||
-                      !accessIsCurrent())
+                      !accessIsCurrent()) {
                     throw RequestCancelledError();
+                  }
                   return ref
                       .read(groupMembersProvider(sharedKey).notifier)
                       .loadNext();
@@ -423,7 +425,7 @@ class GroupTimelineSession {
       next,
     ) {
       if (!_active || _retired || _disposed || !next.hasValue) return;
-      if (previous?.hasValue == true &&
+      if ((previous?.hasValue ?? false) &&
           previous?.valueOrNull != next.valueOrNull) {
         onConfigurationChanged();
       }

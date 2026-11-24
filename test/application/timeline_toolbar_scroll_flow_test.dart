@@ -21,7 +21,7 @@ void main() {
           backend.posts
             ..clear()
             ..addAll(testPostRange(1, 120));
-          final settings = Settings.defaultSettings;
+          const settings = Settings.defaultSettings;
           final harness = await HeadlessAppHarness.mount(
             tester,
             runtime: backend.createRuntime(

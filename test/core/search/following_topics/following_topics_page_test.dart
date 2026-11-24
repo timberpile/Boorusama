@@ -757,7 +757,7 @@ void main() {
     (tester) async {
       initialize();
       await harness.seed([
-        topicFixture(id: 'a', name: 'Alpha', position: 0),
+        topicFixture(id: 'a', name: 'Alpha'),
         topicFixture(id: 'b', name: 'Beta', query: 'dog', position: 1),
         topicFixture(id: 'c', name: 'Gamma', query: 'bird', position: 2),
       ]);
@@ -1094,7 +1094,7 @@ void main() {
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
       await openPageMenu(tester);
-      expect((refreshAllItem(tester).onTap != null), isFalse);
+      expect(refreshAllItem(tester).onTap != null, isFalse);
     },
   );
 
@@ -2080,7 +2080,7 @@ void main() {
         '00000000-0000-4000-8000-00000000000c',
       ]);
       await openPageMenu(tester);
-      expect((refreshAllItem(tester).onTap != null), isFalse);
+      expect(refreshAllItem(tester).onTap != null, isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.container
@@ -2088,7 +2088,7 @@ void main() {
           .select(otherTestProfile);
       await pump(tester);
       await openPageMenu(tester);
-      expect((refreshAllItem(tester).onTap != null), isFalse);
+      expect(refreshAllItem(tester).onTap != null, isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.refreshGate!.complete();
@@ -2099,7 +2099,7 @@ void main() {
         '00000000-0000-4000-8000-000000000063',
       ]);
       await openPageMenu(tester);
-      expect((refreshAllItem(tester).onTap != null), isTrue);
+      expect(refreshAllItem(tester).onTap != null, isTrue);
       expect(
         (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
         isNotNull,

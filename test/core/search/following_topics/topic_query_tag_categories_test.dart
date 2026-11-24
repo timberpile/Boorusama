@@ -17,7 +17,9 @@ void main() {
       var remoteAccesses = 0;
       final container = ProviderContainer(
         overrides: [
-          booruTagTypeProvider.overrideWith((ref, key) async => null),
+          booruTagTypeProvider.overrideWith(
+            (ref, key) => Future.sync(() => null),
+          ),
           tagRepoProvider.overrideWith((ref, key) {
             remoteAccesses++;
             throw StateError('presentation must stay local');
@@ -43,7 +45,9 @@ void main() {
     store.categories[(auth.url, 'unknown')] = 'unknown';
     final container = ProviderContainer(
       overrides: [
-        booruTagTypeStoreProvider.overrideWith((ref) async => store),
+        booruTagTypeStoreProvider.overrideWith(
+          (ref) => Future.sync(() => store),
+        ),
         tagRepoProvider.overrideWith(
           (ref, _) => throw StateError('must not fetch'),
         ),
@@ -91,10 +95,12 @@ void main() {
       var remoteAccesses = 0;
       final container = ProviderContainer(
         overrides: [
-          booruTagTypeProvider.overrideWith((ref, key) async {
-            if (key.$2 == 'cached') return 'artist';
-            throw StateError('cache unavailable');
-          }),
+          booruTagTypeProvider.overrideWith(
+            (ref, key) => Future.sync(() {
+              if (key.$2 == 'cached') return 'artist';
+              throw StateError('cache unavailable');
+            }),
+          ),
           tagRepoProvider.overrideWith((ref, _) {
             remoteAccesses++;
             throw StateError('must not fetch');
@@ -123,7 +129,9 @@ void main() {
     final store = _Store();
     final container = ProviderContainer(
       overrides: [
-        booruTagTypeStoreProvider.overrideWith((ref) async => store),
+        booruTagTypeStoreProvider.overrideWith(
+          (ref) => Future.sync(() => store),
+        ),
         booruTagTypeProvider.overrideWith(
           (ref, key) =>
               key.$1 == auth ? pending.future : Future.value('character'),
@@ -149,7 +157,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
-          booruTagTypeProvider.overrideWith((ref, _) async => ''),
+          booruTagTypeProvider.overrideWith((ref, _) => Future.sync(() => '')),
         ],
       );
       addTearDown(container.dispose);

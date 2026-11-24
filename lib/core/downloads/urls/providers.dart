@@ -79,8 +79,9 @@ final class UrlInsidePostExtractor implements DownloadFileUrlExtractor {
     required String quality,
   }) async {
     if (post.requiresDetailLookup && quality != 'preview') return null;
-    if (post.isRealbooru && quality == 'original' && !post.hasOriginalMedia)
+    if (post.isRealbooru && quality == 'original' && !post.hasOriginalMedia) {
       return null;
+    }
     final videoQualities = {
       if (post.videoUrl == post.originalImageUrl) 'original',
       if (post.videoUrl == post.sampleImageUrl) 'sample',

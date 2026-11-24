@@ -45,8 +45,9 @@ bool bookmarkViewContentsChanged(
     if (!const IterableEquality<CollectionBookmark>().equals(
       visible(before),
       visible(after),
-    ))
+    )) {
       return true;
+    }
   }
   if (view.kind == BookmarkViewKind.all) {
     if (!identical(before.items, after.items)) return true;
@@ -71,13 +72,15 @@ bool bookmarkViewContentsChanged(
       before.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
   final nextMembers =
       after.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
-  if (!const SetEquality<int>().equals(previousMembers, nextMembers))
+  if (!const SetEquality<int>().equals(previousMembers, nextMembers)) {
     return true;
+  }
   if (!const MapEquality<int, DateTime>().equals(
     before.groupsById[view.groupId]?.addedAt,
     after.groupsById[view.groupId]?.addedAt,
-  ))
+  )) {
     return true;
+  }
   if (identical(before.items, after.items)) return false;
   return nextMembers.any(
     (id) => !identical(before.bookmarksById[id], after.bookmarksById[id]),

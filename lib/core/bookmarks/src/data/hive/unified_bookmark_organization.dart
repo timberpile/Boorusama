@@ -118,8 +118,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     if (groups.isEmpty &&
         removeGroups.isEmpty &&
         folders == null &&
-        !detachDeleted)
+        !detachDeleted) {
       return null;
+    }
     final (groupBox, folderBox) = await _organizationBoxes();
     final updates = <String, Map<String, Object?>>{};
     final previous = <String, Object?>{};
@@ -150,8 +151,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       for (final row in groupBox.values) {
         if (updates.containsKey(row.id) ||
             removeGroups.contains(row.id) ||
-            !row.bookmarkIds.any(removedRecordIds.contains))
+            !row.bookmarkIds.any(removedRecordIds.contains)) {
           continue;
+        }
         final wire = _groupWire(row);
         wire['bookmarkIds'] = [
           for (final id in row.bookmarkIds)

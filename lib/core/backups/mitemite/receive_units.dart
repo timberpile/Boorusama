@@ -55,8 +55,9 @@ List<Set<String>> syncReceiveUnits({
   void add(String id) {
     parent.putIfAbsent(id, () => id);
     sizes.putIfAbsent(id, () => 1);
-    if (parent.length > miteMiteMaxEntries * 3)
+    if (parent.length > miteMiteMaxEntries * 3) {
       throw const FormatException('Receive units exceed bounds');
+    }
   }
 
   String find(String id) {
@@ -86,13 +87,12 @@ List<Set<String>> syncReceiveUnits({
     sizes[left] = sizes[left]! + sizes[right]!;
   }
 
-  for (final id in {...roots, ...old.keys, ...scope.covered}) {
-    add(id);
-  }
+  ({...roots, ...old.keys, ...scope.covered}).forEach(add);
   for (final id in checkpoints) {
     if (entries[id] != null &&
-        entries[id]!.state != SyncPublicationState.active)
+        entries[id]!.state != SyncPublicationState.active) {
       add(id);
+    }
   }
   for (final node in old.values) {
     if (old.containsKey(node.parent)) join(node.source, node.parent!);

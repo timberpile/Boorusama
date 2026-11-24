@@ -73,7 +73,7 @@ class SearchRefreshService {
     final baseline = checkpoint == null;
     SearchScanResult scan;
     var delta = false;
-    List<Post> initialPosts = const [];
+    var initialPosts = const <Post>[];
     try {
       final plan = resolveQueryAdapter(config.auth).plan(
         topic.query,

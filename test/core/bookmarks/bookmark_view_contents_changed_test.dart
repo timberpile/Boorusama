@@ -28,9 +28,9 @@ void main() {
         BookmarkGroup(
           id: defaultBookmarkGroupId,
           name: 'Default',
-          bookmarkIds: {1},
+          bookmarkIds: const {1},
         ),
-        BookmarkGroup(id: otherId, name: 'Other', bookmarkIds: {2}),
+        BookmarkGroup(id: otherId, name: 'Other', bookmarkIds: const {2}),
       ],
     );
   });

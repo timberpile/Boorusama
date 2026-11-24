@@ -18,11 +18,12 @@ class BookmarkGroupRepositoryHive
         BookmarkHierarchyAliasRepository,
         PoolBookmarkRepository {
   BookmarkGroupRepositoryHive(
-    this._box, {
+    Box<BookmarkGroupHiveObject> box, {
     Uuid uuid = const Uuid(),
     Box<dynamic>? organizationBox,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now,
+  }) : _box = box,
+       _now = now ?? DateTime.now,
        _uuid = uuid,
        _organizationBox = organizationBox;
 
@@ -154,7 +155,7 @@ class BookmarkGroupRepositoryHive
       bookmarkIds: [],
       position: _box.values.fold(
         0,
-        (int n, g) => g.position >= n ? g.position + 1 : n,
+        (n, g) => g.position >= n ? g.position + 1 : n,
       ),
     );
     await _box.put(normalizedId, object);
@@ -195,11 +196,11 @@ class BookmarkGroupRepositoryHive
   }
 
   @override
-  Future<BookmarkGroup> renameGroup(String id, String name) async {
+  Future<BookmarkGroup> renameGroup(String id, String name) => Future.sync(() {
     final group = _requireGroup(id);
     if (group.isDefault) throw StateError('Default cannot be renamed.');
-    return await _write(group.copyWith(name: _normalizeName(name)));
-  }
+    return _write(group.copyWith(name: _normalizeName(name)));
+  });
 
   @override
   Future<BookmarkGroup> replaceMemberships(
@@ -354,8 +355,7 @@ class BookmarkGroupRepositoryHive
       addedAt: {
         for (final entry in (object.addedAt ?? const {}).entries)
           if (entry.key is int)
-            if (_readMembershipDate(entry.value) case final date?)
-              entry.key as int: date,
+            entry.key as int: ?_readMembershipDate(entry.value),
       },
     );
   }

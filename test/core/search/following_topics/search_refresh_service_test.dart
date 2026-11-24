@@ -319,7 +319,7 @@ void main() {
           id: 'new-feed',
           profileId: config.id,
           name: 'New feed',
-          sourceIds: ['cat'],
+          sourceIds: const ['cat'],
         ),
       ]);
       posts = TestSearchPostRepository((query, page, limit) async {

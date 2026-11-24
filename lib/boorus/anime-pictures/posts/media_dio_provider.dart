@@ -28,11 +28,12 @@ final class AnimePicturesMediaCookieInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final cookie = cookieForUrl(options.uri.toString());
-    if (cookie != null)
+    if (cookie != null) {
       options.headers['cookie'] = CookieUtils.mergeCookieHeaders(
         options.headers['cookie']?.toString() ?? '',
         cookie,
       );
+    }
     handler.next(options);
   }
 }

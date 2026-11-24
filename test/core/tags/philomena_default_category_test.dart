@@ -19,6 +19,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 void main() {
   for (final brightness in Brightness.values) {
     for (final scenario in [
@@ -93,17 +95,20 @@ void main() {
                 customColorsProvider.overrideWithValue(null),
                 enableDynamicColoringProvider.overrideWithValue(false),
                 metatagExtractorProvider.overrideWith((ref, _) => null),
-                booruTagTypeProvider.overrideWith((ref, key) async {
-                  expect(key, (auth, 'pony'));
-                  lookups++;
-                  if (scenario == 'unavailable')
-                    throw StateError('local cache unavailable');
-                  return scenario == 'legacy' ? '' : null;
-                }),
+                booruTagTypeProvider.overrideWith(
+                  (ref, key) => Future.sync(() {
+                    expect(key, (auth, 'pony'));
+                    lookups++;
+                    if (scenario == 'unavailable') {
+                      throw StateError('local cache unavailable');
+                    }
+                    return scenario == 'legacy' ? '' : null;
+                  }),
+                ),
               ],
               child: MaterialApp(
                 theme: ThemeData(colorScheme: scheme),
-                builder: (context, child) => MaterialUiCompatibilityBridge(
+                builder: (context, child) => LegacyMaterialTestScope(
                   child: KurumiTheme(
                     data: KurumiThemeData.fromMaterial(Theme.of(context)),
                     child: child!,

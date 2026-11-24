@@ -183,10 +183,10 @@ void main() {
   }
   test('round trips feed-enabled folder metadata in followedTopic backups', () {
     const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    final data = FollowingTopicBackupData(
-      records: const [],
+    const data = FollowingTopicBackupData(
+      records: [],
       folders: [
-        const FollowingTopicFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: folderId,
           name: 'Artists',
           position: 0,

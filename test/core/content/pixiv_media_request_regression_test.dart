@@ -274,7 +274,7 @@ class _Fixture {
 
 class _CdnAdapter implements HttpClientAdapter {
   final requests = <RequestOptions>[];
-  bool requireReferer = true;
+  var requireReferer = true;
   String? redirect;
 
   @override

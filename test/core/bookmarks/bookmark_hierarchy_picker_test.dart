@@ -16,7 +16,6 @@ import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/widgets.dart' show ModalRoute, PredictiveBackRoute;
 import 'package:go_router/go_router.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -38,19 +37,19 @@ final _config = BooruConfig.defaultConfig(
 final _root = BookmarkGroup(
   id: _rootId,
   name: 'Root group',
-  bookmarkIds: {},
+  bookmarkIds: const {},
 );
 final _child = BookmarkGroup(
   id: _childId,
   name: 'Child group',
   parentGroupId: _rootId,
-  bookmarkIds: {},
+  bookmarkIds: const {},
 );
 final _leaf = BookmarkGroup(
   id: _leafId,
   name: 'Leaf group',
   parentGroupId: _childId,
-  bookmarkIds: {},
+  bookmarkIds: const {},
 );
 final _pool = testPool(id: 321, groups: {});
 
@@ -110,15 +109,12 @@ void main() {
           switch (back) {
             case 'system':
               await tester.binding.handlePopRoute();
-              break;
             case 'escape':
               await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-              break;
             case 'visible':
               await tester.tap(
                 find.byKey(const ValueKey('bookmark-picker-back')),
               );
-              break;
           }
           await tester.pumpAndSettle();
 
@@ -171,7 +167,7 @@ void main() {
         )!;
         expect(route, isA<PredictiveBackRoute>());
         final gesture = route as PredictiveBackRoute;
-        gesture.handleStartBackGesture(progress: 0);
+        gesture.handleStartBackGesture();
         gesture.handleUpdateBackGestureProgress(progress: 0.4);
         gesture.handleCancelBackGesture();
         await tester.pumpAndSettle();
@@ -261,7 +257,9 @@ Future<_Fixture> _mount(
   final container = ProviderContainer(
     overrides: [
       bookmarkProvider.overrideWith(() => library),
-      recentBookmarkGroupsProvider.overrideWith((ref) async => recentGroups),
+      recentBookmarkGroupsProvider.overrideWith(
+        (ref) => Future.sync(() => recentGroups),
+      ),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [_config]),
       ),
@@ -305,7 +303,7 @@ Future<_Fixture> _mount(
 }
 
 Future<void> _finish(WidgetTester tester) async {
-  dismissAllToast(showAnim: false);
+  dismissAllToast();
   await tester.pumpAndSettle();
   expect(tester.takeException(), isNull);
 }
@@ -327,7 +325,7 @@ final class _Library extends BookmarkLibraryNotifier {
 
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
-    bookmarks: [],
+    bookmarks: const [],
     records: const [],
     groups: [_root, _child, _leaf],
   );

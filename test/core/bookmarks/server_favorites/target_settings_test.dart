@@ -47,7 +47,7 @@ void main() {
     test(
       'sync highlighting defaults to ignored and preserves explicit choices',
       () {
-        final legacy = ServerFavoriteSettings.fromJson({
+        final legacy = ServerFavoriteSettings.fromJson(const {
           'version': 1,
           'globalGroupId': 'global',
           'profiles': <String, Object?>{},
@@ -78,7 +78,7 @@ void main() {
 
     test('invalid persisted opt-out never silently becomes inheritance', () {
       expect(
-        () => ServerFavoriteSettings.fromJson({
+        () => ServerFavoriteSettings.fromJson(const {
           'version': 1,
           'globalGroupId': 'global',
           'profiles': {
@@ -88,7 +88,7 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => ServerFavoriteSettings.fromJson({'version': 2}),
+        () => ServerFavoriteSettings.fromJson(const {'version': 2}),
         throwsFormatException,
       );
     });

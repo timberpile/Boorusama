@@ -31,9 +31,9 @@ class _SyncOfferVisitState extends ConsumerState<SyncOfferVisit>
   RouteObserver<ModalRoute<dynamic>>? _observer;
   ModalRoute<dynamic>? _route;
   Set<String>? _captured;
-  bool _scheduled = false;
-  bool _left = false;
-  bool _wasActive = true;
+  var _scheduled = false;
+  var _left = false;
+  var _wasActive = true;
   late Future<void> Function(Set<String>) _onLeave;
 
   @override
@@ -46,7 +46,7 @@ class _SyncOfferVisitState extends ConsumerState<SyncOfferVisit>
       _observer = ref.read(currentDestinationRouteObserverProvider);
       if (route != null) _observer!.subscribe(this, route);
     }
-    final active = DestinationScope.maybeOf(context)?.active != false;
+    final active = DestinationScope.maybeOf(context)?.active ?? true;
     if (!active) _leave();
     if (active && !_wasActive) _restart();
     _wasActive = active;
@@ -109,7 +109,7 @@ class _SyncOfferVisitState extends ConsumerState<SyncOfferVisit>
         widget.ready &&
         (_route?.isCurrent ?? true) &&
         NavigationActivity.of(context) &&
-        DestinationScope.maybeOf(context)?.active != false) {
+        (DestinationScope.maybeOf(context)?.active ?? true)) {
       _scheduled = true;
       final snapshot = Set<String>.unmodifiable(widget.keys);
       final callback = widget.onLeave;
@@ -121,8 +121,9 @@ class _SyncOfferVisitState extends ConsumerState<SyncOfferVisit>
             !NavigationActivity.of(context) ||
             WidgetsBinding.instance.lifecycleState != null &&
                 WidgetsBinding.instance.lifecycleState !=
-                    AppLifecycleState.resumed)
+                    AppLifecycleState.resumed) {
           return;
+        }
         _captured = snapshot;
         _onLeave = callback;
       });

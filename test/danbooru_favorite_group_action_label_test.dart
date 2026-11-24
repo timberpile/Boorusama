@@ -66,7 +66,6 @@ void main() {
       currentUser: UserSelf.placeholder().copyWith(
         level: UserLevel.contributor,
       ),
-      selectedCount: 1,
       width: 620,
       actionProfile: selectedProfile,
     );
@@ -108,7 +107,6 @@ void main() {
         isDevEnvironment: false,
         currentUser: UserSelf.placeholder(),
         width: 360,
-        selectedCount: 1,
         nativeSingleActions: true,
       );
       expect(find.text('Download').hitTestable(), findsOneWidget);
@@ -127,7 +125,6 @@ void main() {
         tester,
         isDevEnvironment: false,
         currentUser: UserSelf.placeholder(),
-        selectedCount: 1,
         width: 360,
       );
 
@@ -302,7 +299,6 @@ void main() {
           level: UserLevel.contributor,
         ),
         locale: 'fr-FR',
-        selectedCount: 1,
         navigator: navigator,
         width: 620,
       );

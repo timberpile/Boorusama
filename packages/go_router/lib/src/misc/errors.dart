@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../go_router.dart' show GoRouter;
+import '../router.dart' show GoRouter;
+
 /// Thrown when [GoRouter] is used incorrectly.
 class GoError extends Error {
   /// Constructs a [GoError]

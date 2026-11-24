@@ -41,8 +41,8 @@ void main() {
         id: _existing,
       );
       final organization = TopicOrganization(
-        folders: [],
-        homeSearchIds: [_existing],
+        folders: const [],
+        homeSearchIds: const [_existing],
       );
       await repository.replaceOrganization(organization);
       final service = FollowingTopicImportService(repository: repository);

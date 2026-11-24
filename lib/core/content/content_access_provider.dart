@@ -38,11 +38,12 @@ final contentEffectivePolicyProvider = Provider.autoDispose
       final profiles = ref
           .watch(booruConfigProvider)
           .where((config) => config.id == id);
-      if (profiles.length != 1)
+      if (profiles.length != 1) {
         return AsyncError(
           StateError('Content profile unavailable'),
           StackTrace.current,
         );
+      }
       return ref
           .watch(contentEffectiveBlacklistProvider(id))
           .whenData((tags) => poolCoverPolicy(profiles.single, tags));
@@ -238,7 +239,6 @@ final contentAccessForOriginProvider = Provider.autoDispose
         final resolution = const PostOriginResolver().resolve(
           origin,
           ref.watch(booruConfigProvider),
-          allowProfileHintFallback: true,
         );
         return switch (resolution) {
           ResolvedPostOrigin(:final config) => ref.watch(

@@ -75,8 +75,10 @@ void main() {
     );
     expect(ratios.toJson(), isEmpty);
     expect(
-      GroupCoverAspectRatios.fromJson({'thumbnail': 'invalid', 'original': 2})
-          .original,
+      GroupCoverAspectRatios.fromJson(const {
+        'thumbnail': 'invalid',
+        'original': 2,
+      }).original,
       2,
     );
   });
@@ -165,7 +167,7 @@ void main() {
     () {
       final selected = PoolBookmarkCover.fromJson({
         ...cover.toJson(),
-        'variants': {'180x180': 'https://fixture.test/180.jpg'},
+        'variants': const {'180x180': 'https://fixture.test/180.jpg'},
       });
       final result = const DanbooruGridThumbnailUrlGenerator()
           .resolveStaticCover(

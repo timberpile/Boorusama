@@ -36,8 +36,9 @@ final class SyncOwnedRetention {
   final Future<void> Function(Future<void> Function())? withDeletion;
 
   Future<SyncRetentionResult> prune(SyncCatalog current) async {
-    if (maxDeletes < 1 || maxCatalogChecks < 1)
+    if (maxDeletes < 1 || maxCatalogChecks < 1) {
       throw ArgumentError('Positive retention budgets required');
+    }
     ensureCurrent?.call();
     if (current.publisher != identity.id) throw const SyncConflict();
     final intentKey = 'mitemite.v1.outgoing.${identity.id}.catalog_intent';
@@ -46,8 +47,9 @@ final class SyncOwnedRetention {
         canonicalSyncJson(
               (jsonDecode(intent) as Map<String, dynamic>)['catalog'],
             ) !=
-            canonicalSyncJson(current.toJson()))
+            canonicalSyncJson(current.toJson())) {
       throw const SyncConflict();
+    }
     final catalogCounterKey = 'mitemite.v1.outgoing.${identity.id}.catalog';
     final catalogCounter = preferences.get(catalogCounterKey);
     final catalogHighWater = catalogCounter == null
@@ -55,8 +57,9 @@ final class SyncOwnedRetention {
         : jsonDecode(catalogCounter);
     if (catalogHighWater is! int ||
         catalogHighWater < current.sequence ||
-        catalogHighWater > miteMiteMaxSequence)
+        catalogHighWater > miteMiteMaxSequence) {
       throw const SyncConflict();
+    }
     final captured = <String, String?>{
       intentKey: intent,
       catalogCounterKey: catalogCounter,
@@ -65,8 +68,9 @@ final class SyncOwnedRetention {
       ensureCurrent?.call();
       if (captured.entries.any(
         (entry) => preferences.get(entry.key) != entry.value,
-      ))
+      )) {
         throw const SyncConflict();
+      }
     }
 
     final prefix = 'devices/${identity.id}';
@@ -75,8 +79,9 @@ final class SyncOwnedRetention {
         if (RegExp(r'^[1-9][0-9]{0,15}\.json$').hasMatch(name))
           int.parse(name.split('.').first),
     ]..sort((a, b) => b.compareTo(a));
-    if (numbers.isEmpty || numbers.first != current.sequence)
+    if (numbers.isEmpty || numbers.first != current.sequence) {
       throw const SyncConflict();
+    }
     final kept = <int, SyncCatalog>{};
     final invalid = <int>[];
     final verified = <String>{};
@@ -97,8 +102,9 @@ final class SyncOwnedRetention {
             catalog.sequence != number ||
             (number == current.sequence &&
                 canonicalSyncJson(catalog.toJson()) !=
-                    canonicalSyncJson(current.toJson())))
+                    canonicalSyncJson(current.toJson()))) {
           throw const SyncConflict();
+        }
         for (final entry in catalog.entries) {
           if (entry.state != SyncPublicationState.active) continue;
           final revision = entry.revision!;
@@ -106,8 +112,9 @@ final class SyncOwnedRetention {
           if (verified.contains(key)) continue;
           if (await SyncRevisionTransport(storage)
                   .read(expected: revision, publisherKey: identity.publicKey) ==
-              null)
+              null) {
             throw const SyncRevisionUnavailable();
+          }
           verified.add(key);
         }
         kept[number] = catalog;
@@ -126,8 +133,9 @@ final class SyncOwnedRetention {
     var deleted = 0;
     Future<void> delete(String path) async {
       checkCurrent();
-      if (!isOwnedSyncRevisionPath(path, identity.id))
+      if (!isOwnedSyncRevisionPath(path, identity.id)) {
         throw const SyncConflict();
+      }
       await storage.deleteOwnedRevision(path, owner: identity.id);
       deleted++;
     }
@@ -138,8 +146,9 @@ final class SyncOwnedRetention {
     for (final number in obsolete.take(maxDeletes)) {
       await remove('$prefix/catalog/$number.json');
     }
-    if (incompleteScan || obsolete.length > deleted || deleted == maxDeletes)
+    if (incompleteScan || obsolete.length > deleted || deleted == maxDeletes) {
       return SyncRetentionResult(deleted, hasMore: true);
+    }
 
     final protected = <String>{
       for (final catalog in kept.values)
@@ -168,14 +177,16 @@ final class SyncOwnedRetention {
         final counterKey =
             'mitemite.v1.outgoing.${identity.id}.${collection.key}';
         final counter = preferences.get(counterKey);
-        if (counter == null)
+        if (counter == null) {
           continue; // Never infer local ownership from files alone.
+        }
         captured[counterKey] = counter;
         final highWater = jsonDecode(counter);
         if (highWater is! int ||
             highWater < 1 ||
-            highWater > miteMiteMaxSequence)
+            highWater > miteMiteMaxSequence) {
           throw const FormatException('Invalid retention reservation');
+        }
         final cacheKey = 'mitemite.v1.outgoing.${collection.key}.published';
         final cache = preferences.get(cacheKey);
         captured[cacheKey] = cache;
@@ -184,8 +195,9 @@ final class SyncOwnedRetention {
             jsonDecode(cache) as Map<String, dynamic>,
           );
           if (revision.collection != collection ||
-              revision.revision > highWater)
+              revision.revision > highWater) {
             throw const SyncConflict();
+          }
           protected.addAll([revision.payloadPath, revision.descriptorPath]);
         }
         final path = '$prefix/collections/$kind/$source';
@@ -208,8 +220,9 @@ final class SyncOwnedRetention {
               });
         for (final file in files) {
           if (int.parse(file.split('.').first) >= highWater - 1 ||
-              protected.contains('$path/$file'))
+              protected.contains('$path/$file')) {
             continue;
+          }
           candidates.add('$path/$file');
           if (candidates.length > remaining) break;
         }

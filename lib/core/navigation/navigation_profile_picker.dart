@@ -44,14 +44,16 @@ class NavigationProfilePicker extends ConsumerWidget {
           ],
           onSelected: (profileId) {
             if (!context.mounted ||
-                ref.read(navigationChromeProvider).selectionActive)
+                ref.read(navigationChromeProvider).selectionActive) {
               return;
+            }
             final controller = ref.read(navigationControllerProvider.notifier);
             if (controller.binding?.currentDestination != id ||
                 !ref
                     .read(navigationProfilesProvider)
-                    .any((p) => p.id == profileId))
+                    .any((p) => p.id == profileId)) {
               return;
+            }
             final liveEligible = ref
                 .read(navigationCatalogProvider)
                 .eligibleFavoritesProfileIds;

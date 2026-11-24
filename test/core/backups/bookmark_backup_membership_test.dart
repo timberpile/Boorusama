@@ -31,7 +31,7 @@ void main() {
     localId: poolProfile,
     createdAt: DateTime.utc(2027),
     observedAt: DateTime.utc(2027),
-    groupIds: {poolGroupA, poolGroupB},
+    groupIds: const {poolGroupA, poolGroupB},
     addedAt: {poolGroupA: early, poolGroupB: DateTime.utc(2024)},
   );
   final data = BookmarkBackupData(
@@ -170,7 +170,7 @@ void main() {
           ],
         };
         final decoded = read(json);
-        final plan = BookmarkImportPlanner().plan(
+        final plan = const BookmarkImportPlanner().plan(
           data: decoded,
           currentBookmarks: [],
           currentGroups: [],

@@ -130,7 +130,7 @@ void main() {
             await harness.settle(tester);
             expect(undone, 1);
           }
-          dismissAllToast(showAnim: false);
+          dismissAllToast();
           await tester.pump();
         }
         await tester.pump(const Duration(seconds: 5));

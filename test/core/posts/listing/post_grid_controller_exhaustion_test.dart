@@ -24,7 +24,7 @@ void main() {
             requested.add(page);
             return PostResult<Post>(
               posts: [
-                TestPost(id: page, tags: {'blocked'}),
+                TestPost(id: page, tags: const {'blocked'}),
               ],
               total: 6,
               maxPage: 6,
@@ -69,8 +69,8 @@ void main() {
     final controller = _controller(
       (_) async => PostResult<Post>(
         posts: [
-          TestPost(id: 1, tags: {'disabled'}),
-          TestPost(id: 2, tags: {'new-rule'}),
+          TestPost(id: 1, tags: const {'disabled'}),
+          TestPost(id: 2, tags: const {'new-rule'}),
         ],
         total: 2,
       ),
@@ -143,7 +143,7 @@ void main() {
     final controller = _controller(
       (page) async => PostResult<Post>(
         posts: [
-          TestPost(id: page, tags: {'blocked'}),
+          TestPost(id: page, tags: const {'blocked'}),
         ],
         total: 2,
         hasMore: page < 2,

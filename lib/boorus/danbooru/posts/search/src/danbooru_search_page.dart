@@ -61,7 +61,7 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
             .run();
         if (!isExplicitSeriesSearch(query) && capability != null) {
           await result.fold(
-            (_) async {},
+            (_) => Future.sync(() {}),
             (posts) => _series.loadPage(config, posts.posts, capability),
           );
         }

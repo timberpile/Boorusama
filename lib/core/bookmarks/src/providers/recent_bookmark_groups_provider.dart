@@ -14,8 +14,7 @@ final recentBookmarkGroupsProvider =
         final ids = await repository.getRecentGroupIds();
         final groups = {for (final group in library.groups) group.id: group};
         return [
-          for (final id in ids)
-            if (groups[id] case final group?) group,
+          for (final id in ids) ?groups[id],
         ];
       },
       dependencies: [bookmarkProvider, bookmarkGroupRepoProvider],

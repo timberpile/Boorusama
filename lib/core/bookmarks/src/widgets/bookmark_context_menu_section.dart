@@ -21,7 +21,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
     final saved = library?.storedBookmarkForPost(post);
-    final request = library?.hasUnifiedRecords == true && saved != null
+    final request = (library?.hasUnifiedRecords ?? false) && saved != null
         ? SavedBookmarkPickerRequest(config: config, record: saved)
         : PostBookmarkPickerRequest(config: config, post: post);
     final container = ProviderScope.containerOf(context, listen: false);

@@ -65,7 +65,7 @@ class SimpleDownloadTile extends ConsumerWidget {
         final TaskProgressUpdate p =>
           p.hasTimeRemaining ? p.timeRemaining : null,
       },
-      onLongPress: SelectionMode.maybeOf(context)?.isActive == true
+      onLongPress: SelectionMode.maybeOf(context)?.isActive ?? false
           ? null
           : () {
               Kurumi.showModalBottomSheet(

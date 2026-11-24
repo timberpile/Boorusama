@@ -157,8 +157,9 @@ void main() {
       }
       for (final hiddenByScroll in [false, true]) {
         chrome.show();
-        if (hiddenByScroll)
+        if (hiddenByScroll) {
           chrome.userScroll(delta: 100, pixels: 100, outOfRange: false);
+        }
         await tester.pumpAndSettle();
         final bar = navigationPanel();
         final barState = width < 1000 ? tester.state(bar) : null;

@@ -205,8 +205,7 @@ class _HtmlTransport implements HttpClientAdapter {
     requests.add(options);
     return ResponseBody.fromString(
       '<html><body>${[
-        for (var id = 1; id <= 6; id++) '<span class="thumb"><a id="p$id" href="index.php?page=post&amp;s=view&amp;id=$id">'
-              '<img src="/thumbnails/ab/thumbnail_${id.toString().padLeft(32, '0')}.jpg" '
+        for (var id = 1; id <= 6; id++) '<span class="thumb"><a id="p$id" href="index.php?page=post&amp;s=view&amp;id=$id"> <img src="/thumbnails/ab/thumbnail_${id.toString().padLeft(32, '0')}.jpg" '
               'title="cat rating:safe score:1"></a></span>',
       ].join()}</body></html>',
       200,

@@ -142,10 +142,12 @@ Future<void> _verifyLoadedDetails({
         postRepositoryReads++;
         throw StateError('Loaded Pool drafts must not request member Posts');
       }),
-      blacklistTagsProvider.overrideWith((ref, filter) async {
-        blacklistReads++;
-        throw StateError('Loaded Pool drafts must not load blacklist tags');
-      }),
+      blacklistTagsProvider.overrideWith(
+        (ref, filter) => Future.sync(() {
+          blacklistReads++;
+          throw StateError('Loaded Pool drafts must not load blacklist tags');
+        }),
+      ),
       danbooruPoolRepoProvider.overrideWith((ref, auth) {
         danbooruMemberReads++;
         throw StateError('Loaded Pool drafts must not fetch Pool members');

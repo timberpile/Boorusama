@@ -87,8 +87,9 @@ final class ImportSourceIntegrityValidator {
           allowedIds.addAll(selected.map((id) => 'group:$id'));
           for (final id in selected) {
             for (final ancestor in tree.ancestors(id)) {
-              if (ancestor.bookmarkIds.isEmpty)
+              if (ancestor.bookmarkIds.isEmpty) {
                 allowedIds.add('group:${ancestor.id}');
+              }
             }
           }
         }

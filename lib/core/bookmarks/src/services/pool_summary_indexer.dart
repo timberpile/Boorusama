@@ -29,10 +29,10 @@ final class PoolSummaryIndexer {
         unique.length == total;
     final dates = unique.values.map((p) => p.createdAt).nonNulls.toList()
       ..sort();
-    DateTime? oldest = complete && dates.length == unique.length
+    var oldest = complete && dates.length == unique.length
         ? dates.firstOrNull
         : null;
-    DateTime? newest = complete && dates.length == unique.length
+    var newest = complete && dates.length == unique.length
         ? dates.lastOrNull
         : null;
     if (!complete && supportsUploadOrder) {

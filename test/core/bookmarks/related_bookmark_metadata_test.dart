@@ -28,7 +28,7 @@ class _Library extends BookmarkLibraryNotifier {
   final List<CollectionBookmark> saved;
   @override
   Future<BookmarkLibraryState> build() async =>
-      BookmarkLibraryState(bookmarks: [], groups: [], pools: saved);
+      BookmarkLibraryState(bookmarks: const [], groups: const [], pools: saved);
 }
 
 void main() {
@@ -49,8 +49,8 @@ void main() {
     localId: testPool().localId,
     createdAt: DateTime.utc(2025),
     observedAt: DateTime.utc(2025),
-    groupIds: {poolGroupA},
-    tags: {'last_known'},
+    groupIds: const {poolGroupA},
+    tags: const {'last_known'},
   );
 
   Future<CollectionBookmark> draft({
@@ -95,7 +95,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         bookmarkProvider.overrideWith(() => _Library(saved)),
-        blacklistTagsProvider.overrideWith((ref, filter) async => blacklist),
+        blacklistTagsProvider.overrideWith(
+          (ref, filter) => Future.sync(() => blacklist),
+        ),
         originAwarePostRepoProvider.overrideWith(
           (ref, config) => OriginAwarePostRepository(
             delegate: ref.watch(danbooruPostRepoProvider(config.search)),
@@ -173,10 +175,11 @@ void main() {
             counts.publish(counts.begin(metadata), 17);
           },
           onRequest: () {
-            if (revoke)
+            if (revoke) {
               (owner.read(
                 contentProfileAccessProvider(config.id).notifier,
               ) as _Access).revoke();
+            }
           },
           after: (container) {
             expect(
@@ -214,7 +217,9 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             bookmarkProvider.overrideWith(() => _Library([])),
-            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            blacklistTagsProvider.overrideWith(
+              (ref, filter) => Future.sync(() => {}),
+            ),
             originAwarePostRepoProvider.overrideWith((ref, config) {
               requests++;
               throw StateError('Save must not fetch');
@@ -309,7 +314,7 @@ void main() {
       rows: [
         row(10, tags: 'blocked'),
         row(11, parent: 10, tags: 'secret', rating: 'e'),
-        row(12, parent: 10, tags: 'visible', ext: 'gif'),
+        row(12, parent: 10, ext: 'gif'),
       ],
       count: 3,
       blacklist: {'blocked'},

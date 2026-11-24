@@ -34,7 +34,7 @@ Widget timeline(
     child: ListenableBuilder(
       listenable: Listenable.merge([
         fixture.active,
-        if (generation != null) generation,
+        ?generation,
       ]),
       builder: (context, _) => NavigationActivity(
         active: fixture.active.value && NavigationActivity.of(context),
@@ -48,7 +48,7 @@ Widget timeline(
             fetchPage: (_) async => NativeContentPage(
               entries: [
                 GroupContentEntry(
-                  summary: bookmarkData(fixture.access, id: 120).summary,
+                  summary: bookmarkData(fixture.access).summary,
                 ),
                 GroupContentEntry(
                   summary: bookmarkData(fixture.access, id: 220).summary,
@@ -197,9 +197,9 @@ void main() {
         find.byKey(ValueKey(('bookmark-picker-group', fixture.destinationId))),
       );
       await tester.pumpAndSettle();
-      expect((await tester.runAsync(fixture.repository.readAll))!, isEmpty);
+      expect(await tester.runAsync(fixture.repository.readAll), isEmpty);
       expect(
-        (await tester.runAsync(fixture.groups.getGroups))!,
+        await tester.runAsync(fixture.groups.getGroups),
         hasLength(2),
         reason: 'Only No Group and the existing destination remain',
       );

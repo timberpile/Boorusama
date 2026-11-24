@@ -12,13 +12,13 @@ void main() {
   test('ShellRoute observers test', () {
     final shell = ShellRoute(
       observers: <NavigatorObserver>[HeroController()],
-      builder: (BuildContext context, GoRouterState state, Widget child) {
+      builder: (context, state, child) {
         return SafeArea(child: child);
       },
       routes: <RouteBase>[
         GoRoute(
           path: '/home',
-          builder: (BuildContext context, GoRouterState state) {
+          builder: (context, state) {
             return Container();
           },
         ),
@@ -29,7 +29,7 @@ void main() {
   });
 
   testWidgets('GoRouter observers should be notified when navigating within ShellRoute', (
-    WidgetTester tester,
+    tester,
   ) async {
     final observer = MockObserver();
 
@@ -38,11 +38,11 @@ void main() {
       <RouteBase>[
         GoRoute(path: '/', builder: (_, _) => const Text('Home')),
         ShellRoute(
-          builder: (_, _, Widget child) => child,
+          builder: (_, _, child) => child,
           routes: <RouteBase>[GoRoute(path: '/test1', builder: (_, _) => const Text('Test1'))],
         ),
         StatefulShellRoute.indexedStack(
-          builder: (_, _, Widget child) => child,
+          builder: (_, _, child) => child,
           branches: <StatefulShellBranch>[
             StatefulShellBranch(
               routes: <RouteBase>[GoRoute(path: '/test2', builder: (_, _) => const Text('Test2'))],
@@ -67,11 +67,11 @@ void main() {
 }
 
 class MockObserver extends NavigatorObserver {
-  final Map<String, int> _callCounts = <String, int>{};
+  final _callCounts = <String, int>{};
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    final String? routeName = route.settings.name;
+    final routeName = route.settings.name;
     if (routeName != null) {
       test(routeName);
     }

@@ -155,12 +155,12 @@ void main() {
               BookmarkGroup(
                 id: _grandchildId,
                 name: 'Unrelated publisher',
-                bookmarkIds: {103},
+                bookmarkIds: const {103},
               ),
               BookmarkGroup(
                 id: defaultBookmarkGroupId,
                 name: 'Local',
-                bookmarkIds: {104},
+                bookmarkIds: const {104},
               ),
             ],
             mirrors: BookmarkMirrorState(
@@ -933,7 +933,7 @@ BookmarkLibraryState _libraryState(
   bool addLiveChild = false,
   bool dense = false,
 }) {
-  final denseTags = const {
+  const denseTags = {
     'hierarchy_scroll_alpha',
     'hierarchy_scroll_beta',
     'hierarchy_scroll_gamma',
@@ -956,21 +956,18 @@ BookmarkLibraryState _libraryState(
       id: _rootId,
       name: 'Root',
       bookmarkIds: rootBookmarkIds,
-      position: 0,
     ),
     BookmarkGroup(
       id: _childId,
       name: 'Child',
       bookmarkIds: const {102},
       parentGroupId: _rootId,
-      position: 0,
     ),
     BookmarkGroup(
       id: _grandchildId,
       name: 'Grandchild',
       bookmarkIds: const {103},
       parentGroupId: _childId,
-      position: 0,
     ),
     BookmarkGroup(
       id: _emptyChildId,

@@ -68,7 +68,8 @@ void main() {
 
   test('membership timestamp updates are visible while merges preserve local dates', () {
     final bookmark = _bookmark(localId: 1, postId: 101);
-    final before = DateTime.utc(2020), incoming = DateTime.utc(2022);
+    final before = DateTime.utc(2020);
+    final incoming = DateTime.utc(2022);
     for (final action in [ImportAction.update, ImportAction.merge]) {
       final result = projector.bookmarks(
         local: BookmarkImportLocalSnapshot(
@@ -77,7 +78,7 @@ void main() {
             BookmarkGroup(
               id: '550e8400-e29b-41d4-a716-446655440001',
               name: 'A',
-              bookmarkIds: {1},
+              bookmarkIds: const {1},
               addedAt: {1: before},
             ),
           ],
@@ -88,7 +89,7 @@ void main() {
             BookmarkGroupBackup(
               id: '550e8400-e29b-41d4-a716-446655440001',
               name: 'A',
-              bookmarkIds: [1],
+              bookmarkIds: const [1],
               addedAt: {1: incoming},
             ),
           ],
@@ -191,9 +192,9 @@ void main() {
   test(
     'replace preview counts group additions removals and true renames with memberships',
     () {
-      final a = _bookmark(localId: 1, postId: 101),
-          b = _bookmark(localId: 2, postId: 102),
-          c = _bookmark(localId: 3, postId: 103);
+      final a = _bookmark(localId: 1, postId: 101);
+      final b = _bookmark(localId: 2, postId: 102);
+      final c = _bookmark(localId: 3, postId: 103);
       final rows = projector
           .bookmarks(
             local: BookmarkImportLocalSnapshot(
@@ -247,8 +248,8 @@ void main() {
   test(
     'shared memberships and ungrouped metadata remain compact without record duplication',
     () {
-      final a = _bookmark(localId: 1, postId: 101),
-          b = _bookmark(localId: 2, postId: 102);
+      final a = _bookmark(localId: 1, postId: 101);
+      final b = _bookmark(localId: 2, postId: 102);
       final updated = b.copyWith(metadata: {'search': 'updated'});
       final rows = projector
           .bookmarks(
@@ -354,7 +355,7 @@ void main() {
     () {
       final old = BooruConfig.fromJson({
         ..._profile(id: 1, apiKey: 'old-secret').toJson(),
-        'blacklistedTags': {
+        'blacklistedTags': const {
           'combinationMode': 'merge',
           'enable': true,
           'blacklistedTags': 'old\nkeep',
@@ -362,7 +363,7 @@ void main() {
       });
       final next = BooruConfig.fromJson({
         ..._profile(id: 1, apiKey: 'new-secret').toJson(),
-        'blacklistedTags': {
+        'blacklistedTags': const {
           'combinationMode': 'merge',
           'enable': true,
           'blacklistedTags': 'new\nkeep',
@@ -388,7 +389,7 @@ void main() {
         containsAll([ImportChangeKind.added, ImportChangeKind.removed]),
       );
       expect(
-        row.details.map((d) => d.before + ' ' + d.after).join(),
+        row.details.map((d) => '${d.before} ${d.after}').join(),
         isNot(contains('secret')),
       );
     },
@@ -723,12 +724,11 @@ void main() {
       expect(
         projector.bookmarks(
           local: BookmarkImportLocalSnapshot(
-            bookmarks: const [],
             groups: const [],
           ),
           incoming: BookmarkBackupData(
-            bookmarks: [],
-            groups: [
+            bookmarks: const [],
+            groups: const [
               BookmarkGroupBackup(
                 id: '550e8400-e29b-41d4-a716-446655440006',
                 name: 'AnimeBoxes',
@@ -759,7 +759,7 @@ void main() {
         _bookmark(localId: index, postId: 100 + index),
     ];
     final summary = projector.bookmarks(
-      local: BookmarkImportLocalSnapshot(bookmarks: const [], groups: const []),
+      local: BookmarkImportLocalSnapshot(groups: const []),
       incoming: BookmarkBackupData(
         bookmarks: bookmarks,
         groups: [
@@ -838,7 +838,6 @@ void main() {
                 searchIds: const ['local-cat'],
               ),
             ],
-            homeSearchIds: const [],
           ),
           feeds: const [],
         ),
@@ -878,7 +877,6 @@ void main() {
         searches: const [],
         organization: TopicOrganization(
           folders: const [],
-          homeSearchIds: const [],
         ),
         feeds: const [],
       ),
@@ -1118,7 +1116,6 @@ void main() {
         searches: const [],
         organization: TopicOrganization(
           folders: const [],
-          homeSearchIds: const [],
         ),
         feeds: const [],
       ),
@@ -1164,7 +1161,6 @@ void main() {
                   searchIds: const ['cat'],
                 ),
               ],
-              homeSearchIds: const [],
             ),
             feeds: const [],
           ),
@@ -1218,10 +1214,10 @@ void main() {
     final summary = projector.followingTopics(
       local: FollowingTopicImportLocalSnapshot(
         searches: [_search(id: 'orphan', query: 'cat')],
-        organization: TopicOrganization(folders: [], homeSearchIds: []),
+        organization: TopicOrganization(folders: const []),
         feeds: [],
       ),
-      incoming: const FollowingTopicBackupData(records: [], folders: []),
+      incoming: const FollowingTopicBackupData(records: []),
       profileMappings: {},
       resolution: _source('pinned_searches', ImportAction.replace),
     )!;
@@ -1248,10 +1244,9 @@ void main() {
               TopicFolder(
                 id: 'folder',
                 name: 'Cats',
-                searchIds: ['old'],
+                searchIds: const ['old'],
               ),
             ],
-            homeSearchIds: [],
           ),
           feeds: [],
         ),
@@ -1312,10 +1307,9 @@ void main() {
               TopicFolder(
                 id: 'folder',
                 name: 'Animals',
-                searchIds: ['cat', 'dog'],
+                searchIds: const ['cat', 'dog'],
               ),
             ],
-            homeSearchIds: [],
           ),
           feeds: [],
         ),
@@ -1393,7 +1387,6 @@ void main() {
         searches: const [],
         organization: TopicOrganization(
           folders: const [],
-          homeSearchIds: const [],
         ),
         feeds: const [],
       ),
@@ -1531,14 +1524,14 @@ void main() {
             id: 'one',
             name: 'One entry',
             position: 0,
-            queries: ['cat'],
+            queries: const ['cat'],
             profile: _profileReference,
           ),
           TopicFeedBackupRecord(
             id: 'two',
             name: 'Two entries',
             position: 1,
-            queries: ['cat', 'dog'],
+            queries: const ['cat', 'dog'],
             profile: _profileReference,
           ),
         ],

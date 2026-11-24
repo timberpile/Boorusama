@@ -155,7 +155,8 @@ final class ImportChangePreviewRow extends Equatable {
 
 /// Compare raw values before redacting, so different secrets remain visible as a change.
 List<ImportChangeDetail> importFieldChanges(Object? before, Object? after) {
-  final old = _flatten(before), next = _flatten(after);
+  final old = _flatten(before);
+  final next = _flatten(after);
   return [
     for (final key in {...old.keys, ...next.keys})
       if (!const DeepCollectionEquality().equals(old[key], next[key]) ||
@@ -194,14 +195,14 @@ Map<String, Object?> _flatten(Object? value, [String prefix = '']) {
 }
 
 final _secretKey = RegExp(
-  r'api.?key|access.?key|pass|pwd|secret|token|cookie|auth|signature|credential|login|username|header',
+  'api.?key|access.?key|pass|pwd|secret|token|cookie|auth|signature|credential|login|username|header',
   caseSensitive: false,
 );
 String safeImportDisplayValue(String key, Object? value) {
   if (_secretKey.hasMatch(key)) return value == null ? '∅' : '••••••';
   if (value == null) return '∅';
   if (value is Map || value is List) return jsonEncode(_redact(value, key));
-  var text = value is String ? value : jsonEncode(value);
+  final text = value is String ? value : jsonEncode(value);
   // Serialized nested configuration and arbitrary header values must not expose secrets.
   if (text.startsWith('{') || text.startsWith('[')) {
     try {
@@ -210,7 +211,7 @@ String safeImportDisplayValue(String key, Object? value) {
       return '••••••';
     }
   }
-  text = text.replaceAllMapped(
+  return text.replaceAllMapped(
     RegExp(r'[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>]+'),
     (match) {
       final uri = Uri.tryParse(match[0]!);
@@ -229,17 +230,17 @@ String safeImportDisplayValue(String key, Object? value) {
           .toString();
     },
   );
-  return text;
 }
 
 Object? _redact(Object? value, String key) {
   if (_secretKey.hasMatch(key)) return value == null ? null : '••••••';
   if (value == null || value is num || value is bool) return value;
-  if (value is Map)
+  if (value is Map) {
     return {
       for (final e in value.entries)
         e.key.toString(): _redact(e.value, e.key.toString()),
     };
+  }
   if (value is List) return value.map((v) => _redact(v, key)).toList();
   return safeImportDisplayValue(key, value);
 }

@@ -45,16 +45,20 @@ class ConfirmedFavoriteRepository<T extends Post>
   }
 
   Future<void> _apply(_PreparedProjection prepared) async {
-    try {
-      if (prepared.error case final error?) throw error;
-      await prepared.apply?.call();
-    } catch (error) {
-      // Feedback is a separate channel. Even a disposed UI/provider must not
-      // hide the already acknowledged result of the server request.
+    var failure = prepared.error;
+    if (failure == null) {
       try {
-        onProjectionError(error);
-      } catch (_) {}
+        await prepared.apply?.call();
+      } catch (error) {
+        failure = error;
+      }
     }
+    if (failure == null) return;
+    // Feedback is a separate channel. Even a disposed UI/provider must not
+    // hide the already acknowledged result of the server request.
+    try {
+      onProjectionError(failure);
+    } catch (_) {}
   }
 
   @override

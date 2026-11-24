@@ -1,6 +1,44 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
 
+import '../../../../../boorus/anime-pictures/posts/types.dart' show Post;
+
+import '../../../../../boorus/danbooru/posts/post/types.dart' show Post;
+
+import '../../../../../boorus/e621/posts/types.dart' show Post;
+
+import '../../../../../boorus/eshuushuu/posts/types.dart' show Post;
+
+import '../../../../../boorus/gelbooru/posts/types.dart' show Post;
+
+import '../../../../../boorus/gelbooru_v1/posts/types.dart' show Post;
+
+import '../../../../../boorus/gelbooru_v2/posts/types.dart' show Post;
+
+import '../../../../../boorus/hybooru/posts/types.dart' show Post;
+
+import '../../../../../boorus/hydrus/posts/types.dart' show Post;
+
+import '../../../../../boorus/moebooru/posts/types.dart' show Post;
+
+import '../../../../../boorus/nozomi/posts/types.dart' show Post;
+
+import '../../../../../boorus/philomena/posts/types.dart' show Post;
+
+import '../../../../../boorus/pixiv/posts/types.dart' show Post;
+
+import '../../../../../boorus/sankaku/posts/types.dart' show Post;
+
+import '../../../../../boorus/shimmie2/posts/types.dart' show Post;
+
+import '../../../../../boorus/szurubooru/posts/types.dart' show Post;
+
+import '../../../../../boorus/zerochan/posts/types.dart' show Post;
+
+import '../../types.dart' show Post;
+
+import 'post.dart' show Post;
+
 abstract interface class BooruPostData {
   String get typeKey;
   int get schemaVersion;

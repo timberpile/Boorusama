@@ -69,10 +69,12 @@ final class ExportSelectionNode extends Equatable {
           a.canHaveChildren != b.canHaveChildren ||
           a.directSelectionId != b.directSelectionId ||
           a.selectionValueId != b.selectionValueId ||
-          a.children.length != b.children.length)
+          a.children.length != b.children.length) {
         return false;
-      for (var i = 0; i < a.children.length; i++)
+      }
+      for (var i = 0; i < a.children.length; i++) {
         pending.add((a.children[i], b.children[i]));
+      }
     }
     return true;
   }

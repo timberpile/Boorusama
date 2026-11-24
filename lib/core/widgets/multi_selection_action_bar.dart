@@ -34,12 +34,15 @@ class MultiSelectionActionBar extends ConsumerWidget {
               )
               .length;
           // Size for all inline actions, reserving overflow within the five slots.
-          final slots = math.max(
+          final slots = math.max<double>(
             1,
             math.min(5, inline + (children.length > inline ? 1 : 0)),
           );
           final width = constraints.hasBoundedWidth
-              ? math.min(86.0, math.max(1.0, constraints.maxWidth / slots - 4))
+              ? math.min<double>(
+                  86,
+                  math.max<double>(1, constraints.maxWidth / slots - 4),
+                )
               : 86.0;
           return AdaptiveButtonRow.menu(
             maxVisibleButtons: 5,

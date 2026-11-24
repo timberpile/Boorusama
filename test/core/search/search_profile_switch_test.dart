@@ -67,10 +67,12 @@ void main() {
             tester,
             ProviderScope(
               overrides: [
-                booruTagTypeProvider.overrideWith((ref, key) async {
-                  lookups.add(key);
-                  return key.$1 == next.auth ? destinationCategory : null;
-                }),
+                booruTagTypeProvider.overrideWith(
+                  (ref, key) => Future.sync(() {
+                    lookups.add(key);
+                    return key.$1 == next.auth ? destinationCategory : null;
+                  }),
+                ),
                 tagColorProvider.overrideWith(
                   (ref, key) => key.$2 == 'artist' ? Colors.red : Colors.green,
                 ),

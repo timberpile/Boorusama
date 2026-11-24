@@ -38,7 +38,6 @@ void main() {
           sourceKey: 'pool:42',
         ),
       ),
-      index: null,
     ),
     createdAt: DateTime.utc(2021),
     observedAt: DateTime.utc(2024),
@@ -94,7 +93,7 @@ void main() {
     final data = buildBookmarkBackupData(
       records: records,
       groups: groups,
-      scope: BookmarkExportScope.selected(groupIds: {child}),
+      scope: BookmarkExportScope.selected(groupIds: const {child}),
     );
 
     expect(data.records.map((record) => record.id), [2, 3]);
@@ -115,7 +114,7 @@ void main() {
       final data = buildBookmarkBackupData(
         records: records,
         groups: groups,
-        scope: BookmarkExportScope.selected(groupIds: {root}),
+        scope: BookmarkExportScope.selected(groupIds: const {root}),
       );
 
       expect(data.records.map((record) => record.id), [1, 2, 3]);
@@ -150,7 +149,7 @@ void main() {
         ],
         scope: BookmarkExportScope.selected(
           groupIds: const [],
-          folderIds: {collidingId},
+          folderIds: const {collidingId},
         ),
       );
 

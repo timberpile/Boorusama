@@ -82,7 +82,9 @@ void main() {
         );
       final container = ProviderContainer(
         overrides: [
-          danbooruCurrentUserProvider.overrideWith((ref, auth) async => null),
+          danbooruCurrentUserProvider.overrideWith(
+            (ref, auth) => Future.sync(() => null),
+          ),
           danbooruClientProvider.overrideWith(
             (ref, auth) => DanbooruClient(baseUrl: auth.url, dio: dio),
           ),

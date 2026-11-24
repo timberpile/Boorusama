@@ -15,7 +15,7 @@ final class SyncCollectionAliases {
   final MiscDataStore preferences;
   final _writes = DataMutationCoordinator();
   Map<SyncCollectionId, String>? _values;
-  bool _writeFailed = false;
+  var _writeFailed = false;
 
   Map<SyncCollectionId, String> get values => _values ??= _read();
 

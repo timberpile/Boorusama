@@ -93,11 +93,9 @@ void main() {
         await settle(tester);
         await drain(tester);
         expect(harness.requests, isEmpty);
-        unawaited(
-          navigation.navigatorKey.currentState!.push<void>(
-            MaterialPageRoute(
-              builder: (_) => const Scaffold(body: Text('Covered')),
-            ),
+        navigation.navigatorKey.currentState!.push<void>(
+          MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Text('Covered')),
           ),
         );
         await tester.pumpAndSettle();
@@ -136,7 +134,7 @@ void main() {
               id: 'feed',
               profileId: testProfile.id,
               name: 'Feed',
-              sourceIds: ['a'],
+              sourceIds: const ['a'],
             ),
           ],
         );

@@ -20,9 +20,9 @@ void main() {
   late SyncLocalEvents events;
   late _Store preferences;
   late DownloadNotifications native;
-  bool granted = true;
-  bool initialized = true;
-  bool channelBlocked = false;
+  var granted = true;
+  var initialized = true;
+  var channelBlocked = false;
   Object? launch;
   final active = <Map<String, dynamic>>[];
   var failSummary = false;
@@ -69,8 +69,9 @@ void main() {
                   notice['id'] == args['id'] && notice['tag'] == args['tag'],
             );
             if (args['id'] == 0x14400000 &&
-                !(summaryDismissed?.isCompleted ?? true))
+                !(summaryDismissed?.isCompleted ?? true)) {
               summaryDismissed!.complete();
+            }
           }
           if (call.method == 'show') {
             final args = call.arguments as Map;
@@ -448,7 +449,7 @@ void main() {
         events: events,
         enabled: true,
         current: () => current,
-        requestPermission: ({bool requestIfDenied = true}) => permission.future,
+        requestPermission: ({requestIfDenied = true}) => permission.future,
         show: show,
         acknowledge: events.acknowledgeDiscoveries,
       );

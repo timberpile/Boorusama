@@ -169,12 +169,14 @@ final class SyncSigningIdentity {
     'publicKey': base64Encode(publicKey),
   };
 
-  Future<Uint8List> sign(Map<String, Object?> content) async => Isolate.run(
-    _SignTask(
-      seed,
-      publicKey,
-      _canonical(content, 0) as Map<String, dynamic>,
-    ).run,
+  Future<Uint8List> sign(Map<String, Object?> content) => Future.sync(
+    () => Isolate.run(
+      _SignTask(
+        seed,
+        publicKey,
+        _canonical(content, 0)! as Map<String, dynamic>,
+      ).run,
+    ),
   );
 }
 
@@ -196,16 +198,17 @@ final class SyncInvalidSignature extends FormatException {
 Future<Map<String, dynamic>> verifySyncSignature(
   List<int> bytes,
   List<int> publicKey,
-) async {
-  if (bytes.length > miteMiteMaxMetadataBytes)
+) => Future.sync(() {
+  if (bytes.length > miteMiteMaxMetadataBytes) {
     throw const FormatException('Sync metadata exceeds byte limit');
+  }
   return Isolate.run(
     _VerifyTask(
       TransferableTypedData.fromList([Uint8List.fromList(bytes)]),
       List<int>.of(publicKey),
     ).run,
   );
-}
+});
 
 final class _VerifyTask {
   const _VerifyTask(this.bytes, this.key);

@@ -11,19 +11,19 @@ import 'package:go_router/go_router.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('back button works synchronously', (WidgetTester tester) async {
+  testWidgets('back button works synchronously', (tester) async {
     var allow = false;
     final home = UniqueKey();
     final page1 = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
+        builder: (context, state) => DummyScreen(key: home),
         routes: <GoRoute>[
           GoRoute(
             path: '1',
-            builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-            onExit: (BuildContext context, GoRouterState state) {
+            builder: (context, state) => DummyScreen(key: page1),
+            onExit: (context, state) {
               return allow;
             },
           ),
@@ -31,7 +31,7 @@ void main() {
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/1');
+    final router = await createRouter(routes, tester, initialLocation: '/1');
     expect(find.byKey(page1), findsOneWidget);
 
     router.pop();
@@ -44,25 +44,25 @@ void main() {
     expect(find.byKey(home), findsOneWidget);
   });
 
-  testWidgets('context.go works synchronously', (WidgetTester tester) async {
+  testWidgets('context.go works synchronously', (tester) async {
     var allow = false;
     final home = UniqueKey();
     final page1 = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
+        builder: (context, state) => DummyScreen(key: home),
       ),
       GoRoute(
         path: '/1',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page1),
+        onExit: (context, state) {
           return allow;
         },
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/1');
+    final router = await createRouter(routes, tester, initialLocation: '/1');
     expect(find.byKey(page1), findsOneWidget);
 
     router.go('/');
@@ -75,27 +75,27 @@ void main() {
     expect(find.byKey(home), findsOneWidget);
   });
 
-  testWidgets('back button works asynchronously', (WidgetTester tester) async {
+  testWidgets('back button works asynchronously', (tester) async {
     var allow = Completer<bool>();
     final home = UniqueKey();
     final page1 = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
+        builder: (context, state) => DummyScreen(key: home),
         routes: <GoRoute>[
           GoRoute(
             path: '1',
-            builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-            onExit: (BuildContext context, GoRouterState state) async {
+            builder: (context, state) => DummyScreen(key: page1),
+            onExit: (context, state) => Future.sync(() {
               return allow.future;
-            },
+            }),
           ),
         ],
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/1');
+    final router = await createRouter(routes, tester, initialLocation: '/1');
     expect(find.byKey(page1), findsOneWidget);
 
     router.pop();
@@ -116,25 +116,25 @@ void main() {
     expect(find.byKey(home), findsOneWidget);
   });
 
-  testWidgets('context.go works asynchronously', (WidgetTester tester) async {
+  testWidgets('context.go works asynchronously', (tester) async {
     var allow = Completer<bool>();
     final home = UniqueKey();
     final page1 = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
+        builder: (context, state) => DummyScreen(key: home),
       ),
       GoRoute(
         path: '/1',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-        onExit: (BuildContext context, GoRouterState state) async {
+        builder: (context, state) => DummyScreen(key: page1),
+        onExit: (context, state) => Future.sync(() {
           return allow.future;
-        },
+        }),
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/1');
+    final router = await createRouter(routes, tester, initialLocation: '/1');
     expect(find.byKey(page1), findsOneWidget);
 
     router.go('/');
@@ -155,20 +155,20 @@ void main() {
     expect(find.byKey(home), findsOneWidget);
   });
 
-  testWidgets('android back button respects the last route.', (WidgetTester tester) async {
+  testWidgets('android back button respects the last route.', (tester) async {
     var allow = false;
     final home = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: home),
+        onExit: (context, state) {
           return allow;
         },
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester);
+    final router = await createRouter(routes, tester);
     expect(find.byKey(home), findsOneWidget);
 
     // Not allow system pop.
@@ -178,20 +178,20 @@ void main() {
     expect(await router.routerDelegate.popRoute(), false);
   });
 
-  testWidgets('android back button respects the last route. async', (WidgetTester tester) async {
+  testWidgets('android back button respects the last route. async', (tester) async {
     var allow = false;
     final home = UniqueKey();
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
-        onExit: (BuildContext context, GoRouterState state) async {
+        builder: (context, state) => DummyScreen(key: home),
+        onExit: (context, state) => Future.sync(() {
           return allow;
-        },
+        }),
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester);
+    final router = await createRouter(routes, tester);
     expect(find.byKey(home), findsOneWidget);
 
     // Not allow system pop.
@@ -202,18 +202,18 @@ void main() {
   });
 
   testWidgets('android back button respects the last route with shell route.', (
-    WidgetTester tester,
+    tester,
   ) async {
     var allow = false;
     final home = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, _, Widget child) => child,
+        builder: (_, _, child) => child,
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
-            onExit: (BuildContext context, GoRouterState state) {
+            builder: (context, state) => DummyScreen(key: home),
+            onExit: (context, state) {
               return allow;
             },
           ),
@@ -221,7 +221,7 @@ void main() {
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester);
+    final router = await createRouter(routes, tester);
     expect(find.byKey(home), findsOneWidget);
 
     // Not allow system pop.
@@ -232,7 +232,7 @@ void main() {
   });
 
   testWidgets('It should provide the correct uri to the onExit callback', (
-    WidgetTester tester,
+    tester,
   ) async {
     final home = UniqueKey();
     final page1 = UniqueKey();
@@ -244,28 +244,28 @@ void main() {
     final routes = <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: home),
+        builder: (context, state) => DummyScreen(key: home),
         routes: <GoRoute>[
           GoRoute(
             path: '1',
-            builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-            onExit: (BuildContext context, GoRouterState state) {
+            builder: (context, state) => DummyScreen(key: page1),
+            onExit: (context, state) {
               onExitState1 = state;
               return true;
             },
             routes: <GoRoute>[
               GoRoute(
                 path: '2',
-                builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page2),
-                onExit: (BuildContext context, GoRouterState state) {
+                builder: (context, state) => DummyScreen(key: page2),
+                onExit: (context, state) {
                   onExitState2 = state;
                   return true;
                 },
                 routes: <GoRoute>[
                   GoRoute(
                     path: '3',
-                    builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page3),
-                    onExit: (BuildContext context, GoRouterState state) {
+                    builder: (context, state) => DummyScreen(key: page3),
+                    onExit: (context, state) {
                       onExitState3 = state;
                       return true;
                     },
@@ -278,7 +278,7 @@ void main() {
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/1/2/3');
+    final router = await createRouter(routes, tester, initialLocation: '/1/2/3');
     expect(find.byKey(page3), findsOneWidget);
 
     router.pop();
@@ -299,7 +299,7 @@ void main() {
   });
 
   testWidgets('It should provide the correct path parameters to the onExit callback', (
-    WidgetTester tester,
+    tester,
   ) async {
     final page0 = UniqueKey();
     final page1 = UniqueKey();
@@ -311,37 +311,37 @@ void main() {
     final routes = <GoRoute>[
       GoRoute(
         path: '/route-0/:id0',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page0),
+        builder: (context, state) => DummyScreen(key: page0),
       ),
       GoRoute(
         path: '/route-1/:id1',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page1),
+        onExit: (context, state) {
           onExitState1 = state;
           return true;
         },
       ),
       GoRoute(
         path: '/route-2/:id2',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page2),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page2),
+        onExit: (context, state) {
           onExitState2 = state;
           return true;
         },
       ),
       GoRoute(
         path: '/route-3/:id3',
-        builder: (BuildContext context, GoRouterState state) {
+        builder: (context, state) {
           return DummyScreen(key: page3);
         },
-        onExit: (BuildContext context, GoRouterState state) {
+        onExit: (context, state) {
           onExitState3 = state;
           return true;
         },
       ),
     ];
 
-    final GoRouter router = await createRouter(
+    final router = await createRouter(
       routes,
       tester,
       initialLocation: '/route-0/0?param0=0',
@@ -376,7 +376,7 @@ void main() {
   });
 
   testWidgets('It should provide the correct path parameters to the onExit callback during a go', (
-    WidgetTester tester,
+    tester,
   ) async {
     final page0 = UniqueKey();
     final page1 = UniqueKey();
@@ -388,37 +388,37 @@ void main() {
     final routes = <GoRoute>[
       GoRoute(
         path: '/route-0/:id0',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page0),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page0),
+        onExit: (context, state) {
           onExitState0 = state;
           return true;
         },
       ),
       GoRoute(
         path: '/route-1/:id1',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page1),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page1),
+        onExit: (context, state) {
           onExitState1 = state;
           return true;
         },
       ),
       GoRoute(
         path: '/route-2/:id2',
-        builder: (BuildContext context, GoRouterState state) => DummyScreen(key: page2),
-        onExit: (BuildContext context, GoRouterState state) {
+        builder: (context, state) => DummyScreen(key: page2),
+        onExit: (context, state) {
           onExitState2 = state;
           return true;
         },
       ),
       GoRoute(
         path: '/route-3/:id3',
-        builder: (BuildContext context, GoRouterState state) {
+        builder: (context, state) {
           return DummyScreen(key: page3);
         },
       ),
     ];
 
-    final GoRouter router = await createRouter(
+    final router = await createRouter(
       routes,
       tester,
       initialLocation: '/route-0/0?param0=0',
@@ -450,12 +450,12 @@ void main() {
   // Regression test: pop() with onExit + async redirect must not restore
   // stale configuration.
   testWidgets('pop does not call restore with stale config when route has onExit', (
-    WidgetTester tester,
+    tester,
   ) async {
     final homeKey = UniqueKey();
     final detailKey = UniqueKey();
 
-    final GoRouter router = await createRouter(
+    final router = await createRouter(
       <RouteBase>[
         GoRoute(
           path: '/',
@@ -471,7 +471,7 @@ void main() {
       ],
       tester,
       initialLocation: '/detail',
-      redirect: (_, GoRouterState state) async {
+      redirect: (_, state) async {
         // Async redirect — completes in a later microtask.
         await Future<void>.delayed(Duration.zero);
         return null;
@@ -496,11 +496,11 @@ void main() {
   });
 
   // Verify that pop is correctly cancelled when onExit returns false.
-  testWidgets('pop is cancelled when onExit returns false', (WidgetTester tester) async {
+  testWidgets('pop is cancelled when onExit returns false', (tester) async {
     final homeKey = UniqueKey();
     final detailKey = UniqueKey();
 
-    final GoRouter router = await createRouter(
+    final router = await createRouter(
       <RouteBase>[
         GoRoute(
           path: '/',
@@ -530,7 +530,7 @@ void main() {
   });
 
   // Regression test for https://github.com/flutter/flutter/issues/137829
-  testWidgets('back button works synchronously with ShellRoute', (WidgetTester tester) async {
+  testWidgets('back button works synchronously with ShellRoute', (tester) async {
     var allow = false;
     final home = UniqueKey();
     final page = UniqueKey();
@@ -540,12 +540,12 @@ void main() {
         builder: (_, _) => DummyScreen(key: home),
         routes: <RouteBase>[
           ShellRoute(
-            builder: (_, _, Widget child) => child,
+            builder: (_, _, child) => child,
             routes: <RouteBase>[
               GoRoute(
                 path: 'page',
                 builder: (_, _) => DummyScreen(key: page),
-                onExit: (BuildContext context, GoRouterState state) => allow,
+                onExit: (context, state) => allow,
               ),
             ],
           ),
@@ -553,7 +553,7 @@ void main() {
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/page');
+    final router = await createRouter(routes, tester, initialLocation: '/page');
     expect(find.byKey(page), findsOneWidget);
 
     router.pop();
@@ -567,7 +567,7 @@ void main() {
   });
 
   // Regression test for https://github.com/flutter/flutter/issues/137829
-  testWidgets('back button works asynchronously with ShellRoute', (WidgetTester tester) async {
+  testWidgets('back button works asynchronously with ShellRoute', (tester) async {
     var allow = Completer<bool>();
     final home = UniqueKey();
     final page = UniqueKey();
@@ -577,12 +577,12 @@ void main() {
         builder: (_, _) => DummyScreen(key: home),
         routes: <RouteBase>[
           ShellRoute(
-            builder: (_, _, Widget child) => child,
+            builder: (_, _, child) => child,
             routes: <RouteBase>[
               GoRoute(
                 path: 'page',
                 builder: (_, _) => DummyScreen(key: page),
-                onExit: (BuildContext context, GoRouterState state) async => allow.future,
+                onExit: (context, state) => Future.sync(() => allow.future),
               ),
             ],
           ),
@@ -590,7 +590,7 @@ void main() {
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/page');
+    final router = await createRouter(routes, tester, initialLocation: '/page');
     expect(find.byKey(page), findsOneWidget);
 
     router.pop();

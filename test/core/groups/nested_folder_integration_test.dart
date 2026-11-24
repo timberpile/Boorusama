@@ -40,13 +40,13 @@ class FailingGroups extends BookmarkGroupRepositoryHive {
 }
 
 class FailingBookmarks extends BookmarkHiveRepository {
-  FailingBookmarks(super.box, BookmarkTestStorage storage)
+  FailingBookmarks(super.posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
       );
-  bool failRemoval = false;
+  var failRemoval = false;
   @override
   Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     await super.removeBookmarks(bookmarks);
@@ -130,12 +130,15 @@ void main() {
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('object_folders_');
     Hive.init(dir.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(6))
+    }
+    if (!Hive.isAdapterRegistered(6)) {
       Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
+    }
     groupBox = await Hive.openBox('groups');
     bookmarkBox = await Hive.openBox('bookmarks');
     bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
@@ -258,9 +261,9 @@ void main() {
   test(
     'recursive deletion counts unique orphans and preserves shared and ungrouped bookmarks',
     () async {
-      final only = await add(1),
-          shared = await add(2),
-          ungrouped = await add(3);
+      final only = await add(1);
+      final shared = await add(2);
+      final ungrouped = await add(3);
       final root = await service.createFolder('Root');
       final child = await service.createFolder('Child', parentId: root.id);
       for (var i = 1; i <= 3; i++) {
@@ -340,7 +343,7 @@ void main() {
       }
       final canonical = await openCanonicalBookmarkImport();
       final data = BookmarkBackupData(
-        bookmarks: [],
+        bookmarks: const [],
         folders: [
           CollectionFolder(id: id(10), name: 'Cookie'),
           CollectionFolder(id: id(11), name: 'Anime', parentId: id(10)),
@@ -351,26 +354,30 @@ void main() {
           BookmarkGroupBackup(
             id: id(1),
             name: 'A',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(11),
           ),
           BookmarkGroupBackup(
             id: id(2),
             name: 'B',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(12),
           ),
           BookmarkGroupBackup(
             id: id(4),
             name: 'C',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(13),
           ),
-          BookmarkGroupBackup(id: id(5), name: 'Skipped', bookmarkIds: []),
+          BookmarkGroupBackup(
+            id: id(5),
+            name: 'Skipped',
+            bookmarkIds: const [],
+          ),
           BookmarkGroupBackup(
             id: id(6),
             name: 'Merged',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(12),
           ),
         ],
@@ -429,13 +436,13 @@ void main() {
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
       final canonical = await openCanonicalBookmarkImport();
       final data = BookmarkBackupData(
-        bookmarks: [],
+        bookmarks: const [],
         folders: [CollectionFolder(id: id(10), name: 'Remote')],
         groups: [
           BookmarkGroupBackup(
             id: id(1),
             name: 'Incoming',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(10),
           ),
         ],
@@ -475,10 +482,10 @@ void main() {
       await groups.createGroup('Keep', id: id(1));
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
       final data = BookmarkBackupData(
-        bookmarks: [],
+        bookmarks: const [],
         groups: [
-          BookmarkGroupBackup(id: id(2), name: 'First', bookmarkIds: []),
-          BookmarkGroupBackup(id: id(3), name: 'Fail', bookmarkIds: []),
+          BookmarkGroupBackup(id: id(2), name: 'First', bookmarkIds: const []),
+          BookmarkGroupBackup(id: id(3), name: 'Fail', bookmarkIds: const []),
         ],
       );
       final plan = const BookmarkImportPlanner().plan(
@@ -515,7 +522,7 @@ void main() {
       await service.createFolder('Discard');
       await groups.createGroup('Old', id: id(1));
       final data = BookmarkBackupData(
-        bookmarks: [],
+        bookmarks: const [],
         folders: [
           CollectionFolder(id: id(10), name: 'Root'),
           CollectionFolder(
@@ -529,7 +536,7 @@ void main() {
           BookmarkGroupBackup(
             id: id(2),
             name: 'Group',
-            bookmarkIds: [],
+            bookmarkIds: const [],
             folderId: id(10),
             position: 3,
           ),
@@ -542,9 +549,9 @@ void main() {
       expect(await groups.getGroup(id(1)), isNull);
       await importer().replace(
         BookmarkBackupData(
-          bookmarks: [],
+          bookmarks: const [],
           groups: [
-            BookmarkGroupBackup(id: id(3), name: 'Flat', bookmarkIds: []),
+            BookmarkGroupBackup(id: id(3), name: 'Flat', bookmarkIds: const []),
           ],
         ),
       );
@@ -561,8 +568,10 @@ void main() {
       await groups.addBookmarks(id(1), {b.id});
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
       final data = BookmarkBackupData(
-        bookmarks: [],
-        groups: [BookmarkGroupBackup(id: id(2), name: 'Fail', bookmarkIds: [])],
+        bookmarks: const [],
+        groups: [
+          BookmarkGroupBackup(id: id(2), name: 'Fail', bookmarkIds: const []),
+        ],
       );
       final failingGroups = FailingGroups(
         groupBox,
@@ -640,7 +649,7 @@ void main() {
         bookmarks: [],
         groups: await canonical.groups.getGroups(),
         scope: BookmarkExportScope.selected(
-          groupIds: {},
+          groupIds: const {},
           folderIds: {other.id},
         ),
       );
@@ -652,7 +661,8 @@ void main() {
   test(
     'legacy search organization migrates once without touching runtime records or empty folders',
     () async {
-      final box = MemorySubscriptionBox(), organization = MemoryBox<dynamic>();
+      final box = MemorySubscriptionBox();
+      final organization = MemoryBox<dynamic>();
       final repository = HiveFollowingTopicRepository(
         box: box,
         organizationBox: organization,

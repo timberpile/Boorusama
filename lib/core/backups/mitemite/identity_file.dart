@@ -35,8 +35,9 @@ Future<void> writeOwnSyncIdentity(
         path,
         maxBytes: miteMiteMaxMetadataBytes,
       );
-      if (retained != null && differs(retained))
+      if (retained != null && differs(retained)) {
         throw const SyncOwnIdentityUnavailable();
+      }
     } on SyncOwnIdentityUnavailable {
       rethrow;
     } catch (_) {

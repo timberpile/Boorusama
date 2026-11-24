@@ -14,7 +14,7 @@ class ErrorScreen extends StatelessWidget {
   /// The exception to be displayed.
   final Exception? error;
 
-  static const Color _kWhite = Color(0xFFFFFFFF);
+  static const _kWhite = Color(0xFFFFFFFF);
 
   @override
   Widget build(BuildContext context) => SafeArea(

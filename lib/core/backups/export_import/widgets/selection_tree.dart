@@ -41,8 +41,9 @@ class ExportSelectionTree extends StatelessWidget {
       for (final descriptor in descriptors) {
         if (!descriptor.isCollection &&
             selected.contains(descriptor.id) !=
-                (selections[descriptor.id] != null))
+                (selections[descriptor.id] != null)) {
           onToggleSource(descriptor);
+        }
       }
     },
     child: Column(
@@ -289,8 +290,9 @@ class _SelectionNodeList extends StatelessWidget {
       onChanged: (selected) {
         for (final node in leaves) {
           if (selected.contains((descriptor.id, node.id)) !=
-              effectiveIds.contains(node.id))
+              effectiveIds.contains(node.id)) {
             onToggle(descriptor, node);
+          }
         }
       },
       child: Column(
@@ -360,8 +362,9 @@ Set<String> _leafIds(ExportSelectionNode node) {
   final pending = [node];
   while (pending.isNotEmpty) {
     final current = pending.removeLast();
-    if (current.children.isEmpty || current.directSelectionId != null)
+    if (current.children.isEmpty || current.directSelectionId != null) {
       ids.add(current.id);
+    }
     pending.addAll(current.children);
   }
   return ids;

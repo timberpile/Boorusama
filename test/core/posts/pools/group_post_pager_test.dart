@@ -397,7 +397,7 @@ class _Source extends ContentGroupSource {
   );
   final requests = <_Pending>[];
   final _signals = <int, Completer<_Pending>>{};
-  int invalidations = 0;
+  var invalidations = 0;
   Future<_Pending> request(int index) => index < requests.length
       ? Future.value(requests[index])
       : (_signals[index] ??= Completer<_Pending>()).future;

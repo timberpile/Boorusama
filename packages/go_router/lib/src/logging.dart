@@ -10,10 +10,10 @@ import 'package:logging/logging.dart';
 
 /// The logger for this package.
 @visibleForTesting
-final Logger logger = Logger('GoRouter');
+final logger = Logger('GoRouter');
 
 /// Whether or not the logging is enabled.
-bool _enabled = false;
+var _enabled = false;
 
 /// Logs the message if logging is enabled.
 void log(String message, {Level level = Level.INFO}) {
@@ -32,12 +32,12 @@ void setLogging({bool enabled = false}) {
     return;
   }
 
-  _subscription = logger.onRecord.listen((LogRecord e) {
+  _subscription = logger.onRecord.listen((e) {
     // use `dumpErrorToConsole` for severe messages to ensure that severe
     // exceptions are formatted consistently with other Flutter examples and
     // avoids printing duplicate exceptions
     if (e.level >= Level.SEVERE) {
-      final Object? error = e.error;
+      final error = e.error;
       FlutterError.dumpErrorToConsole(
         FlutterErrorDetails(
           exception: error is Exception ? error : Exception(error),

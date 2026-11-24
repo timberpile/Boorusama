@@ -63,11 +63,9 @@ void main() {
           find.byKey(capture),
         );
         await tester.runAsync(() async {
-          final image = await boundary.toImage(pixelRatio: 1);
+          final image = await boundary.toImage();
           try {
-            final raw = (await image.toByteData(
-              format: ui.ImageByteFormat.rawRgba,
-            ))!.buffer.asUint8List();
+            final raw = (await image.toByteData())!.buffer.asUint8List();
             var contrasting = 0;
             for (var offset = 0; offset < raw.length; offset += 4) {
               if (dark ? raw[offset] > 128 : raw[offset] < 128) contrasting++;
@@ -85,12 +83,7 @@ void main() {
               final png = await image.toByteData(
                 format: ui.ImageByteFormat.png,
               );
-              final name =
-                  '$output/' +
-                  brightness.name +
-                  '-' +
-                  size.toInt().toString() +
-                  '.png';
+              final name = '$output/${brightness.name}-${size.toInt()}.png';
               await File(name).writeAsBytes(png!.buffer.asUint8List());
             }
           } finally {

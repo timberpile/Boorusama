@@ -21,6 +21,8 @@ void main() {
         MaterialApp(
           builder: (context, child) => KurumiTheme(
             data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            // Exercise the legacy Material route used by dependencies.
+            // ignore: deprecated_member_use
             child: MaterialUiCompatibilityBridge(
               child: MediaQuery(
                 data: const MediaQueryData(

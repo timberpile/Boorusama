@@ -24,12 +24,12 @@ List<int> syncJsonBytesForDevice(SyncNotice notice) =>
 
 String syncNoticeTag(SyncNotice notice) => switch (notice.kind) {
   SyncNoticeKind.device =>
-    'mitemite.discovery.' + notice.items.single.publisherKey,
-  SyncNoticeKind.offers => 'mitemite.offers.' + notice.items.first.publisherKey,
+    'mitemite.discovery.${notice.items.single.publisherKey}',
+  SyncNoticeKind.offers => 'mitemite.offers.${notice.items.first.publisherKey}',
   SyncNoticeKind.posts => 'mitemite.posts.v1',
   SyncNoticeKind.topics => 'mitemite.topics.v1',
   SyncNoticeKind.followingOffers =>
-    'mitemite.following_offers.' + notice.items.first.publisherKey,
+    'mitemite.following_offers.${notice.items.first.publisherKey}',
 };
 
 /// One serialized delivery path. Stable native tags replace an unacknowledged
@@ -70,8 +70,9 @@ final class SyncNotificationDelivery {
         if (!_shown.contains(notice.token)) {
           if (!await show(notice)) continue;
           _shown.add(notice.token);
-          if (_shown.length > SyncLocalEvents.historyLimit)
+          if (_shown.length > SyncLocalEvents.historyLimit) {
             _shown.remove(_shown.first);
+          }
         }
         if (!current()) break;
         await (acknowledge?.call(notice) ??

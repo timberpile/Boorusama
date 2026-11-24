@@ -23,15 +23,7 @@ final class BookmarkImportPreparation {
     required this.alreadyExistedCount,
   });
 
-  final List<Bookmark> records;
-  final List<int> newIds;
-  final List<BookmarkGroup> groups;
-  final List<CollectionFolder> folders;
-  final Set<int> removeIds;
-  final Set<String> removeGroupIds;
-  final int alreadyExistedCount;
-
-  static BookmarkImportPreparation prepare({
+  factory BookmarkImportPreparation.prepare({
     required BookmarkImportPlan plan,
     required List<Bookmark> currentRecords,
     required List<BookmarkGroup> currentGroups,
@@ -44,8 +36,9 @@ final class BookmarkImportPreparation {
   }) {
     var incomingPlan = plan;
     var localGroups = currentGroups;
-    if (!incomingPlan.isResolved)
+    if (!incomingPlan.isResolved) {
       throw StateError('Import conflicts are unresolved');
+    }
     final uuid = newId ?? () => const Uuid().v4().toLowerCase();
     if (currentFolders.isNotEmpty ||
         localGroups.any((g) => g.folderId != null)) {
@@ -107,8 +100,7 @@ final class BookmarkImportPreparation {
         ),
     ]);
     final byIdentity = {
-      for (final r in currentRecords)
-        if (bookmarkContentIdentity(r) case final identity?) identity: r,
+      for (final r in currentRecords) ?bookmarkContentIdentity(r): r,
     };
     final opaqueMatches = replace
         ? matchUnaddressableBookmarkRecords(
@@ -141,8 +133,9 @@ final class BookmarkImportPreparation {
       final previous = identity == null
           ? opaqueMatches[candidate.id]
           : byIdentity[identity];
-      if (previous != null)
+      if (previous != null) {
         validateBookmarkImportCompatibility(previous, candidate);
+      }
       final normalized = normalize(candidate, previous: previous);
       source[candidate.id] = opaqueMatches.containsKey(candidate.id)
           ? bookmarkWithId(previous!, candidate.id)
@@ -352,6 +345,14 @@ final class BookmarkImportPreparation {
       alreadyExistedCount: existingCount,
     );
   }
+
+  final List<Bookmark> records;
+  final List<int> newIds;
+  final List<BookmarkGroup> groups;
+  final List<CollectionFolder> folders;
+  final Set<int> removeIds;
+  final Set<String> removeGroupIds;
+  final int alreadyExistedCount;
 
   BookmarkImportWrite materialize(List<int> reserved) {
     if (reserved.length != newIds.length ||

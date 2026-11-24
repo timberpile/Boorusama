@@ -27,7 +27,7 @@ void main() {
         ],
       );
       addTearDown(harness.dispose);
-      await harness.seed([topicFixture(name: 'Cats')]);
+      await harness.seed([topicFixture()]);
       final notifier = harness.container.read(followingTopicsProvider.notifier);
       final parent = await notifier.createSharedFolder(
         'Published parent',

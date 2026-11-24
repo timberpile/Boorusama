@@ -834,8 +834,9 @@ class _ProjectedAutoScrollTagState
 
   void _remove(_ProjectedAutoScrollTag tag) {
     for (final index in tag.indices) {
-      if (tag.controller.tagMap[index] == this)
+      if (tag.controller.tagMap[index] == this) {
         tag.controller.tagMap.remove(index);
+      }
     }
   }
 

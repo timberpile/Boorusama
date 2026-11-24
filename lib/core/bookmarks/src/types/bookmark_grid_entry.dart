@@ -110,13 +110,16 @@ List<CollectionBookmark> selectPoolBookmarks({
       : state.groupIdsForView(view);
   return state.pools.where((pool) {
     if (availableCollectionIds != null &&
-        !availableCollectionIds.contains(pool.localId))
+        !availableCollectionIds.contains(pool.localId)) {
       return false;
-    if (groupsInView != null && !pool.groupIds.any(groupsInView.contains))
+    }
+    if (groupsInView != null && !pool.groupIds.any(groupsInView.contains)) {
       return false;
+    }
     if (selectedBooruUrl != null &&
-        !bookmarkSourceMatchesHost(pool.origin.sourceHost, selectedBooruUrl))
+        !bookmarkSourceMatchesHost(pool.origin.sourceHost, selectedBooruUrl)) {
       return false;
+    }
     final tags = pool.tags.map(canonicalBookmarkTag).toSet();
     return filters.every(
       (f) => f.isNegative ? !tags.contains(f.tag) : tags.contains(f.tag),

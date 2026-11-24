@@ -53,8 +53,9 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
             beforeHandoff: () {
               if (!mounted ||
                   widget.link != link ||
-                  widget.profileName != profileName)
+                  widget.profileName != profileName) {
                 throw const FormatException('Artist share changed');
+              }
             },
           );
       if (mounted &&
@@ -63,8 +64,9 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
         Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
       }
     } on Exception {
-      if (mounted)
+      if (mounted) {
         Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
+      }
     } finally {
       if (mounted) setState(() => _sharing = false);
     }

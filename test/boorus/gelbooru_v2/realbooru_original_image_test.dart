@@ -54,8 +54,9 @@ void main() {
             post,
             displayUrl: visible,
           );
-          if (knownOriginal)
+          if (knownOriginal) {
             expect(preload?.allUrls, isNot(contains(post.originalImageUrl)));
+          }
         },
       );
     }

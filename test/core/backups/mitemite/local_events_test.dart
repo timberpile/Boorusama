@@ -94,7 +94,7 @@ void main() {
         source: '22222222-2222-4333-8444-555555555555',
         fingerprint: 'a' * 64,
         added: 1,
-        notificationMembers: {'P'},
+        notificationMembers: const {'P'},
       ),
       SyncEvent(kind: SyncEventKind.forgotten, at: at, publisher: publisher),
     ]);
@@ -135,7 +135,7 @@ void main() {
         source: '22222222-2222-4333-8444-555555555555',
         fingerprint: 'a' * 64,
         added: 1,
-        notificationMembers: {'P'},
+        notificationMembers: const {'P'},
       ),
     ]);
     await expectLater(events.consume('bookmarks', log), throwsStateError);
@@ -350,7 +350,7 @@ void main() {
       await events.record(
         SyncEvent(
           kind: SyncEventKind.published,
-          at: DateTime.utc(2026, 1, 1).add(Duration(seconds: i)),
+          at: DateTime.utc(2026).add(Duration(seconds: i)),
         ),
       );
     }
@@ -366,17 +366,18 @@ void main() {
 
 class _Store implements MiscDataStore {
   final data = <String, String>{};
-  bool failWrites = false;
-  bool failAfterWrite = false;
-  int successfulWrites = 0;
+  var failWrites = false;
+  var failAfterWrite = false;
+  var successfulWrites = 0;
   @override
   String? get(String key) => data[key];
   @override
   Future<void> put(String key, String value) async {
     if (failWrites) throw StateError('Injected history write failure');
     data[key] = value;
-    if (failAfterWrite)
+    if (failAfterWrite) {
       throw StateError('Injected durability barrier failure after cached put');
+    }
     successfulWrites++;
   }
 }

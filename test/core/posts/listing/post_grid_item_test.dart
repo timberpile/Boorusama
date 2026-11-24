@@ -7,7 +7,6 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
@@ -138,7 +137,7 @@ void main() {
                       unseen: true,
                       selecting: selection.isActive,
                       child: PostGridItem(
-                        post: TestPost(id: 42, width: 25, height: 100),
+                        post: TestPost(id: 42, width: 25),
                         index: 0,
                         useHero: false,
                         multiSelectEnabled: selection.isActive,
@@ -419,11 +418,9 @@ void main() {
                 final navigator = Navigator.of(
                   tester.element(find.byType(PostGridItem)),
                 );
-                unawaited(
-                  navigator.push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const Scaffold(body: Text('Viewer')),
-                    ),
+                navigator.push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const Scaffold(body: Text('Viewer')),
                   ),
                 );
                 await tester.pumpAndSettle();
@@ -917,7 +914,7 @@ class _TestApp extends StatelessWidget {
           (ref, config) => thumbnailGenerator,
         ),
         currentReadOnlyBooruConfigGestureProvider.overrideWithValue(
-          PostGestureConfig.undefined().withPreviewLongPress(longPress),
+          const PostGestureConfig.undefined().withPreviewLongPress(longPress),
         ),
         booruRepoProvider.overrideWith((ref, config) => repository),
         booruBuilderProvider.overrideWith((ref, config) => null),

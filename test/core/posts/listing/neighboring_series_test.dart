@@ -14,7 +14,7 @@ typedef _Case = ({
   List<List<int>> members,
 });
 
-_Post post(int id, Set<int>? series, {Object? scope = 'main'}) => (
+_Post _post(int id, Set<int>? series, {Object? scope = 'main'}) => (
   id: id,
   scope: scope,
   series: series,
@@ -26,7 +26,7 @@ void main() {
     (
       name: 'Leaves a lone series post as a normal post',
       posts: [
-        post(1, {10}),
+        _post(1, {10}),
       ],
       series: [null],
       members: [
@@ -36,8 +36,8 @@ void main() {
     (
       name: 'Combines two consecutive posts in the same series',
       posts: [
-        post(1, {10}),
-        post(2, {10}),
+        _post(1, {10}),
+        _post(2, {10}),
       ],
       series: [10],
       members: [
@@ -47,11 +47,11 @@ void main() {
     (
       name: 'Combines separated members while preserving intervening posts',
       posts: [
-        post(1, {10}),
-        post(2, {10}),
-        post(3, {}),
-        post(4, {10}),
-        post(5, {10}),
+        _post(1, {10}),
+        _post(2, {10}),
+        _post(3, {}),
+        _post(4, {10}),
+        _post(5, {10}),
       ],
       series: [10, null],
       members: [
@@ -62,9 +62,9 @@ void main() {
     (
       name: 'Leaves unavailable membership visible between confirmed members',
       posts: [
-        post(1, {10}),
-        post(2, null),
-        post(3, {10}),
+        _post(1, {10}),
+        _post(2, null),
+        _post(3, {10}),
       ],
       series: [10, null],
       members: [
@@ -74,7 +74,7 @@ void main() {
     ),
     (
       name: 'Leaves neighbors with no confirmed series separate',
-      posts: [post(1, {}), post(2, {})],
+      posts: [_post(1, {}), _post(2, {})],
       series: [null, null],
       members: [
         [1],
@@ -84,9 +84,9 @@ void main() {
     (
       name: 'Never crosses site or profile scope boundaries',
       posts: [
-        post(1, {10}, scope: ('site-a', 'profile-a')),
-        post(2, {10}, scope: ('site-a', 'profile-b')),
-        post(3, {10}, scope: ('site-b', 'profile-b')),
+        _post(1, {10}, scope: ('site-a', 'profile-a')),
+        _post(2, {10}, scope: ('site-a', 'profile-b')),
+        _post(3, {10}, scope: ('site-b', 'profile-b')),
       ],
       series: [null, null, null],
       members: [
@@ -98,8 +98,8 @@ void main() {
     (
       name: 'Does not group posts with an unresolved origin',
       posts: [
-        post(1, {10}, scope: null),
-        post(2, {10}, scope: null),
+        _post(1, {10}, scope: null),
+        _post(2, {10}, scope: null),
       ],
       series: [null, null],
       members: [
@@ -110,9 +110,9 @@ void main() {
     (
       name: 'Does not merge a chain with no series shared by every post',
       posts: [
-        post(1, {10}),
-        post(2, {10, 20}),
-        post(3, {20}),
+        _post(1, {10}),
+        _post(2, {10, 20}),
+        _post(3, {20}),
       ],
       series: [10, null],
       members: [
@@ -123,9 +123,9 @@ void main() {
     (
       name: 'Chooses the series shared across the longest leading run',
       posts: [
-        post(1, {10, 20}),
-        post(2, {10, 20}),
-        post(3, {20}),
+        _post(1, {10, 20}),
+        _post(2, {10, 20}),
+        _post(3, {20}),
       ],
       series: [20],
       members: [
@@ -135,8 +135,8 @@ void main() {
     (
       name: 'Resolves equally long series deterministically',
       posts: [
-        post(1, {20, 10}),
-        post(2, {10, 20}),
+        _post(1, {20, 10}),
+        _post(2, {10, 20}),
       ],
       series: [10],
       members: [
@@ -146,8 +146,8 @@ void main() {
     (
       name: 'Ignores invalid pool identifiers',
       posts: [
-        post(1, {-1, 0}),
-        post(2, {-1, 0}),
+        _post(1, {-1, 0}),
+        _post(2, {-1, 0}),
       ],
       series: [null, null],
       members: [
@@ -196,7 +196,7 @@ void main() {
 
   test('fifth raw result matches and every match extends the window', () {
     final posts = [
-      for (var i = 0; i < 17; i++) post(i, i % 5 == 0 ? {10} : {}),
+      for (var i = 0; i < 17; i++) _post(i, i % 5 == 0 ? {10} : {}),
     ];
     final entries = project(posts);
     expect(entries.first.indices, [0, 5, 10, 15]);
@@ -225,7 +225,7 @@ void main() {
   test('sixth raw result starts a distinct group', () {
     final posts = [
       for (var i = 0; i < 8; i++)
-        post(i, {
+        _post(i, {
           if ([0, 1, 7].contains(i)) 10,
         }),
     ];
@@ -237,12 +237,12 @@ void main() {
 
   test('overlapping Series cannot steal or duplicate another group member', () {
     final entries = project([
-      post(0, {10, 20}),
-      post(1, {20}),
-      post(2, {10, 20}),
-      post(3, {10}),
-      post(4, {30}),
-      post(5, {30}),
+      _post(0, {10, 20}),
+      _post(1, {20}),
+      _post(2, {10, 20}),
+      _post(3, {10}),
+      _post(4, {30}),
+      _post(5, {30}),
     ]);
     expect(entries.map((e) => e.seriesId), [10, null, 30]);
     expect(entries.map((e) => e.indices), [
@@ -256,17 +256,17 @@ void main() {
     'a frozen noncontiguous group extends across a page and retains holes',
     () {
       final first = [
-        post(0, {10}),
-        post(1, {}),
-        post(2, {10}),
-        post(3, {}),
+        _post(0, {10}),
+        _post(1, {}),
+        _post(2, {10}),
+        _post(3, {}),
       ];
       final before = project(first);
       final after = project([
         ...first,
-        post(4, {}),
-        post(5, {10}),
-        post(6, {}),
+        _post(4, {}),
+        _post(5, {10}),
+        _post(6, {}),
       ], frozen: before);
       expect(after.first.indices, [0, 2, 5]);
       expect(after.first.posts.first, before.first.posts.first);
@@ -280,17 +280,17 @@ void main() {
 
   test('delayed metadata never consumes frozen single posts or changes Series identity', () {
     final before = project([
-      post(0, {10}),
-      post(1, {10}),
-      post(2, {}),
-      post(3, {}),
+      _post(0, {10}),
+      _post(1, {10}),
+      _post(2, {}),
+      _post(3, {}),
     ]);
     final after = project([
-      post(0, {10, 20}),
-      post(1, {10, 20}),
-      post(2, {10, 20}),
-      post(3, {10, 20}),
-      post(4, {10}),
+      _post(0, {10, 20}),
+      _post(1, {10, 20}),
+      _post(2, {10, 20}),
+      _post(3, {10, 20}),
+      _post(4, {10}),
     ], frozen: before);
     expect(after.first.seriesId, 10);
     expect(after.map((e) => e.indices), [
@@ -301,14 +301,14 @@ void main() {
   });
 
   test('frozen raw singles leave later unseen groups free to form', () {
-    final initial = project([post(0, {}), post(1, {}), post(2, {})]);
+    final initial = project([_post(0, {}), _post(1, {}), _post(2, {})]);
     final after = project([
-      post(0, {10}),
-      post(1, {10}),
-      post(2, {}),
-      post(3, {20}),
-      post(4, {}),
-      post(5, {20}),
+      _post(0, {10}),
+      _post(1, {10}),
+      _post(2, {}),
+      _post(3, {20}),
+      _post(4, {}),
+      _post(5, {20}),
     ], frozen: initial.take(2).toList());
     expect(after.map((e) => e.indices), [
       [0],
@@ -322,7 +322,7 @@ void main() {
   test('seeded overlapping windows preserve every raw index through append and metadata changes', () {
     final random = Random(68);
     for (var sample = 0; sample < 100; sample++) {
-      _Post item(int i) => post(i, {
+      _Post item(int i) => _post(i, {
         for (var id = 1; id <= 4; id++)
           if (random.nextBool()) id,
       }, scope: random.nextInt(8) == 0 ? 'other' : 'main');
@@ -365,8 +365,8 @@ void main() {
 
   test('Disabling grouping leaves every post independently addressable', () {
     final posts = [
-      post(1, {10}),
-      post(2, {10}),
+      _post(1, {10}),
+      _post(2, {10}),
     ];
     final entries = groupNeighboringSeries(
       posts,
@@ -382,12 +382,12 @@ void main() {
 
   test('Appending a page extends the final run without changing its cover', () {
     final firstPage = [
-      post(100, {}),
-      for (var id = 99; id >= 92; id--) post(id, {10}),
+      _post(100, {}),
+      for (var id = 99; id >= 92; id--) _post(id, {10}),
     ];
     final nextPage = [
-      for (var id = 91; id >= 80; id--) post(id, {10}),
-      post(79, {}),
+      for (var id = 91; id >= 80; id--) _post(id, {10}),
+      _post(79, {}),
     ];
     final before = groupNeighboringSeries(
       firstPage,

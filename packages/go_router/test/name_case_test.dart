@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
-  testWidgets('Route names are case sensitive', (WidgetTester tester) async {
+  testWidgets('Route names are case sensitive', (tester) async {
     // config router with 2 routes with the same name but different case (Name, name)
     final router = GoRouter(
       routes: <GoRoute>[

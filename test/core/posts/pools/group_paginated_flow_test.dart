@@ -71,12 +71,12 @@ void main() {
 
 Future<void> _complete(WidgetTester tester, Future<void> future) async {
   var done = false;
-  future.whenComplete(() => done = true);
+  final tracked = future.whenComplete(() => done = true);
   for (var i = 0; i < 100 && !done; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
   expect(done, isTrue, reason: 'Group grid operation did not complete');
-  await future;
+  await tracked;
 }
 
 class _Fixture {
@@ -88,8 +88,8 @@ class _Fixture {
   final BooruConfig config;
   late FollowingTopicHarness harness;
   List<int> ids;
-  int version = 1;
-  int poolFetches = 0;
+  var version = 1;
+  var poolFetches = 0;
   late final repo = _Posts(this);
   PostGridController<Post> controller(WidgetTester tester) =>
       tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>)).controller;
@@ -114,42 +114,45 @@ class _Fixture {
       overrides: [
         contentGroupSourceProvider.overrideWith((ref, key) {
           final access = ref.read(contentAccessContextProvider(key))!;
-          final ContentGroupSource source = kind == 'szurubooru'
-              ? SzurubooruGroupSource(
-                  access: access,
-                  postRepository: () => f.repo,
-                  fetchPool: (_) async {
-                    f.poolFetches++;
-                    return SzurubooruPool(
-                      id: 1,
-                      names: const ['Pool'],
-                      category: null,
-                      description: null,
-                      postCount: f.ids.length,
-                      postIds: List.of(f.ids),
-                      thumbnailUrls: const [],
-                      createdAt: null,
-                      updatedAt: null,
-                    );
-                  },
-                )
-              : DanbooruGroupSource(
-                  access: access,
-                  postRepository: () => f.repo,
-                  fetchPool: (_) async {
-                    f.poolFetches++;
-                    return DanbooruPool(
-                      id: 1,
-                      postIds: List.of(f.ids),
-                      category: DanbooruPoolCategory.series,
-                      description: null,
-                      postCount: f.ids.length,
-                      name: 'Pool',
-                      createdAt: null,
-                      updatedAt: null,
-                    );
-                  },
+          final ContentGroupSource source;
+          if (kind == 'szurubooru') {
+            source = SzurubooruGroupSource(
+              access: access,
+              postRepository: () => f.repo,
+              fetchPool: (_) async {
+                f.poolFetches++;
+                return SzurubooruPool(
+                  id: 1,
+                  names: const ['Pool'],
+                  category: null,
+                  description: null,
+                  postCount: f.ids.length,
+                  postIds: List.of(f.ids),
+                  thumbnailUrls: const [],
+                  createdAt: null,
+                  updatedAt: null,
                 );
+              },
+            );
+          } else {
+            source = DanbooruGroupSource(
+              access: access,
+              postRepository: () => f.repo,
+              fetchPool: (_) async {
+                f.poolFetches++;
+                return DanbooruPool(
+                  id: 1,
+                  postIds: List.of(f.ids),
+                  category: DanbooruPoolCategory.series,
+                  description: null,
+                  postCount: f.ids.length,
+                  name: 'Pool',
+                  createdAt: null,
+                  updatedAt: null,
+                );
+              },
+            );
+          }
           ref.onDispose(source.dispose);
           return source;
         }),

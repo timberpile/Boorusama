@@ -165,8 +165,8 @@ class IoFileSystem implements AppFileSystem {
       File(source).rename(destination);
 
   @override
-  Future<bool> publishFileIfAbsent(String source, String destination) async =>
-      atomic.publishFileIfAbsentAsync(source, destination);
+  Future<bool> publishFileIfAbsent(String source, String destination) =>
+      Future.sync(() => atomic.publishFileIfAbsentAsync(source, destination));
 
   @override
   Future<void> syncFile(String path) async {

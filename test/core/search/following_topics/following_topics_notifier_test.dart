@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+
 import 'dart:typed_data';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -20,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 
 import 'topic_test_utils.dart';
+
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
 
 void main() {
@@ -732,7 +735,6 @@ void main() {
               searchIds: const ['a', 'b'],
             ),
           ],
-          homeSearchIds: const [],
         ),
       );
       final releases = <String, Completer<void>>{};

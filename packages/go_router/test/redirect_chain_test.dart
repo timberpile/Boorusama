@@ -17,29 +17,29 @@ import 'test_helpers.dart';
 // trigger top-level re-evaluation on the new location.
 void main() {
   group('chained redirects', () {
-    testWidgets('top-level redirect chain', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain', (tester) async {
       // Regression test for https://github.com/flutter/flutter/issues/178984
       //
       // Top-level redirect: / -> /a -> /b
       // Expected: navigating to / should end up at /b
       final redirectLog = <String>[];
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const Page1Screen(),
+            builder: (context, state) => const Page1Screen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const Page2Screen(),
+            builder: (context, state) => const Page2Screen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           redirectLog.add(state.matchedLocation);
           if (state.matchedLocation == '/') {
             return '/a';
@@ -57,28 +57,28 @@ void main() {
       expect(redirectLog, <String>['/', '/a', '/b']);
     });
 
-    testWidgets('top-level redirect chain with three hops', (WidgetTester tester) async {
-      final GoRouter router = await createRouter(
+    testWidgets('top-level redirect chain with three hops', (tester) async {
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/step1',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/step2',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/step3',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           return switch (state.matchedLocation) {
             '/' => '/step1',
             '/step1' => '/step2',
@@ -92,24 +92,24 @@ void main() {
       expect(find.byType(LoginScreen), findsOneWidget);
     });
 
-    testWidgets('async top-level redirect chain', (WidgetTester tester) async {
-      final GoRouter router = await createRouter(
+    testWidgets('async top-level redirect chain', (tester) async {
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) async {
+        redirect: (context, state) async {
           // Simulate an async operation (e.g., checking auth status).
           await Future<void>.delayed(Duration.zero);
           if (state.matchedLocation == '/') {
@@ -128,25 +128,25 @@ void main() {
       expect(find.byType(LoginScreen), findsOneWidget);
     });
 
-    testWidgets('top-level redirect chain loop detection', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain loop detection', (tester) async {
       // Redirect loop: / -> /a -> /b -> /a (loop)
       await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           return switch (state.matchedLocation) {
             '/' => '/a',
             '/a' => '/b',
@@ -154,64 +154,64 @@ void main() {
             _ => null,
           };
         },
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       expect(find.byType(TestErrorScreen), findsOneWidget);
-      final TestErrorScreen screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
+      final screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
       expect((screen.ex as GoException).message, startsWith('redirect loop detected'));
     });
 
-    testWidgets('top-level redirect chain loop to initial location', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain loop to initial location', (tester) async {
       // Redirect loop returning to initial location: / -> /a -> /
       await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           return switch (state.matchedLocation) {
             '/' => '/a',
             '/a' => '/', // Loop back to initial.
             _ => null,
           };
         },
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       expect(find.byType(TestErrorScreen), findsOneWidget);
-      final TestErrorScreen screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
+      final screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
       expect((screen.ex as GoException).message, startsWith('redirect loop detected'));
     });
 
-    testWidgets('top-level redirect chain into route-level redirect', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain into route-level redirect', (tester) async {
       // Top-level: / -> /intermediate
       // Route-level on /intermediate: /intermediate -> /final
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/intermediate',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-            redirect: (BuildContext context, GoRouterState state) => '/final',
+            builder: (context, state) => const DummyScreen(),
+            redirect: (context, state) => '/final',
           ),
           GoRoute(
             path: '/final',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           if (state.matchedLocation == '/') {
             return '/intermediate';
           }
@@ -223,35 +223,35 @@ void main() {
       expect(find.byType(LoginScreen), findsOneWidget);
     });
 
-    testWidgets('route-level redirect triggers top-level redirect', (WidgetTester tester) async {
+    testWidgets('route-level redirect triggers top-level redirect', (tester) async {
       // Route-level on /src: /src -> /dst
       // Top-level: /dst -> /final
       final topRedirectLog = <String>[];
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
             routes: <RouteBase>[
               GoRoute(
                 path: 'src',
-                builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-                redirect: (BuildContext context, GoRouterState state) => '/dst',
+                builder: (context, state) => const DummyScreen(),
+                redirect: (context, state) => '/dst',
               ),
             ],
           ),
           GoRoute(
             path: '/dst',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/final',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
         initialLocation: '/src',
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           topRedirectLog.add(state.matchedLocation);
           if (state.matchedLocation == '/dst') {
             return '/final';
@@ -267,23 +267,23 @@ void main() {
     });
 
     testWidgets('top-level redirect returns null after first redirect', (
-      WidgetTester tester,
+      tester,
     ) async {
       // The most common pattern: single redirect, then null on re-evaluation.
       var callCount = 0;
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/login',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           callCount++;
           if (state.matchedLocation == '/') {
             return '/login';
@@ -298,54 +298,54 @@ void main() {
       expect(callCount, 2);
     });
 
-    testWidgets('top-level redirect chain respects redirect limit', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain respects redirect limit', (tester) async {
       // Endless chain: /0 -> /1 -> /2 -> ... with a low limit.
       await createRouter(
         <RouteBase>[
           for (int i = 0; i <= 20; i++)
             GoRoute(
               path: '/$i',
-              builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+              builder: (context, state) => const DummyScreen(),
             ),
         ],
         tester,
         initialLocation: '/0',
-        redirect: (BuildContext context, GoRouterState state) {
-          final RegExpMatch? match = RegExp(r'^/(\d+)$').firstMatch(state.matchedLocation);
+        redirect: (context, state) {
+          final match = RegExp(r'^/(\d+)$').firstMatch(state.matchedLocation);
           if (match != null) {
-            final int current = int.parse(match.group(1)!);
+            final current = int.parse(match.group(1)!);
             return '/${current + 1}';
           }
           return null;
         },
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       expect(find.byType(TestErrorScreen), findsOneWidget);
     });
 
     testWidgets('top-level redirect chain succeeds at exact redirect limit', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Chain of 2 redirects: / -> /a -> /b. With limit=2, this is exactly
       // at the boundary (2 entries added to redirectHistory).
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           return switch (state.matchedLocation) {
             '/' => '/a',
             '/a' => '/b',
@@ -361,7 +361,7 @@ void main() {
     });
 
     testWidgets('top-level redirect chain fails when exceeding redirect limit', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Chain of 2 redirects: / -> /a -> /b. With limit=1, the second
       // redirect exceeds the limit and should error.
@@ -369,19 +369,19 @@ void main() {
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           return switch (state.matchedLocation) {
             '/' => '/a',
             '/a' => '/b',
@@ -389,17 +389,17 @@ void main() {
           };
         },
         redirectLimit: 1,
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       // 2 redirects with limit=1 should error.
       expect(find.byType(TestErrorScreen), findsOneWidget);
-      final TestErrorScreen screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
+      final screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
       expect((screen.ex as GoException).message, startsWith('too many redirects'));
     });
 
     testWidgets('top-level and route-level redirects share redirect limit', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Top-level: / -> /a (1 redirect)
       // Route-level on /a: /a -> /b (1 redirect)
@@ -409,59 +409,59 @@ void main() {
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-            redirect: (BuildContext context, GoRouterState state) => '/b',
+            builder: (context, state) => const DummyScreen(),
+            redirect: (context, state) => '/b',
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-            redirect: (BuildContext context, GoRouterState state) => '/c',
+            builder: (context, state) => const DummyScreen(),
+            redirect: (context, state) => '/c',
           ),
           GoRoute(
             path: '/c',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           if (state.matchedLocation == '/') {
             return '/a';
           }
           return null;
         },
         redirectLimit: 2,
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       // Combined chain of 3 redirects exceeds the shared limit of 2.
       expect(find.byType(TestErrorScreen), findsOneWidget);
-      final TestErrorScreen screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
+      final screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
       expect((screen.ex as GoException).message, startsWith('too many redirects'));
     });
 
-    testWidgets('async top-level redirect chain loop detection', (WidgetTester tester) async {
+    testWidgets('async top-level redirect chain loop detection', (tester) async {
       // Async redirect loop: / -> /a -> /b -> /a (loop)
       await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) async {
+        redirect: (context, state) async {
           await Future<void>.delayed(Duration.zero);
           return switch (state.matchedLocation) {
             '/' => '/a',
@@ -470,39 +470,39 @@ void main() {
             _ => null,
           };
         },
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
 
       await tester.pumpAndSettle();
 
       expect(find.byType(TestErrorScreen), findsOneWidget);
-      final TestErrorScreen screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
+      final screen = tester.widget<TestErrorScreen>(find.byType(TestErrorScreen));
       expect((screen.ex as GoException).message, startsWith('redirect loop detected'));
     });
 
-    testWidgets('async top-level redirect into route-level redirect', (WidgetTester tester) async {
+    testWidgets('async top-level redirect into route-level redirect', (tester) async {
       // Async top-level: / -> /mid (async)
       // Route-level on /mid: /mid -> /final (sync)
       // Exercises the async boundary between top-level and route-level
       // processing, and verifies route-level uses the post-top-level match.
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/mid',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-            redirect: (BuildContext context, GoRouterState state) => '/final',
+            builder: (context, state) => const DummyScreen(),
+            redirect: (context, state) => '/final',
           ),
           GoRoute(
             path: '/final',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) async {
+        redirect: (context, state) async {
           await Future<void>.delayed(Duration.zero);
           if (state.matchedLocation == '/') {
             return '/mid';
@@ -518,20 +518,20 @@ void main() {
     });
 
     testWidgets('async route-level redirect into sync top-level chain', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Route-level on /src: /src -> /dst (async)
       // Top-level: /dst -> /final (sync)
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
             routes: <RouteBase>[
               GoRoute(
                 path: 'src',
-                builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-                redirect: (BuildContext context, GoRouterState state) async {
+                builder: (context, state) => const DummyScreen(),
+                redirect: (context, state) async {
                   await Future<void>.delayed(Duration.zero);
                   return '/dst';
                 },
@@ -540,16 +540,16 @@ void main() {
           ),
           GoRoute(
             path: '/dst',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/final',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
         initialLocation: '/src',
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           if (state.matchedLocation == '/dst') {
             return '/final';
           }
@@ -564,35 +564,35 @@ void main() {
     });
 
     testWidgets('sync route-level redirect into async top-level chain', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Route-level on /src: /src -> /dst (sync)
       // Top-level: /dst -> /final (async)
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
             routes: <RouteBase>[
               GoRoute(
                 path: 'src',
-                builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
-                redirect: (BuildContext context, GoRouterState state) => '/dst',
+                builder: (context, state) => const DummyScreen(),
+                redirect: (context, state) => '/dst',
               ),
             ],
           ),
           GoRoute(
             path: '/dst',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/final',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
         initialLocation: '/src',
-        redirect: (BuildContext context, GoRouterState state) async {
+        redirect: (context, state) async {
           await Future<void>.delayed(Duration.zero);
           if (state.matchedLocation == '/dst') {
             return '/final';
@@ -608,7 +608,7 @@ void main() {
     });
 
     testWidgets('context disposal during async top-level redirect does not crash', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Simulate context disposal while an async top-level redirect is
       // in flight. The router should handle this gracefully — not navigate
@@ -620,14 +620,14 @@ void main() {
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/target',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
-        redirect: (BuildContext context, GoRouterState state) async {
+        redirect: (context, state) async {
           if (state.matchedLocation == '/') {
             redirectStarted.complete();
             await proceedRedirect.future;
@@ -635,7 +635,7 @@ void main() {
           }
           return null;
         },
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
       addTearDown(router.dispose);
 
@@ -658,7 +658,7 @@ void main() {
     });
 
     testWidgets('context disposal during async route-level redirect does not crash', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Same as above but for route-level async redirects.
       final redirectStarted = Completer<void>();
@@ -668,8 +668,8 @@ void main() {
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
-            redirect: (BuildContext context, GoRouterState state) async {
+            builder: (context, state) => const HomeScreen(),
+            redirect: (context, state) async {
               redirectStarted.complete();
               await proceedRedirect.future;
               return '/target';
@@ -677,10 +677,10 @@ void main() {
           ),
           GoRoute(
             path: '/target',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
-        errorBuilder: (BuildContext context, GoRouterState state) => TestErrorScreen(state.error!),
+        errorBuilder: (context, state) => TestErrorScreen(state.error!),
       );
       addTearDown(router.dispose);
 
@@ -700,29 +700,29 @@ void main() {
       expect(find.byType(LoginScreen), findsNothing);
     });
 
-    testWidgets('top-level redirect chain works with router.go()', (WidgetTester tester) async {
+    testWidgets('top-level redirect chain works with router.go()', (tester) async {
       // Start at /, no redirect from /. Navigate to /a which chains to /c.
-      final GoRouter router = await createRouter(
+      final router = await createRouter(
         <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) => const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/a',
-            builder: (BuildContext context, GoRouterState state) => const DummyScreen(),
+            builder: (context, state) => const DummyScreen(),
           ),
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) => const Page1Screen(),
+            builder: (context, state) => const Page1Screen(),
           ),
           GoRoute(
             path: '/c',
-            builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+            builder: (context, state) => const LoginScreen(),
           ),
         ],
         tester,
-        redirect: (BuildContext context, GoRouterState state) {
+        redirect: (context, state) {
           if (state.matchedLocation == '/a') {
             return '/b';
           }

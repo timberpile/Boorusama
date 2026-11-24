@@ -65,18 +65,21 @@ void main() {
             SyncNoticeKind.offers || SyncNoticeKind.followingOffers =>
               SyncNotificationDestination.subscriptions,
           });
-          if (kind == SyncNoticeKind.topics)
+          if (kind == SyncNoticeKind.topics) {
             expect(copy.title, '$count new ${count == 1 ? 'topic' : 'topics'}');
-          if (kind == SyncNoticeKind.posts)
+          }
+          if (kind == SyncNoticeKind.posts) {
             expect(copy, (
               title: 'Mite mite!',
               body: 'New bookmarks are available! 👀',
             ));
-          if (kind == SyncNoticeKind.device)
+          }
+          if (kind == SyncNoticeKind.device) {
             expect(copy, (
               title: 'Someone new showed up!',
               body: 'A new device wants to join the fun! 👋',
             ));
+          }
         }
         expect(messages, hasLength(5));
       },

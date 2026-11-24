@@ -54,7 +54,7 @@ void main() {
       source: source,
     );
   });
-  tearDown(() async => directory.delete(recursive: true));
+  tearDown(() => Future.sync(() => directory.delete(recursive: true)));
 
   test('portable definitions omit credentials, private profile labels and automatic refresh preferences', () async {
     final package = await const SyncFollowingPackageBuilder(fs: IoFileSystem())

@@ -94,7 +94,7 @@ final class GroupPostPager {
     );
     final batch = validateGroupMemberBatch(
       query,
-      await (loadSharedPage != null && isForeground?.call() != false
+      await (loadSharedPage != null && (isForeground?.call() ?? true)
           ? loadSharedPage!(page)
           : runGroupRead(
               source,
@@ -125,7 +125,7 @@ final class GroupPostPager {
               current: () =>
                   generation == _generation &&
                   isCurrent() &&
-                  (page == 1 || isForeground?.call() != false),
+                  (page == 1 || (isForeground?.call() ?? true)),
             )),
     );
     if (generation != _generation ||

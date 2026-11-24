@@ -59,7 +59,8 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
-Default for authorized implementation: inspect → implement → scope-appropriate verification → review → report.
+Default for authorized implementation: inspect → implement → scope-appropriate
+verification → review → final Flutter analysis → report.
 Research-only requests end with findings and drafts; publishing issues or changing code
 requires the user's authorization.
 Tickets, issues, design/plan documents, subagents, and reviewer pairs are optional, not routine
@@ -129,8 +130,15 @@ user-data reset or retirement of public support is authorized by this policy.
 ## Verification and devices
 
 Format changed Dart files with `fvm dart format`, run directly related behavior
-tests during implementation, and analyze affected scope when useful. Default
-ordinary test concurrency to detected available physical cores (minimum one),
+tests during implementation, and analyze affected scope when useful. After
+implementation and review changes are finished, make sure generated Dart matches
+the current checkout. Run `fvm flutter analyze --no-pub` from the repository
+root for changes that affect Dart or its analysis. Fix every error, warning,
+and informational finding.
+Recheck any behavior affected by the fixes and rerun the full analysis until
+it reports `No issues found!` on the final state before reporting completion.
+
+Default ordinary test concurrency to detected available physical cores (minimum one),
 using `python3 scripts/physical_core_count.py`; `TEST_CONCURRENCY` overrides the
 complete runner. Workload benchmarks keep their explicit serial setting.
 Tests should use controlled clocks or completion signals instead of fixed sleeps
@@ -140,7 +148,7 @@ Choose verification by the change's scope, following the
 [verification guidance](docs/engineering_guidelines.md#scope-appropriate-verification):
 
 - Documentation, issue status, comments, and other non-runtime-only changes:
-  run relevant documentation/tooling checks; do not run application tests.
+  run relevant documentation/tooling checks. Do not run application tests.
 - Scoped application changes: run affected test files or directories and nearby
   consumer tests when a meaningful boundary is crossed.
 - Local package changes: run that package's complete suite and relevant consumer
@@ -160,7 +168,8 @@ output, or changes to the combined develop candidate require re-verification.
 Record the checked commit/state, commands, results and limits in the normal task
 report; no cache or verification metadata is needed. Report failed or incomplete
 checks without claiming the candidate is ready to integrate.
-Run `./gen.sh` only when changed inputs or missing generated output require it.
+Run `./gen.sh` when generated output is missing or its inputs have changed
+since the last generation, including after switching revisions.
 
 For UI changes, exercise affected actions at narrow width, enlarged text, and
 with the keyboard open when relevant. Apply these checks where the interaction

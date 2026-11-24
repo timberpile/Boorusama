@@ -226,12 +226,15 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('following_receive_');
     Hive.init('${root.path}/local');
-    if (!Hive.isAdapterRegistered(6))
+    if (!Hive.isAdapterRegistered(6)) {
       Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(7))
+    }
+    if (!Hive.isAdapterRegistered(7)) {
       Hive.registerAdapter(SearchPostPreviewHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(8))
+    }
+    if (!Hive.isAdapterRegistered(8)) {
       Hive.registerAdapter(RecentSearchPostHiveObjectAdapter());
+    }
     repository = HiveFollowingTopicRepository(
       box: await Hive.openBox<FollowingTopicHiveObject>('topics'),
       organizationBox: await Hive.openBox<dynamic>('metadata'),
@@ -427,7 +430,7 @@ void main() {
   });
 
   test('an unavailable independent Topic retains its state while a healthy sibling updates and retry catches up', () async {
-    final first = await publish(topicId, query: 'cat');
+    final first = await publish(topicId);
     final second = await publish(futureId, query: 'dog');
     const parents = <String, String?>{topicId: null, futureId: null};
     await receive(
@@ -645,7 +648,7 @@ void main() {
             ? await publish(futureId)
             : null;
         await receive(
-          await advertise([folder, topic, if (second != null) second]),
+          await advertise([folder, topic, ?second]),
           {folderId},
         );
         if (scenario == 'revoked') publicEnabled = false;
@@ -690,7 +693,7 @@ void main() {
     copy = (await repository.getById(copy.id))!;
     expect(copy.localSource, source);
     final snapshots = SearchRuntimeSnapshotService(repository);
-    final codec = const SearchRuntimeSnapshotCodec();
+    const codec = SearchRuntimeSnapshotCodec();
     final saved = codec.decode(codec.encode(await snapshots.capture()));
     await repository.delete(copy.id);
     await snapshots.restore(saved);
@@ -749,7 +752,7 @@ void main() {
         await repository.delete(copiedId);
         final siblingBefore = await repository.getById(sibling.id);
         final before = await repository.readMirrorSnapshot();
-        if (interrupted)
+        if (interrupted) {
           repository = HiveFollowingTopicRepository(
             box: Hive.box<FollowingTopicHiveObject>('topics'),
             organizationBox: metadata,
@@ -759,6 +762,7 @@ void main() {
                       .containsKey(copiedId),
             ),
           );
+        }
         final container = ProviderContainer(
           overrides: [
             followingTopicRepositoryProvider.overrideWith(
@@ -946,8 +950,9 @@ class _InterruptedCopyStorage extends IoFileSystem {
     String content, {
     bool flush = false,
   }) async {
-    if (interrupted && content.contains('"state":"rollingBack"'))
+    if (interrupted && content.contains('"state":"rollingBack"')) {
       throw StateError('Process stopped before rollback');
+    }
     await super.writeString(path, content, flush: flush);
   }
 }

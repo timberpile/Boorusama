@@ -5,6 +5,8 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 BookmarkGroup group(
   String id, {
   String? parent,
@@ -28,7 +30,7 @@ Future<void> openPicker(
   await tester.pumpWidget(
     BooruLocalization(
       child: MaterialApp(
-        builder: (context, child) => MaterialUiCompatibilityBridge(
+        builder: (context, child) => LegacyMaterialTestScope(
           child: MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: textScaler),
             child: child!,
@@ -60,8 +62,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () async {

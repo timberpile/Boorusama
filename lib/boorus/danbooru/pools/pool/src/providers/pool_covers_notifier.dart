@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../../../../core/content/content_access.dart';
 import '../../../../../../core/content/content_access_provider.dart';
 import '../../../../../../core/content/content_media_access.dart';
@@ -133,7 +135,7 @@ class PoolCoversNotifier
       final postId = pool.postIds!.last;
       if (_lastCandidates[pool.id]?.postId == postId) continue;
       _lastCandidates[pool.id] = (postId: postId, revision: Object());
-      _inFlight.remove(pool.id);
+      unawaited(_inFlight.remove(pool.id));
       if (state.containsKey(pool.id)) invalidated.add(pool.id);
     }
     if (invalidated.isNotEmpty) {
@@ -230,8 +232,9 @@ class PoolCoversNotifier
       try {
         await work;
       } finally {
-        if (identical(_generation, generation))
+        if (identical(_generation, generation)) {
           _inFlight.removeWhere((_, value) => identical(value, work));
+        }
       }
     }
     await Future.wait(waiting);

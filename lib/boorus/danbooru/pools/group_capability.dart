@@ -2,8 +2,6 @@ import 'package:booru_clients/danbooru.dart' as api;
 
 import '../../../core/blacklists/providers.dart';
 import '../../../core/posts/post/types.dart';
-import '../posts/post/src/converter.dart';
-import '../posts/post/src/providers.dart' show filterDanbooruPosts;
 import 'pool/src/types/safebooru_pool_availability.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,8 +36,9 @@ BooruGroupCapability createDanbooruGroupCapability(
   keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
   createSource: (ref, access) {
     final config = access.config;
-    if (config == null)
+    if (config == null) {
       throw StateError('Group source has no authorized configuration');
+    }
     api.DanbooruClient client() =>
         ref.read(danbooruClientProvider(config.auth));
     final safe = isDonmaiSafebooru(config.url);
@@ -130,10 +129,11 @@ BooruGroupCapability createDanbooruGroupCapability(
       ),
       consumeMembers: (posts) async {
         final repo = ref.read(danbooruPostRepoProvider(config.search));
-        if (repo is ForegroundPostConsumer<Post>)
+        if (repo is ForegroundPostConsumer<Post>) {
           await (repo as ForegroundPostConsumer<Post>).consumePreparedPosts(
             posts,
           );
+        }
       },
       access: access,
       fetchPool: (id) async => poolDtoToDanbooruPool(

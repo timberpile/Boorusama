@@ -58,7 +58,7 @@ BooruConfig _profile({String? excludedRating}) => BooruConfig.fromJson({
   'ratingFilter': excludedRating == null
       ? BooruConfigRatingFilter.none.index
       : BooruConfigRatingFilter.custom.index,
-  if (excludedRating != null) 'granularRatingFilterString': excludedRating,
+  'granularRatingFilterString': ?excludedRating,
 });
 
 void main() {
@@ -111,7 +111,7 @@ void main() {
         addTearDown(container.dispose);
         final post = TestPost(
           id: 1,
-          tags: {'blocked_tag'},
+          tags: const {'blocked_tag'},
           originalImageUrl: _image,
           thumbnailImageUrl: _image,
         );

@@ -64,7 +64,9 @@ void main() {
           danbooruClientProvider.overrideWith(
             (ref, auth) => DanbooruClient(baseUrl: auth.url, dio: dio),
           ),
-          danbooruCurrentUserProvider.overrideWith((ref, auth) async => null),
+          danbooruCurrentUserProvider.overrideWith(
+            (ref, auth) => Future.sync(() => null),
+          ),
         ],
       );
       await harness.pumpUntilFound(tester, postTile(101));

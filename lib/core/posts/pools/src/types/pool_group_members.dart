@@ -127,8 +127,9 @@ final class PoolGroupMembers {
       throw StateError('Pool source changed');
     }
     for (final post in posts) {
-      if (!requested.contains(post.id) || hydrated.containsKey(post.id))
+      if (!requested.contains(post.id) || hydrated.containsKey(post.id)) {
         continue;
+      }
       hydrated[post.id] = PostContentEntry(
         reference: reference(post.id),
         post: post,

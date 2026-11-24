@@ -382,7 +382,7 @@ class _ChangeRow extends StatelessWidget {
       ),
     );
     if (row.isContainer ||
-        (row.details.isNotEmpty && row.category != 'settings'))
+        (row.details.isNotEmpty && row.category != 'settings')) {
       return ExpansionTile(
         key: ValueKey('change-detail-${row.category}-${row.id}'),
         initiallyExpanded: expanded.contains(expansionKey),
@@ -424,6 +424,7 @@ class _ChangeRow extends StatelessWidget {
           ),
         ],
       );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(

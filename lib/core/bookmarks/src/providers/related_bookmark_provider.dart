@@ -52,8 +52,6 @@ final relatedBookmarkDraftProvider = FutureProvider.autoDispose
         createdAt: now,
         observedAt: now,
         groupIds: const {},
-        tags: const {},
-        coverage: PoolTagCoverage.unknown,
       );
     });
 
@@ -108,8 +106,9 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
     ) async {
       final (config, family) = request;
       if (postOriginFromConfig(config).sourceHost != family.origin.sourceHost ||
-          config.auth.booruType != family.origin.booruType)
+          config.auth.booruType != family.origin.booruType) {
         throw StateError('Related source mismatch');
+      }
       // Reuse the actor already authorized by the caller; counts never warm a
       // profile policy or create an extra source/client just for presentation.
       ContentAccessContext? currentAccess() {
@@ -160,10 +159,12 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
             .run(),
       );
       final data = result.fold((_) => null, (value) => value);
-      if (cancellation.isCancelled)
+      if (cancellation.isCancelled) {
         throw StateError('Related request cancelled');
-      if (data == null && existing != null)
+      }
+      if (data == null && existing != null) {
         throw StateError('Related metadata unavailable');
+      }
       if (countAccessCurrent()) counts.publish(countRead, data?.total);
       final now = DateTime.now().toUtc();
       final members =

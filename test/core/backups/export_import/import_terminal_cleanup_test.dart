@@ -91,7 +91,7 @@ void main() {
       final retired = '${root.path}/.retired-interrupted';
       await Directory(store.transactionPath('interrupted')).rename(retired);
       await expectLater(store.pending(), throwsFormatException);
-      expect(await File('$retired/journal.json').exists(), isTrue);
+      expect(File('$retired/journal.json').existsSync(), isTrue);
     },
   );
 
@@ -148,7 +148,7 @@ void main() {
     await File('${retired.path}/journal.json')
         .writeAsString(jsonEncode(journal.toJson()));
     await expectLater(store.pending(), throwsFormatException);
-    expect(await retired.exists(), isTrue);
+    expect(retired.existsSync(), isTrue);
   });
 
   test(
@@ -161,7 +161,7 @@ void main() {
       for (final id in [
         '../escape',
         'a/b',
-        'a\\b',
+        r'a\b',
         '',
         '.retired-interrupted',
       ]) {
@@ -209,9 +209,9 @@ final class _CleanupFaultFileSystem extends IoFileSystem {
 
   final String transactionId;
   _CleanupFault? fault;
-  bool injected = false;
+  var injected = false;
 
-  bool publishingCommit = false;
+  var publishingCommit = false;
 
   @override
   Future<void> writeString(String path, String content, {bool flush = false}) {
@@ -222,7 +222,7 @@ final class _CleanupFaultFileSystem extends IoFileSystem {
   }
 
   @override
-  Future<void> deleteFileIfExists(String path) async {
+  Future<void> deleteFileIfExists(String path) => Future<void>.sync(() {
     if (fault == _CleanupFault.obsoleteBackup &&
         publishingCommit &&
         !injected &&
@@ -234,19 +234,23 @@ final class _CleanupFaultFileSystem extends IoFileSystem {
       );
     }
     return super.deleteFileIfExists(path);
-  }
+  });
 
   @override
-  Future<void> renameDirectory(String source, String destination) async {
-    if (fault == _CleanupFault.beforeRename && !injected) {
-      injected = true;
-      throw FileSystemException('Injected retirement rename failure', source);
-    }
-    return super.renameDirectory(source, destination);
-  }
+  Future<void> renameDirectory(String source, String destination) =>
+      Future<void>.sync(() {
+        if (fault == _CleanupFault.beforeRename && !injected) {
+          injected = true;
+          throw FileSystemException(
+            'Injected retirement rename failure',
+            source,
+          );
+        }
+        return super.renameDirectory(source, destination);
+      });
 
   @override
-  Future<void> syncDirectory(String path) async {
+  Future<void> syncDirectory(String path) => Future<void>.sync(() {
     if (fault == _CleanupFault.retirementSync &&
         !injected &&
         directoryExistsSync('$path/.retired-$transactionId')) {
@@ -254,7 +258,7 @@ final class _CleanupFaultFileSystem extends IoFileSystem {
       throw FileSystemException('Injected retirement sync failure', path);
     }
     return super.syncDirectory(path);
-  }
+  });
 
   @override
   Future<void> deleteDirectory(String path, {bool recursive = false}) async {

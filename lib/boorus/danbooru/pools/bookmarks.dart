@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -145,12 +147,15 @@ final class DanbooruPoolBookmarks implements PoolBookmarkCapability {
   ) async {
     final pool = await _pool(config, id);
     if (!target.context.mounted) return;
-    if (!target.read(booruConfigProvider).contains(config))
+    if (!target.read(booruConfigProvider).contains(config)) {
       throw StateError('Pool profile changed');
+    }
     if (pool == null) throw StateError('Pool unavailable');
-    target.pushRoute(
-      '/danbooru/pools/$id',
-      extra: (pool: pool, config: config),
+    unawaited(
+      target.pushRoute(
+        '/danbooru/pools/$id',
+        extra: (pool: pool, config: config),
+      ),
     );
   }
 }

@@ -168,7 +168,7 @@ void main() {
         searchIds: [original.id],
       );
       await repository.replaceOrganization(
-        TopicOrganization(folders: [folder], homeSearchIds: const []),
+        TopicOrganization(folders: [folder]),
       );
       await repository.commitRefresh(
         SearchRefreshCommit(
@@ -775,7 +775,6 @@ void main() {
       );
       await repository.replaceOrganization(
         TopicOrganization(
-          homeSearchIds: const [],
           folders: [
             TopicFolder(
               id: 'folder',
@@ -846,7 +845,7 @@ void main() {
       );
 
       await repository.replaceOrganization(
-        TopicOrganization(folders: [folder], homeSearchIds: const []),
+        TopicOrganization(folders: [folder]),
       );
       await box.close();
       await organizationBox.close();
@@ -884,7 +883,6 @@ void main() {
                 searchIds: [source.id],
               ),
             ],
-            homeSearchIds: const [],
           ),
         ),
         throwsStateError,
@@ -1738,7 +1736,6 @@ void main() {
             searchIds: [cat.id, dog.id],
           ),
         ],
-        homeSearchIds: const [],
       );
       await failingRepository.replaceOrganization(original);
       organization.failWrites = true;

@@ -179,7 +179,9 @@ class FollowingTopicHarness {
     container = ProviderContainer(
       overrides: [
         // Metadata presentation has dedicated repository/cache coverage.
-        topicQueryTagCategoriesProvider.overrideWith((ref, key) async => {}),
+        topicQueryTagCategoriesProvider.overrideWith(
+          (ref, key) => Future.sync(() => {}),
+        ),
         searchHistoryRepoProvider.overrideWith(
           (_) => Future.value(EmptySearchHistoryRepository()),
         ),

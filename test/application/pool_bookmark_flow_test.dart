@@ -13,7 +13,6 @@ import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
-import 'package:boorusama/core/posts/listing/src/widgets/post_list_configuration_header.dart';
 import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/pool_order_selector.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/pools/widgets.dart';
@@ -43,7 +42,6 @@ import 'dart:async';
 import 'package:boorusama/core/posts/links/share_group_link_button.dart';
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:booru_clients/danbooru.dart' as api;
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
@@ -1054,16 +1052,18 @@ void main() {
     (tester) async {
       final setup = await _mount(tester, longGallery: true);
       final harness = setup.harness;
-      setup.container
-          .read(routerProvider)
-          .push(
-            '/danbooru/pools/20',
-            extra: (
-              pool: _pool(category: DanbooruPoolCategory.collection)
-                  .copyWith(id: 20),
-              config: harness.booruBackend.config,
+      unawaited(
+        setup.container
+            .read(routerProvider)
+            .push(
+              '/danbooru/pools/20',
+              extra: (
+                pool: _pool(category: DanbooruPoolCategory.collection)
+                    .copyWith(id: 20),
+                config: harness.booruBackend.config,
+              ),
             ),
-          );
+      );
       await showGroupTimeline(tester, harness, find.byType(PoolDetailContent));
       await harness.settle(tester);
       expect(find.byType(ViewerEntryNavigationHeader), findsOneWidget);
@@ -1119,11 +1119,12 @@ void main() {
       );
       final firstPageExtent =
           gallery().scrollController!.position.maxScrollExtent;
-      for (var i = 0; i < 3; i++)
+      for (var i = 0; i < 3; i++) {
         await harness.pumpUntilComplete(
           tester,
           gallery().controller.fetchMore(),
         );
+      }
       final previous = gallery().scrollController!;
       previous.jumpTo(previous.position.maxScrollExtent * .8);
       await harness.settle(tester);
@@ -2922,8 +2923,9 @@ _mount(
           page: 1,
         )
       : null;
-  if (!holdIndex)
+  if (!holdIndex) {
     backend.enqueuePosts(page: 1, query: 'pool:10', posts: backend.posts);
+  }
   backend.enqueuePosts(
     page: 1,
     query: 'pool:10 order:created_at',
@@ -3033,7 +3035,7 @@ _mount(
       thumbnailImageUrl: '${backend.config.url}related-10.jpg',
     ),
   );
-  if (seedReference || seedRelated)
+  if (seedReference || seedRelated) {
     await groups.writePoolBookmarks([
       if (seedRelated)
         RelatedCollectionBookmark(
@@ -3045,7 +3047,7 @@ _mount(
           cover: relatedCover,
           createdAt: testPoolPost(102).createdAt.add(const Duration(hours: 6)),
           observedAt: DateTime.utc(2026),
-          groupIds: {poolGroupA},
+          groupIds: const {poolGroupA},
         ),
       if (seedReference)
         PoolBookmark.fromJson({
@@ -3084,6 +3086,7 @@ _mount(
           },
         }),
     ]);
+  }
   if (seedPosts) {
     final bookmarks = [
       for (var id = 101; id < 101 + seedPostCount; id++)
@@ -3181,7 +3184,7 @@ _mount(
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),
       dataMutationCoordinatorProvider.overrideWithValue(coordinator),
-      bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+      bookmarkGroupRepoProvider.overrideWith((_) => Future.sync(() => groups)),
       if (bookmarkNotifierFactory != null)
         bookmarkProvider.overrideWith(
           () => bookmarkNotifierFactory(backend.config),
@@ -3194,7 +3197,9 @@ _mount(
         relatedBookmarkDraftProvider.overrideWith(
           (ref, request) => relatedDraftGate.future,
         ),
-      blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+      blacklistTagsProvider.overrideWith(
+        (_, _) => Future.sync(() => <String>{}),
+      ),
       poolBookmarkCapabilityProvider.overrideWith(
         (ref, _) => DanbooruPoolBookmarks(ref),
       ),
@@ -3420,7 +3425,7 @@ class _PoolAdapter implements HttpClientAdapter {
         },
       );
     }
-    if (options.path.endsWith('.json'))
+    if (options.path.endsWith('.json')) {
       return ResponseBody.fromString(
         jsonEncode({
           ...json,
@@ -3433,6 +3438,7 @@ class _PoolAdapter implements HttpClientAdapter {
           Headers.contentTypeHeader: ['application/json'],
         },
       );
+    }
     return ResponseBody.fromString(
       '<div id="description"></div>',
       200,
@@ -3451,7 +3457,7 @@ class _PoolAdapter implements HttpClientAdapter {
 }
 
 Future<void> _drainNotifications(WidgetTester tester) async {
-  dismissAllToast(showAnim: false);
+  dismissAllToast();
   // Drain notification lifetimes using the widget's controlled clock.
   await tester.pump(const Duration(seconds: 6));
 }

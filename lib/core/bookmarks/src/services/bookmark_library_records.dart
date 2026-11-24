@@ -22,8 +22,9 @@ extension on BookmarkLibraryService {
     final resolved = <Bookmark>[];
     for (final frozen in savedRecords) {
       final current = await store.read(frozen.id);
-      if (current == null || !_sameTarget(current, frozen))
+      if (current == null || !_sameTarget(current, frozen)) {
         throw StateError('Saved Bookmark changed before the action completed');
+      }
       resolved.add(current);
     }
     final pending = <Bookmark>[];
@@ -159,8 +160,9 @@ extension on BookmarkLibraryService {
       }
     }
     final affected = target.bookmarkIds.intersection(requested);
-    if (affected.isEmpty)
+    if (affected.isEmpty) {
       return const BookmarkGroupRemovalResult(removedCount: 0);
+    }
     final removed = [for (final id in affected) snapshot.byId[id]!];
     final finalMembership = <int>{
       for (final id in affected)

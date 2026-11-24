@@ -156,7 +156,6 @@ void main() {
               viewer,
               active: true,
               immersive: true,
-              bottomObstruction: 0,
             );
             await tester.pumpAndSettle();
             expect(tester.getRect(toast).bottom, closeTo(640 - 24 - 16, 0.5));
@@ -165,7 +164,7 @@ void main() {
           }
 
           tester.view.viewInsets = const FakeViewPadding(bottom: 240);
-          tester.view.padding = const FakeViewPadding();
+          tester.view.padding = FakeViewPadding.zero;
           await tester.pumpAndSettle();
           expect(tester.getRect(toast).bottom, closeTo(640 - 240 - 16, 0.5));
           if (withShell) {
@@ -204,5 +203,5 @@ void main() {
 class _EmptyBookmarks extends BookmarkLibraryNotifier {
   @override
   BookmarkLibraryState build() =>
-      BookmarkLibraryState(bookmarks: [], groups: []);
+      BookmarkLibraryState(bookmarks: const [], groups: const []);
 }

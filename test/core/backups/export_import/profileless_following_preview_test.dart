@@ -68,14 +68,14 @@ void main() {
       final resolution = ResolvedImportSource(
         id: 'pinned_searches',
         action: ImportAction.replace,
-        items: [],
+        items: const [],
       );
       final repository = memorySubscriptionRepository();
       final before = projector.followingTopics(
         local: FollowingTopicImportLocalSnapshot(
           searches: [],
           feeds: [],
-          organization: TopicOrganization(folders: []),
+          organization: TopicOrganization(folders: const []),
         ),
         incoming: _data,
         resolution: resolution,
@@ -249,7 +249,7 @@ void main() {
         recentPostIdentities: const [],
         unreadCount: 3,
         highestSeenPostId: 42,
-        lastSuccessfulCheckAt: DateTime.utc(2026, 10, 1),
+        lastSuccessfulCheckAt: DateTime.utc(2026, 10),
       );
       await repository.restoreForProfile(seeded.profileId, [seeded]);
       const mirrorId = '44444444-4444-4444-8444-444444444444';

@@ -3,11 +3,15 @@
 // found in the LICENSE file.
 
 import 'package:collection/collection.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPage;
+import 'package:flutter/material.dart' show MaterialPage;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 
+import '../go_router.dart' show CustomTransitionPage, NoTransitionPage;
 import 'configuration.dart';
 import 'misc/errors.dart';
+import 'pages/custom_transition_page.dart' show CustomTransitionPage, NoTransitionPage;
 import 'route.dart';
 
 /// The route state during routing.
@@ -134,13 +138,13 @@ class GoRouterState {
       if (route == null) {
         throw _noGoRouterStateError;
       }
-      final RouteSettings settings = route.settings;
+      final settings = route.settings;
       if (settings is Page<Object?>) {
         scope = context.dependOnInheritedWidgetOfExactType<GoRouterStateRegistryScope>();
         if (scope == null) {
           throw _noGoRouterStateError;
         }
-        final GoRouterState? state = scope.notifier!._createPageRouteAssociation(
+        final state = scope.notifier!._createPageRouteAssociation(
           route.settings as Page<Object?>,
           route,
         );
@@ -148,7 +152,7 @@ class GoRouterState {
           return state;
         }
       }
-      final NavigatorState? state = Navigator.maybeOf(context);
+      final state = Navigator.maybeOf(context);
       if (state == null) {
         throw _noGoRouterStateError;
       }
@@ -208,7 +212,7 @@ class GoRouterState {
     pageKey,
     Object.hashAllUnordered(
       metadata.entries.map<int>(
-        (MapEntry<String, dynamic> entry) => Object.hash(entry.key, entry.value),
+        (entry) => Object.hash(entry.key, entry.value),
       ),
     ),
   );
@@ -239,46 +243,55 @@ class GoRouterStateRegistry extends ChangeNotifier {
 
   /// A [Map] that maps a [Page] to a [GoRouterState].
   @visibleForTesting
-  final Map<Page<Object?>, GoRouterState> registry = <Page<Object?>, GoRouterState>{};
+  final registry = <Page<Object?>, GoRouterState>{};
 
   final Map<Route<Object?>, Page<Object?>> _routePageAssociation =
       <ModalRoute<Object?>, Page<Object?>>{};
 
   GoRouterState? _createPageRouteAssociation(Page<Object?> page, ModalRoute<Object?> route) {
-    assert(route.settings == page);
+    assert(route.settings == page, 'A registered page must own the route it creates.');
     if (!registry.containsKey(page)) {
       return null;
     }
-    final Page<Object?>? oldPage = _routePageAssociation[route];
+    final oldPage = _routePageAssociation[route];
     if (oldPage == null) {
       // This is a new association.
       _routePageAssociation[route] = page;
       // If there is an association, the registry relies on the route to remove
       // entry from registry because it wants to preserve the GoRouterState
       // until the route finishes the popping animations.
-      route.completed.then<void>((Object? result) {
+      route.completed.then<void>((result) {
         // Can't use `page` directly because Route.settings may have changed during
         // the lifetime of this route.
-        final Page<Object?> associatedPage = _routePageAssociation.remove(route)!;
-        assert(registry.containsKey(associatedPage));
+        final associatedPage = _routePageAssociation.remove(route)!;
+        assert(
+          registry.containsKey(associatedPage),
+          'The route state must exist for an associated page.',
+        );
         registry.remove(associatedPage);
       });
     } else if (oldPage != page) {
       // Need to update the association to avoid memory leak.
       _routePageAssociation[route] = page;
-      assert(registry.containsKey(oldPage));
+      assert(
+        registry.containsKey(oldPage),
+        'The route state must exist for the previously associated page.',
+      );
       registry.remove(oldPage);
     }
-    assert(_routePageAssociation[route] == page);
+    assert(
+      _routePageAssociation[route] == page,
+      'The route being removed must still be associated with its page.',
+    );
     return registry[page]!;
   }
 
   /// Updates this registry with new records.
   void updateRegistry(Map<Page<Object?>, GoRouterState> newRegistry) {
     var shouldNotify = false;
-    final Set<Page<Object?>> pagesWithAssociation = _routePageAssociation.values.toSet();
-    for (final MapEntry<Page<Object?>, GoRouterState> entry in newRegistry.entries) {
-      final GoRouterState? existingState = registry[entry.key];
+    final pagesWithAssociation = _routePageAssociation.values.toSet();
+    for (final entry in newRegistry.entries) {
+      final existingState = registry[entry.key];
       if (existingState != null) {
         if (existingState != entry.value) {
           shouldNotify = shouldNotify || pagesWithAssociation.contains(entry.key);
@@ -291,7 +304,7 @@ class GoRouterStateRegistry extends ChangeNotifier {
       // Adding or removing registry does not need to notify the listen since
       // no one should be depending on them.
     }
-    registry.removeWhere((Page<Object?> key, GoRouterState value) {
+    registry.removeWhere((key, value) {
       if (newRegistry.containsKey(key)) {
         return false;
       }

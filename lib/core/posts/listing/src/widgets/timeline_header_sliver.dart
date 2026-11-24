@@ -45,9 +45,9 @@ class TimelineHeaderSliver extends StatelessWidget {
               final leading =
                   constraints.viewportMainAxisExtent -
                   constraints.remainingPaintExtent +
-                  math.max(0, constraints.overlap);
-              final inset = math.max(
-                0.0,
+                  math.max<double>(0, constraints.overlap);
+              final inset = math.max<double>(
+                0,
                 MediaQuery.paddingOf(context).top - leading,
               );
               return _MeasuredPinnedHeader(
@@ -101,23 +101,23 @@ class _RenderMeasuredPinnedHeader extends RenderSliverToBoxAdapter {
     markNeedsLayout();
   }
 
-  bool _pinned = false;
+  var _pinned = false;
 
   @override
   void performLayout() {
     super.performLayout();
     final current = geometry!;
-    final overlap = math.max(0.0, constraints.overlap);
-    final available = math.max(
-      0.0,
+    final overlap = math.max<double>(0, constraints.overlap);
+    final available = math.max<double>(
+      0,
       constraints.viewportMainAxisExtent - overlap - _bottomObstruction,
     );
     _pinned = child != null && current.scrollExtent <= available;
     if (!_pinned) return;
 
     final extent = current.scrollExtent;
-    final remaining = math.max(
-      0.0,
+    final remaining = math.max<double>(
+      0,
       constraints.remainingPaintExtent - overlap,
     );
     geometry = SliverGeometry(
@@ -165,12 +165,12 @@ class _AvoidHeaderOverlap extends SingleChildRenderObjectWidget {
 class _RenderAvoidHeaderOverlap extends RenderProxySliver {
   @override
   void performLayout() {
-    final overlap = math.max(0.0, constraints.overlap);
+    final overlap = math.max<double>(0, constraints.overlap);
     child!.layout(
       constraints.copyWith(
-        overlap: math.min(0.0, constraints.overlap),
-        remainingPaintExtent: math.max(
-          0.0,
+        overlap: math.min<double>(0, constraints.overlap),
+        remainingPaintExtent: math.max<double>(
+          0,
           constraints.remainingPaintExtent - overlap,
         ),
       ),

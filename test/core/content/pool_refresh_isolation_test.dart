@@ -39,30 +39,33 @@ void main() {
           sourceKey: 'pool:$id',
         );
         final posts = _Posts();
-        final ContentGroupSource source = engine == BooruType.danbooru
-            ? DanbooruGroupSource(
-                access: access,
-                fetchPool: (id) async => DanbooruPool.empty().copyWith(
-                  id: id,
-                  postIds: [id],
-                ),
-                postRepository: () => posts,
-              )
-            : SzurubooruGroupSource(
-                access: access,
-                fetchPool: (id) async => SzurubooruPool(
-                  id: id,
-                  names: const [],
-                  category: null,
-                  description: null,
-                  postCount: 1,
-                  postIds: [id],
-                  thumbnailUrls: const [],
-                  createdAt: null,
-                  updatedAt: null,
-                ),
-                postRepository: () => posts,
-              );
+        final ContentGroupSource source;
+        if (engine == BooruType.danbooru) {
+          source = DanbooruGroupSource(
+            access: access,
+            fetchPool: (id) async => DanbooruPool.empty().copyWith(
+              id: id,
+              postIds: [id],
+            ),
+            postRepository: () => posts,
+          );
+        } else {
+          source = SzurubooruGroupSource(
+            access: access,
+            fetchPool: (id) async => SzurubooruPool(
+              id: id,
+              names: const [],
+              category: null,
+              description: null,
+              postCount: 1,
+              postIds: [id],
+              thumbnailUrls: const [],
+              createdAt: null,
+              updatedAt: null,
+            ),
+            postRepository: () => posts,
+          );
+        }
         addTearDown(source.dispose);
         final a = source
             .loadMembers(GroupMemberQuery(reference: group(1)))
@@ -111,11 +114,11 @@ class _Posts implements PostRepository<Post> {
     int? limit,
     PostFetchOptions? options,
   }) => TaskEither.tryCatch(
-    () async {
+    () => Future.sync(() {
       requests.update(tags, (count) => count + 1, ifAbsent: () => 1);
       if (!started[tags]!.isCompleted) started[tags]!.complete();
       return gates[tags]!.future;
-    },
+    }),
     (error, _) => UnknownError(error: error, message: 'Test Post fetch failed'),
   );
 

@@ -65,7 +65,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           );
         },
         executor: (_, _) async {},
-        resultExecutor: (data, uiContext) async {
+        resultExecutor: (data, uiContext) => Future.sync(() {
           final library = ref.read(bookmarkProvider.notifier);
           return library.runSerializedMutation(
             () async {
@@ -109,7 +109,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
               );
             },
           );
-        },
+        }),
         handler: BookmarkBackupCodec(
           groupMetadataResolver: () => ref.read(groupMetadataCodecProvider),
           postDataCodec: (type) =>

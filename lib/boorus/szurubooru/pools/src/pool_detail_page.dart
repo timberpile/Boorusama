@@ -54,8 +54,9 @@ class _SzurubooruPoolDetailPageState
     super.initState();
     final config = ref.readConfig;
     try {
-      if (config.auth.booruType != BooruType.szurubooru)
+      if (config.auth.booruType != BooruType.szurubooru) {
         throw const FormatException('Wrong Pool engine');
+      }
       final reference = const ContentReferenceCodec().parse(
         engine: BooruType.szurubooru,
         site: Uri.parse(config.url),

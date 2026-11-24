@@ -99,7 +99,6 @@ void main() {
             searchIds: const ['independent'],
           ),
         ],
-        homeSearchIds: const [],
       ),
     );
     expected = await service.capture();

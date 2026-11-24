@@ -1,6 +1,8 @@
 include: all_lint_rules.yaml
 analyzer:
   exclude:
+    # Local release evidence can contain archived Dart files.
+    - artifacts/**
     - build/**
     - "**/build/**"
     - "**/*.g.dart"

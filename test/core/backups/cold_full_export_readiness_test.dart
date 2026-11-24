@@ -207,7 +207,7 @@ class _Harness {
   final List<ProviderSubscription<dynamic>> subscriptions;
 
   void finishLoading() {
-    if (!ready.isCompleted)
+    if (!ready.isCompleted) {
       ready.complete(
         FollowingTopicsState(
           topics: const [],
@@ -217,11 +217,13 @@ class _Harness {
           organization: TopicOrganization(folders: const []),
         ),
       );
+    }
   }
 
   Future<String> export(bool automatic) async {
-    if (!automatic)
+    if (!automatic) {
       return container.read(exportFlowProvider.notifier).createExport();
+    }
     await container
         .read(backupProvider.notifier)
         .performManualAutoBackup(
@@ -234,7 +236,9 @@ class _Harness {
 
   Future<void> dispose() async {
     finishLoading();
-    for (final subscription in subscriptions) subscription.close();
+    for (final subscription in subscriptions) {
+      subscription.close();
+    }
     container.dispose();
     await directory.delete(recursive: true);
   }
@@ -262,7 +266,7 @@ class _Settings extends SettingsNotifier {
 
 class _FileSystem extends IoFileSystem {
   _FileSystem(this.root);
-  int createdExportDirectories = 0;
+  var createdExportDirectories = 0;
   void Function()? onCreateExportDirectory;
   final String root;
   @override

@@ -1,7 +1,6 @@
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
-import 'package:boorusama/core/settings/src/types/search_refresh_settings.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,7 +41,7 @@ void main() {
               builder: (context) => MediaQuery(
                 data: MediaQuery.of(
                   context,
-                ).copyWith(textScaler: TextScaler.linear(2)),
+                ).copyWith(textScaler: const TextScaler.linear(2)),
                 child: Scaffold(
                   body: FollowingTopicCard(
                     topic: topicFixture(
@@ -88,7 +87,7 @@ void main() {
           ..remove('topicFeedMemberSort'),
         'pinnedSearchSort': 'updatesFirst',
         'followingFeedMemberSort': 'oldestFirst',
-        'searchRefresh': {
+        'searchRefresh': const {
           'schemaVersion': 2,
           'pinnedSearchesEnabled': false,
           'followingFeedsEnabled': false,
@@ -113,7 +112,7 @@ void main() {
       'pinnedSearchSort': 'updatesFirst',
     });
     expect(settings.followingTopicSort, 'nameAsc');
-    final refresh = SearchRefreshSettings.parse({
+    final refresh = SearchRefreshSettings.parse(const {
       'schemaVersion': 2,
       'followingTopicsEnabled': false,
       'pinnedSearchesEnabled': true,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
@@ -50,14 +52,16 @@ Future<void> goToNewBulkDownloadTaskPage(
     return;
   }
 
-  Kurumi.showAppModalBottomSheet(
-    context: context,
-    routeSettings: const RouteSettings(name: 'bulk_download_create'),
-    builder: (_) => CurrentBooruConfigScope(
-      config: source,
-      child: CreateDownloadOptionsSheet(
-        initialValue: initialValue,
-        showStartNotification: showStartNotification,
+  unawaited(
+    Kurumi.showAppModalBottomSheet(
+      context: context,
+      routeSettings: const RouteSettings(name: 'bulk_download_create'),
+      builder: (_) => CurrentBooruConfigScope(
+        config: source,
+        child: CreateDownloadOptionsSheet(
+          initialValue: initialValue,
+          showStartNotification: showStartNotification,
+        ),
       ),
     ),
   );

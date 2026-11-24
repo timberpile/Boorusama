@@ -86,10 +86,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('hierarchy-migration-');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     interrupt = null;
     await open();
   });

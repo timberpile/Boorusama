@@ -197,7 +197,6 @@ void main() {
                 id: folderId,
                 name: 'Local',
                 searchIds: [_id(0), _id(1)],
-                feedEnabled: false,
                 feedMaxPosts: 250,
               ),
             ],
@@ -265,10 +264,8 @@ void main() {
               TopicFolder(
                 id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
                 name: 'ANIMALS (2)',
-                searchIds: const [],
               ),
             ],
-            homeSearchIds: const [],
           ),
         );
         final data = FollowingTopicBackupData(
@@ -643,7 +640,7 @@ void main() {
               name: 'Renamed',
               searchIds: [_id(0), _id(1)],
             ),
-            TopicFolder(id: 'empty', name: 'Empty', searchIds: const []),
+            TopicFolder(id: 'empty', name: 'Empty'),
           ],
           homeSearchIds: [_id(3), _id(2)],
         ),

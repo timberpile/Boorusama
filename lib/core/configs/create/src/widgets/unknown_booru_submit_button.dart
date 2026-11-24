@@ -75,7 +75,7 @@ class UnknownBooruSubmitButton extends ConsumerWidget {
                                   initialData: config,
                                 );
 
-                            Navigator.of(context).pop();
+                            if (context.mounted) Navigator.of(context).pop();
                           }
                         : null,
                     child: value

@@ -317,8 +317,8 @@ class FollowingTopicCard extends StatelessWidget {
                     auth: config!,
                     fallback: preview,
                   )
-                else if (preview != null)
-                  preview!,
+                else
+                  ?preview,
                 metadata ??
                     FollowingTopicCardMetadata(
                       leading: ownerCaption,
@@ -378,9 +378,9 @@ class FollowingSyncStatus extends StatelessWidget {
       if (published && !readOnly)
         Tooltip(
           message: context.t.mitemite.published,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: const MiteMiteIcon(size: 18),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: MiteMiteIcon(size: 18),
           ),
         ),
     ],
@@ -405,13 +405,13 @@ class FollowingDefinitionMenu extends StatelessWidget {
   });
   final List<Widget> syncActions;
   final bool readOnly;
-  final VoidCallback? onInfo,
-      onRefresh,
-      onEdit,
-      onDelete,
-      onUp,
-      onDown,
-      onToggleAutoUpdate;
+  final VoidCallback? onInfo;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onUp;
+  final VoidCallback? onDown;
+  final VoidCallback? onToggleAutoUpdate;
   final bool autoUpdate;
   final bool folder;
   final bool showMoveActions;

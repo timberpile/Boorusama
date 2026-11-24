@@ -102,8 +102,9 @@ class ShareService {
             caller
                     .read(contentAccessContextProvider(accessKey))
                     ?.hasSameAuthorization(source!) !=
-                true)
+                true) {
           return;
+        }
         post = resolved ?? post;
       }
     }

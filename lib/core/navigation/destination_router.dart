@@ -88,8 +88,9 @@ final class DestinationRouterBinding {
         final route = root.top!;
         // A root editor/import is independent, and must finish through its
         // own guards before a destination can change beneath it.
-        if (route is! PopupRoute || !await _popTransient(root, route))
+        if (route is! PopupRoute || !await _popTransient(root, route)) {
           return false;
+        }
         if (currentDestination != origin) return false;
       }
     }

@@ -233,7 +233,7 @@ class _TestSettingsNotifier extends SettingsNotifier {
 
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
   _FailingSecondReadBookmarkRepository(
-    super.box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
         groupPayloadBox: storage.groupPayloadBox,

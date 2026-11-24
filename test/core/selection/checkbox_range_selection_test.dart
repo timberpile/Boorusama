@@ -13,7 +13,7 @@ void main() {
           home: Scaffold(
             body: StatefulBuilder(
               builder: (context, setState) => CheckboxRangeSelection<int>(
-                entries: [0, 1, 2, 3, 4, 5],
+                entries: const [0, 1, 2, 3, 4, 5],
                 selected: selected,
                 onChanged: (value) => setState(() => selected = value),
                 child: ListView(

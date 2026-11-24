@@ -29,7 +29,6 @@ import 'package:boorusama/core/backups/mitemite/notification_outbox.dart';
 
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:boorusama/core/backups/mitemite/catalog.dart';
@@ -109,16 +108,21 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('following_services_');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(6))
+    }
+    if (!Hive.isAdapterRegistered(6)) {
       Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(7))
+    }
+    if (!Hive.isAdapterRegistered(7)) {
       Hive.registerAdapter(SearchPostPreviewHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(8))
+    }
+    if (!Hive.isAdapterRegistered(8)) {
       Hive.registerAdapter(RecentSearchPostHiveObjectAdapter());
+    }
     a = await _Library.open('${directory.path}/a', aProfile);
     b = await _Library.open('${directory.path}/b', bProfile);
     await a.service.configure('${directory.path}/shared');
@@ -1534,10 +1538,11 @@ void main() {
           recovered.first.sourceKind,
           following ? 'following_topics' : 'bookmarks',
         );
-        if (following)
+        if (following) {
           await b.service.acknowledgeFollowing(
             followingSnapshot.topics.single.id,
           );
+        }
         await b.service.synchronize();
         expect(
           b.service.events.history.map((event) => event.toJson()).toList(),
@@ -1794,7 +1799,9 @@ void main() {
             () => _Repository(b.following),
           ),
           globalBlacklistedTagsProvider.overrideWith(_PublicBlacklist.new),
-          miteMiteServiceProvider.overrideWith((_) async => b.service),
+          miteMiteServiceProvider.overrideWith(
+            (_) => Future.sync(() => b.service),
+          ),
           followingTopicsProvider.overrideWith(
             () => FollowingTopicsNotifier(
               refreshService: SearchRefreshService(
@@ -1829,8 +1836,9 @@ void main() {
         while (!done()) {
           final frameworkError = tester.takeException();
           if (frameworkError != null) throw frameworkError;
-          if (guard.elapsed > const Duration(seconds: 30))
+          if (guard.elapsed > const Duration(seconds: 30)) {
             fail('Received route did not complete');
+          }
           await tester.runAsync(() => Future<void>(() {}));
           await tester.pump();
         }
@@ -2074,8 +2082,12 @@ void main() {
               followingTopicRepositoryProvider.overrideWith(
                 () => _Repository(b.following),
               ),
-              bookmarkRepoProvider.overrideWith((_) async => b.bookmarks),
-              bookmarkGroupRepoProvider.overrideWith((_) async => b.groups),
+              bookmarkRepoProvider.overrideWith(
+                (_) => Future.sync(() => b.bookmarks),
+              ),
+              bookmarkGroupRepoProvider.overrideWith(
+                (_) => Future.sync(() => b.groups),
+              ),
               booruConfigProvider.overrideWith(
                 () => BooruConfigNotifier(initialConfigs: []),
               ),
@@ -2084,7 +2096,9 @@ void main() {
               dataMutationCoordinatorProvider.overrideWithValue(
                 b.bookmarks.coordinator,
               ),
-              miteMiteServiceProvider.overrideWith((_) async => b.service),
+              miteMiteServiceProvider.overrideWith(
+                (_) => Future.sync(() => b.service),
+              ),
             ],
           );
           b.service.dispose();
@@ -2462,15 +2476,16 @@ class _Library {
 }
 
 class _Store implements MiscDataStore {
-  bool failEvents = false;
-  bool failAlias = false;
+  var failEvents = false;
+  var failAlias = false;
   final values = <String, String>{};
   @override
   String? get(String key) => values[key];
   @override
   Future<void> put(String key, String value) async {
-    if (failEvents && key == 'mitemite.v1.local_events')
+    if (failEvents && key == 'mitemite.v1.local_events') {
       throw StateError('Injected history persistence interruption');
+    }
     values[key] = value;
     if (failAlias && key == SyncCollectionAliases.key) {
       failAlias = false;
@@ -2486,8 +2501,8 @@ class _FailingStore
         FollowingNotificationReceiptStore {
   _FailingStore(this.delegate);
   final FollowingMirrorStore delegate;
-  bool failCommit = false;
-  bool failRead = false;
+  var failCommit = false;
+  var failRead = false;
   @override
   Future<void> acknowledgeMirrorNotifications(int cursor) =>
       (delegate as FollowingNotificationReceiptStore)
@@ -2628,9 +2643,7 @@ class _UiBox<T> implements Box<T> {
   Future<void> delete(dynamic key) async => _values.remove(key);
   @override
   Future<void> deleteAll(Iterable<dynamic> keys) async {
-    for (final key in keys.toList()) {
-      _values.remove(key);
-    }
+    keys.toList().forEach(_values.remove);
   }
 
   @override

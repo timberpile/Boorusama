@@ -84,7 +84,7 @@ class BookmarkPresentationCovers {
   static const storageKey = 'bookmarkPresentationCovers';
   Future<void> _tail = Future.value();
   Map<String, dynamic>? _confirmed;
-  bool _writeFailed = false;
+  var _writeFailed = false;
 
   Map<String, dynamic> _read() => Map.of(_confirmed ??= _load());
 
@@ -129,8 +129,7 @@ class BookmarkPresentationCovers {
           bookmarkPresentationCoverKey(library, pool),
       for (final bookmark
           in library.byId.values.whereType<ContentGroupBookmark>())
-        if (nativeWorkPresentationCoverKey(library, bookmark) case final key?)
-          key,
+        ?nativeWorkPresentationCoverKey(library, bookmark),
     };
     final choices = _read();
     final oldLength = choices.length;

@@ -189,11 +189,13 @@ void main() {
           var prepared = false;
           var copied = false;
           when(() => cache.generateCacheKey(any())).thenReturn('sample');
-          when(() => cache.getCachedFileBytes('sample')).thenAnswer((_) async {
-            if (!prepared) return null;
-            if (metadataFails) throw StateError('metadata unavailable');
-            return png;
-          });
+          when(() => cache.getCachedFileBytes('sample')).thenAnswer(
+            (_) => Future.sync(() {
+              if (!prepared) return null;
+              if (metadataFails) throw StateError('metadata unavailable');
+              return png;
+            }),
+          );
           when(() => cache.acquireFile('sample')).thenAnswer((_) async {
             prepared = true;
             return _FileLease(file.path);
@@ -274,7 +276,7 @@ void main() {
             fileSize: 2097152,
             format: 'jpg',
           ).withDetailFacts(
-            PostDetailFacts(
+            const PostDetailFacts(
               originalWidth: 2400,
               originalHeight: 1600,
               originalByteSize: 2097152,
@@ -489,7 +491,7 @@ void main() {
               fileSize: 1048576,
               format: 'jpg',
             ).withDetailFacts(
-              PostDetailFacts(
+              const PostDetailFacts(
                 originalWidth: 1920,
                 originalHeight: 1080,
                 originalByteSize: 1048576,
@@ -522,7 +524,7 @@ void main() {
             fileSize: 1048576,
             format: 'jpg',
           ).withDetailFacts(
-            PostDetailFacts(
+            const PostDetailFacts(
               originalWidth: 1920,
               originalHeight: 1080,
               originalByteSize: 1048576,
@@ -556,7 +558,7 @@ void main() {
             height: 600,
             format: 'png',
           ).withDetailFacts(
-            PostDetailFacts(
+            const PostDetailFacts(
               originalWidth: 800,
               originalHeight: 600,
               originalFormat: 'png',
@@ -589,7 +591,7 @@ void main() {
                   format: 'jpg',
                 )
                 .withDetailFacts(
-                  PostDetailFacts(
+                  const PostDetailFacts(
                     originalWidth: 2400,
                     originalHeight: 1600,
                     originalByteSize: 2097152,
@@ -627,7 +629,7 @@ void main() {
             height: 600,
             format: 'jpg',
           ).withDetailFacts(
-            PostDetailFacts(
+            const PostDetailFacts(
               originalWidth: 800,
               originalHeight: 600,
               originalFormat: 'jpg',
@@ -677,7 +679,7 @@ void main() {
         format: 'mp4',
         videoUrl: 'https://site.test/full.mp4',
         originalImageUrl: 'https://site.test/full.mp4',
-      ).withDetailFacts(PostDetailFacts(originalFormat: 'mp4')),
+      ).withDetailFacts(const PostDetailFacts(originalFormat: 'mp4')),
       extractor: const UrlInsidePostExtractor(),
     );
 

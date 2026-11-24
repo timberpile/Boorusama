@@ -191,10 +191,9 @@ Future<_Scenario> _mount(WidgetTester tester) async {
     booruBackend: backend,
     viewportSize: const Size(390, 1100),
     additionalOverrides: [
-      bookmarkProvider.overrideWith(() {
-        notifier = _MutableBookmarks(initial);
-        return notifier;
-      }),
+      bookmarkProvider.overrideWith(
+        () => notifier = _MutableBookmarks(initial),
+      ),
     ],
   );
   return _Scenario(
@@ -259,14 +258,12 @@ BookmarkLibraryState _libraryState(BooruConfig config) {
         id: _parentId,
         name: 'Parent',
         bookmarkIds: const {101, 102},
-        position: 0,
       ),
       BookmarkGroup(
         id: _betaId,
         name: 'Beta',
         bookmarkIds: const {},
         parentGroupId: _parentId,
-        position: 0,
       ),
       BookmarkGroup(
         id: _gammaId,

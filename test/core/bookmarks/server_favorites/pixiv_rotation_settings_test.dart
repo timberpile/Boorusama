@@ -23,12 +23,15 @@ class _Library extends BookmarkLibraryNotifier {
   Future<T> runWithLibrary<T>(Future<T> Function() operation) => operation();
 
   @override
-  Future<BookmarkLibraryState> build() async => await snapshotForExport();
+  Future<BookmarkLibraryState> build() =>
+      Future.sync(() => snapshotForExport());
   @override
   Future<BookmarkLibraryState> snapshotForExport() async =>
       BookmarkLibraryState(
         bookmarks: const [],
-        groups: [BookmarkGroup(id: 'target', name: 'Target', bookmarkIds: {})],
+        groups: [
+          BookmarkGroup(id: 'target', name: 'Target', bookmarkIds: const {}),
+        ],
       );
 }
 

@@ -37,8 +37,9 @@ extension MiteMiteFollowing on MiteMiteService {
         final snapshot = await (await _followingRepository())
             .readMirrorSnapshot();
         if (snapshot.mirrors.isReceived(id) ||
-            !snapshot.organization.folders.any((f) => f.id == id))
+            !snapshot.organization.folders.any((f) => f.id == id)) {
           throw const FollowingMirrorReadOnly();
+        }
         final roots = {...publishedFollowingRoots, id};
         await _save(location, name, publishedRoots, followingRoots: roots);
         publishedFollowingRoots = Set.unmodifiable(roots);
@@ -142,8 +143,9 @@ extension MiteMiteFollowing on MiteMiteService {
     final raw = preferences.get(_forgetKey);
     if (raw == null) return {};
     final ids = jsonDecode(raw);
-    if (ids is! List || ids.length > miteMiteMaxEntries)
+    if (ids is! List || ids.length > miteMiteMaxEntries) {
       throw const FormatException('Invalid pending Forget actions');
+    }
     return ids.map(syncUuid).toSet();
   }
 

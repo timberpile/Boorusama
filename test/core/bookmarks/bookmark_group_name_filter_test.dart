@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 void main() {
   test('matching descendants retain their complete ancestor path', () {
     const folders = [
@@ -82,8 +84,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Scaffold(
             body: MediaQuery(
               data: const MediaQueryData(textScaler: TextScaler.linear(2)),
@@ -113,8 +114,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Scaffold(
             body: BookmarkOverviewNoMatches(onClear: () => cleared = true),
           ),

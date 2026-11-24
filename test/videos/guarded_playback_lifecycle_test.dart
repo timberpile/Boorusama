@@ -15,12 +15,10 @@ import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/image/raw_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as image;
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:mocktail/mocktail.dart';
 
 import '../core/posts/details/progressive_image_test_utils.dart'
     show TestImageCache, portraitPng, pumpUntil, testApp;
@@ -412,9 +410,9 @@ void main() {
                   originalUrl: remote,
                   failures: failures.stream,
                 ),
-                release: () async {
+                release: () => Future.sync(() {
                   releases++;
-                },
+                }),
               ),
               playerFactory: (_) => player,
             ),
@@ -458,9 +456,9 @@ void main() {
               playbackUrl: 'http://127.0.0.1:12345/capability/video',
               originalUrl: remote,
             ),
-            release: () async {
+            release: () => Future.sync(() {
               releases++;
-            },
+            }),
           ),
           playerFactory: (_) => player,
         ),

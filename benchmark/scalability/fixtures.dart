@@ -10,7 +10,7 @@ import '../../test/core/search/following_topics/topic_test_utils.dart';
 
 const scalabilityProfileId = '00000000-0000-4000-8000-00000000000c';
 const scalabilityGroupId = '00000000-0000-4000-8000-000000000001';
-final scalabilityEpoch = DateTime.utc(2026, 1, 1);
+final scalabilityEpoch = DateTime.utc(2026);
 
 /// Counter wrappers are used in separate probes, never in timing samples.
 class BookmarkReadCounter {

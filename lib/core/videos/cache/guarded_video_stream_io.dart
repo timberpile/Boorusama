@@ -57,7 +57,6 @@ final class GuardedVideoStream {
       InternetAddress.loopbackIPv4,
       0,
       backlog: 8,
-      shared: false,
     );
     final stream = GuardedVideoStream._(
       server,
@@ -75,7 +74,7 @@ final class GuardedVideoStream {
     server.idleTimeout = const Duration(seconds: 30);
     server.listen(
       (request) => unawaited(stream._serve(request)),
-      onError: (Object _, StackTrace __) {
+      onError: (Object _, StackTrace _) {
         stream._reportFailure();
         unawaited(stream.close());
       },
@@ -124,7 +123,7 @@ final class GuardedVideoStream {
       unawaited(
         response.done.then<void>(
           (_) => requestToken.cancel('Native video request closed'),
-          onError: (Object _, StackTrace __) =>
+          onError: (Object _, StackTrace _) =>
               requestToken.cancel('Native video request disconnected'),
         ),
       );
@@ -139,10 +138,10 @@ final class GuardedVideoStream {
           headers: {
             ..._headers,
             HttpHeaders.acceptEncodingHeader: 'identity',
-            if (range != null) HttpHeaders.rangeHeader: range,
-            if (request.headers.value(HttpHeaders.ifRangeHeader)
-                case final value?)
-              HttpHeaders.ifRangeHeader: value,
+            HttpHeaders.rangeHeader: ?range,
+            HttpHeaders.ifRangeHeader: ?request.headers.value(
+              HttpHeaders.ifRangeHeader,
+            ),
           },
           extra: const {apiMediaRequestKey: true},
           validateStatus: (status) => const [200, 206, 416].contains(status),

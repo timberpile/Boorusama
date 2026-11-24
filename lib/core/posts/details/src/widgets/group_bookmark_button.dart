@@ -60,7 +60,7 @@ class GroupScopedBookmarkButton extends ConsumerWidget {
               .asData
               ?.value;
     if (valid && presentation is BooruScopedGroupBookmarkPresentation) {
-      return (presentation as BooruScopedGroupBookmarkPresentation)
+      return (presentation! as BooruScopedGroupBookmarkPresentation)
           .buildScopedBookmarkButton(
             context,
             GroupBookmarkPresentationData(

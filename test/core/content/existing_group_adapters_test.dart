@@ -148,7 +148,7 @@ void main() {
   test(
     'summary and details share envelope and preserve native metadata',
     () async {
-      final f = _Fixture(postIds: [1], category: 'series');
+      final f = _Fixture(postIds: [1]);
       addTearDown(f.dispose);
       final values = await Future.wait([
         f.source.loadSummary(f.group).run(),
@@ -301,7 +301,7 @@ class _Fixture {
   late final ProviderContainer container;
   late final ContentGroupSource source;
   final repo = _Posts();
-  int poolRequests = 0;
+  var poolRequests = 0;
   ContentReference get group => reference('pool:42');
   ContentReference reference(String key, {String host = 'example.test'}) =>
       const ContentReferenceCodec().parse(

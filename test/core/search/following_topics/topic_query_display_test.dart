@@ -14,6 +14,8 @@ import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/topic_query_tag_categories_provider.dart';
 
+import '../../../support/legacy_material_test_scope.dart';
+
 void main() {
   for (final scale in [1.0, 2.0]) {
     for (final styleName in ['inherited', 'body', 'title']) {
@@ -22,8 +24,7 @@ void main() {
       ) async {
         await tester.pumpWidget(
           MaterialApp(
-            builder: (context, child) =>
-                MaterialUiCompatibilityBridge(child: child!),
+            builder: (context, child) => LegacyMaterialTestScope(child: child!),
             home: Scaffold(
               body: Builder(
                 builder: (context) {
@@ -89,15 +90,19 @@ void main() {
           );
           final container = ProviderContainer(
             overrides: [
-              booruTagTypeProvider.overrideWith((ref, key) async {
-                lookups.add(key);
-                if (missing) throw StateError('cache unavailable');
-                return key.$2 == 'unknown' ? null : 'artist';
-              }),
-              topicQueryTagCategoriesProvider.overrideWith((ref, key) async {
-                if (missing) throw StateError('metadata unavailable');
-                return {'artist_name': 'artist', '日本語_タグ': 'artist'};
-              }),
+              booruTagTypeProvider.overrideWith(
+                (ref, key) => Future.sync(() {
+                  lookups.add(key);
+                  if (missing) throw StateError('cache unavailable');
+                  return key.$2 == 'unknown' ? null : 'artist';
+                }),
+              ),
+              topicQueryTagCategoriesProvider.overrideWith(
+                (ref, key) => Future.sync(() {
+                  if (missing) throw StateError('metadata unavailable');
+                  return {'artist_name': 'artist', '日本語_タグ': 'artist'};
+                }),
+              ),
               booruChipColorsProvider.overrideWithValue(
                 palette,
               ),
@@ -114,7 +119,7 @@ void main() {
                 child: MaterialApp(
                   theme: ThemeData(brightness: brightness),
                   builder: (context, child) =>
-                      MaterialUiCompatibilityBridge(child: child!),
+                      LegacyMaterialTestScope(child: child!),
                   home: FollowingTopicQueryText(
                     auth: auth,
                     query: '-artist_name unknown rating:safe source:"https://site.test/a_b" 日本語_タグ',
@@ -154,11 +159,12 @@ void main() {
             );
           }
           final changed = await pump(second);
-          if (!missing)
+          if (!missing) {
             expect(
               changed.first.backgroundColor,
               palette.fromColor(Colors.blue)!.backgroundColor,
             );
+          }
           expect(chips, hasLength(5));
 
           expect(lookups.map((p) => p.$2).toSet(), {
@@ -212,12 +218,11 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
-          home: Scaffold(
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
+          home: const Scaffold(
             body: MediaQuery(
-              data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-              child: const SizedBox(
+              data: MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: SizedBox(
                 width: 160,
                 child: FollowingTopicQueryText(
                   query: 'artist_name -blue_hair order:score',
@@ -257,8 +262,7 @@ void main() {
       await tester.pumpWidget(
         BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) =>
-                MaterialUiCompatibilityBridge(child: child!),
+            builder: (context, child) => LegacyMaterialTestScope(child: child!),
             home: Scaffold(
               body: FollowingTopicCard(
                 topic: topic,

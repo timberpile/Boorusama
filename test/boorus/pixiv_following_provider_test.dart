@@ -103,8 +103,9 @@ void main() {
         overrides: [
           pixivFollowingLoaderProvider(params)
               .overrideWithValue((offset, token) async {
-                if (offset == 0)
+                if (offset == 0) {
                   return PixivFollowingPage([artist(1)], nextOffset: 30);
+                }
                 pendingToken = token;
                 return gate.future;
               }),

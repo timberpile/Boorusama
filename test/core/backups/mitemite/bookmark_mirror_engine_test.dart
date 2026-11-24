@@ -41,11 +41,9 @@ import 'dart:io';
 
 import 'package:oktoast/oktoast.dart';
 
-import 'package:boorusama/core/backups/mitemite/actions.dart';
 import 'package:boorusama/core/backups/mitemite/local_change_detection.dart';
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -199,10 +197,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('sync_engine_');
     Hive.init('${directory.path}/local');
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     final coordinator = DataMutationCoordinator();
     final posts = await Hive.openBox<BookmarkHiveObject>('posts');
     final metadata = await Hive.openBox<dynamic>('metadata');
@@ -271,24 +271,25 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  ProviderContainer realContainer(MiscDataStore preferences) =>
-      ProviderContainer(
-        overrides: [
-          bookmarkRepoProvider.overrideWith((_) async => repository),
-          bookmarkGroupRepoProvider.overrideWith((_) async => groups),
-          dataMutationCoordinatorProvider.overrideWithValue(
-            repository.coordinator,
-          ),
-          miscDataStoreProvider.overrideWithValue(preferences),
-          booruConfigProvider.overrideWith(
-            () => BooruConfigNotifier(initialConfigs: []),
-          ),
-          settingsNotifierProvider.overrideWith(() => _SyncTestSettings()),
-          bookmarkUrlResolverProvider.overrideWith(
-            (_, _) => const DefaultImageUrlResolver(),
-          ),
-        ],
-      );
+  ProviderContainer realContainer(
+    MiscDataStore preferences,
+  ) => ProviderContainer(
+    overrides: [
+      bookmarkRepoProvider.overrideWith((_) => Future.sync(() => repository)),
+      bookmarkGroupRepoProvider.overrideWith((_) => Future.sync(() => groups)),
+      dataMutationCoordinatorProvider.overrideWithValue(
+        repository.coordinator,
+      ),
+      miscDataStoreProvider.overrideWithValue(preferences),
+      booruConfigProvider.overrideWith(
+        () => BooruConfigNotifier(initialConfigs: []),
+      ),
+      settingsNotifierProvider.overrideWith(() => _SyncTestSettings()),
+      bookmarkUrlResolverProvider.overrideWith(
+        (_, _) => const DefaultImageUrlResolver(),
+      ),
+    ],
+  );
 
   Future<void> pumpIO(
     WidgetTester tester,
@@ -335,7 +336,7 @@ void main() {
     container: container,
     child: ProviderScope(
       overrides: [
-        miteMiteServiceProvider.overrideWith((_) async => service),
+        miteMiteServiceProvider.overrideWith((_) => Future.sync(() => service)),
       ],
       child: BooruLocalization(
         child: MaterialApp(
@@ -382,8 +383,10 @@ void main() {
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
         deterministicImageDioOverride(),
         deterministicFaviconDioOverride(),
-        bookmarkRepoProvider.overrideWith((_) async => repository),
-        bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+        bookmarkRepoProvider.overrideWith((_) => Future.sync(() => repository)),
+        bookmarkGroupRepoProvider.overrideWith(
+          (_) => Future.sync(() => groups),
+        ),
         dataMutationCoordinatorProvider.overrideWithValue(
           repository.coordinator,
         ),
@@ -391,7 +394,7 @@ void main() {
         bookmarkUrlResolverProvider.overrideWith(
           (_, _) => const DefaultImageUrlResolver(),
         ),
-        miteMiteServiceProvider.overrideWith((_) async => service),
+        miteMiteServiceProvider.overrideWith((_) => Future.sync(() => service)),
       ],
     );
     await harness.settle(tester);
@@ -429,7 +432,7 @@ void main() {
               cover: GroupCover(
                 thumbnail: Uri.parse('https://cdn.donmai.us/series.jpg'),
                 visibility: GroupCoverVisibility(
-                  tags: {'cat'},
+                  tags: const {'cat'},
                   rating: 'general',
                   deleted: false,
                   banned: false,
@@ -573,10 +576,11 @@ void main() {
                 final state = await repository.readMirrorState();
                 root = state.localIdFor(identity.id, parent)!;
                 leaf = state.localIdFor(identity.id, child)!;
-                if (kind == 'Works' && !nested)
+                if (kind == 'Works' && !nested) {
                   await engine.markRead(root, {
                     syncBookmarkMemberKey(records.first),
                   });
+                }
               } else {
                 root = (await library.createGroup('Local root')).id;
                 leaf = (await library.createGroup(
@@ -934,7 +938,8 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 2;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       late MiteMiteService service;
-      late String localParent, localChild;
+      late String localParent;
+      late String localChild;
       late BookmarkMirrorState original;
       final parentId = SyncCollectionId(
         publisher: identity.id,
@@ -1036,7 +1041,7 @@ void main() {
         () => !service.collectionAliases.containsKey(childId),
       );
       expect(find.text('B'), findsOneWidget);
-      expect((await tester.runAsync(repository.readMirrorState)), original);
+      expect(await tester.runAsync(repository.readMirrorState), original);
       expect(
         (await tester.runAsync(library.load))!.groupsById[localChild]!.name,
         'B',
@@ -1341,12 +1346,13 @@ void main() {
             );
             await service.configure('${directory.path}/shared');
             await groups.createGroup('Notification Nested Caller', id: parent);
-            if (coldLaunch)
+            if (coldLaunch) {
               await service.acknowledgeDiscoveries(
                 service.events.pendingDiscoveries
                     .map((device) => device.key)
                     .toSet(),
               );
+            }
           });
           addTearDown(service.dispose);
           tester.binding.handleAppLifecycleStateChanged(
@@ -1356,8 +1362,12 @@ void main() {
             tester,
             appWrapper: (child) => MiteMiteNotifications(child: child),
             additionalOverrides: [
-              bookmarkRepoProvider.overrideWith((_) async => repository),
-              bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+              bookmarkRepoProvider.overrideWith(
+                (_) => Future.sync(() => repository),
+              ),
+              bookmarkGroupRepoProvider.overrideWith(
+                (_) => Future.sync(() => groups),
+              ),
               dataMutationCoordinatorProvider.overrideWithValue(
                 repository.coordinator,
               ),
@@ -1365,7 +1375,9 @@ void main() {
               deterministicFaviconDioOverride(),
               miscDataStoreProvider.overrideWithValue(preferences),
               miteMiteActivationProvider.overrideWith((_) => true),
-              miteMiteServiceProvider.overrideWith((_) async => service),
+              miteMiteServiceProvider.overrideWith(
+                (_) => Future.sync(() => service),
+              ),
               downloadNotificationsProvider.overrideWithValue(native),
               appPlatformProvider.overrideWithValue(AppPlatform.android),
               deviceStoragePermissionProvider.overrideWith(_GrantedStorage.new),
@@ -1862,8 +1874,12 @@ void main() {
         additionalOverrides: [
           deterministicImageDioOverride(),
           deterministicFaviconDioOverride(),
-          bookmarkRepoProvider.overrideWith((_) async => repository),
-          bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+          bookmarkRepoProvider.overrideWith(
+            (_) => Future.sync(() => repository),
+          ),
+          bookmarkGroupRepoProvider.overrideWith(
+            (_) => Future.sync(() => groups),
+          ),
           dataMutationCoordinatorProvider.overrideWithValue(
             repository.coordinator,
           ),
@@ -1871,7 +1887,9 @@ void main() {
           bookmarkUrlResolverProvider.overrideWith(
             (_, _) => const DefaultImageUrlResolver(),
           ),
-          miteMiteServiceProvider.overrideWith((_) async => service),
+          miteMiteServiceProvider.overrideWith(
+            (_) => Future.sync(() => service),
+          ),
         ],
       );
       await harness.settle(tester);
@@ -2201,7 +2219,9 @@ void main() {
           tester,
           viewportSize: Size(width, 844),
           additionalOverrides: [
-            miteMiteServiceProvider.overrideWith((_) async => service),
+            miteMiteServiceProvider.overrideWith(
+              (_) => Future.sync(() => service),
+            ),
           ],
         );
         await harness.settle(tester);
@@ -2356,17 +2376,19 @@ void main() {
           fs: const IoFileSystem(),
           codec: codec,
           storageFor: (path) async {
-            if (offline)
+            if (offline) {
               throw StateError(
                 'Shared folder must not be used for display retry',
               );
+            }
             return DirectoryMiteMiteStorage(path);
           },
           identity: await SyncSigningIdentity.create(),
           mutations: repository.coordinator,
           onApplied: () async {
-            if (failReload)
+            if (failReload) {
               throw StateError('Injected consumer reload failure');
+            }
             await container.read(bookmarkProvider.notifier).refresh();
           },
         );
@@ -2445,8 +2467,10 @@ void main() {
     await advertise(a, b);
     final container = ProviderContainer(
       overrides: [
-        bookmarkRepoProvider.overrideWith((_) async => repository),
-        bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+        bookmarkRepoProvider.overrideWith((_) => Future.sync(() => repository)),
+        bookmarkGroupRepoProvider.overrideWith(
+          (_) => Future.sync(() => groups),
+        ),
         dataMutationCoordinatorProvider.overrideWithValue(
           repository.coordinator,
         ),
@@ -2739,7 +2763,9 @@ void main() {
         ProviderScope(
           overrides: [
             miteMiteActivationProvider.overrideWith((_) => true),
-            miteMiteServiceProvider.overrideWith((_) async => service),
+            miteMiteServiceProvider.overrideWith(
+              (_) => Future.sync(() => service),
+            ),
             bookmarkProvider.overrideWith(() => _SnapshotLibrary(snapshot)),
             followingTopicsProvider.overrideWith(_EmptyFollowing.new),
             booruConfigProvider.overrideWith(
@@ -2919,7 +2945,9 @@ void main() {
       service.failure = const SyncConflict();
       final app = ProviderScope(
         overrides: [
-          miteMiteServiceProvider.overrideWith((_) async => service),
+          miteMiteServiceProvider.overrideWith(
+            (_) => Future.sync(() => service),
+          ),
           bookmarkProvider.overrideWith(() => _SnapshotLibrary(snapshot)),
         ],
         child: BooruLocalization(
@@ -3013,7 +3041,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
-              miteMiteServiceProvider.overrideWith((_) async => service),
+              miteMiteServiceProvider.overrideWith(
+                (_) => Future.sync(() => service),
+              ),
               bookmarkProvider.overrideWith(() => _SnapshotLibrary(snapshot)),
             ],
             child: BooruLocalization(
@@ -3083,7 +3113,7 @@ void main() {
     await service.setCollectionAlias(childId, '  My child  ');
     expect(opens, opened);
     expect(service.events.history, history);
-    expect((await repository.readMirrorState()), before.mirrors);
+    expect(await repository.readMirrorState(), before.mirrors);
     expect((await library.load()).groupsById[localChild]!.name, 'B');
     expect(service.hasUnpublishedChanges, isFalse);
     await advertise(a, b, childName: 'Latest source name', siblings: true);
@@ -3263,7 +3293,9 @@ void main() {
       });
       Widget app(String? section) => ProviderScope(
         overrides: [
-          miteMiteServiceProvider.overrideWith((_) async => service),
+          miteMiteServiceProvider.overrideWith(
+            (_) => Future.sync(() => service),
+          ),
           bookmarkProvider.overrideWith(() => _SnapshotLibrary(snapshot)),
         ],
         child: BooruLocalization(
@@ -3363,14 +3395,16 @@ void main() {
       addTearDown(service.dispose);
       Widget app(String? section) => ProviderScope(
         overrides: [
-          miteMiteServiceProvider.overrideWith((_) async => service),
+          miteMiteServiceProvider.overrideWith(
+            (_) => Future.sync(() => service),
+          ),
           bookmarkProvider.overrideWith(() => _SnapshotLibrary(state)),
         ],
         child: BooruLocalization(
           child: MaterialApp(
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context)
-                  .copyWith(textScaler: TextScaler.linear(1.7)),
+                  .copyWith(textScaler: const TextScaler.linear(1.7)),
               child: KurumiTheme(
                 data: KurumiThemeData.fromMaterial(Theme.of(context)),
                 child: child!,
@@ -3406,8 +3440,9 @@ void main() {
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
         (call) async {
-          if (call.method == 'Clipboard.setData')
+          if (call.method == 'Clipboard.setData') {
             copied = (call.arguments as Map)['text'] as String;
+          }
           return null;
         },
       );
@@ -3443,8 +3478,9 @@ void main() {
       void changed() {
         if (service.name == 'My local device' &&
             !service.busy &&
-            !renamed.isCompleted)
+            !renamed.isCompleted) {
           renamed.complete();
+        }
       }
 
       service.addListener(changed);
@@ -3948,7 +3984,7 @@ void main() {
       );
       // The corrupt immutable winner is superseded at a fresh sequence before
       // retention removes it as an obsolete incomplete catalog.
-      expect(await catalogFile.exists(), isFalse);
+      expect(catalogFile.existsSync(), isFalse);
       await service.forget(identity.id);
       expect((await library.load()).groupsById.containsKey(copy.id), isTrue);
     },
@@ -4043,8 +4079,8 @@ class _SyncTestSettings extends SettingsNotifier {
 class _EmptyFollowing extends FollowingTopicsNotifier {
   @override
   Future<FollowingTopicsState> build() async => FollowingTopicsState(
-    topics: [],
-    refreshingIds: {},
+    topics: const [],
+    refreshingIds: const {},
     batchCompleted: 0,
     batchTotal: 0,
     organization: TopicOrganization(folders: const []),

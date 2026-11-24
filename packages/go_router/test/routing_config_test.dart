@@ -10,7 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('routing config works', (WidgetTester tester) async {
+  testWidgets('routing config works', (tester) async {
     final config = ValueNotifier<RoutingConfig>(
       RoutingConfig(
         routes: <RouteBase>[GoRoute(path: '/', builder: (_, _) => const Text('home'))],
@@ -18,7 +18,7 @@ void main() {
       ),
     );
     addTearDown(config.dispose);
-    final GoRouter router = await createRouterWithRoutingConfig(config, tester);
+    final router = await createRouterWithRoutingConfig(config, tester);
     expect(find.text('home'), findsOneWidget);
 
     router.go('/abcd'); // should be redirected to home
@@ -26,7 +26,7 @@ void main() {
     expect(find.text('home'), findsOneWidget);
   });
 
-  testWidgets('routing config works after builder changes', (WidgetTester tester) async {
+  testWidgets('routing config works after builder changes', (tester) async {
     final config = ValueNotifier<RoutingConfig>(
       RoutingConfig(
         routes: <RouteBase>[GoRoute(path: '/', builder: (_, _) => const Text('home'))],
@@ -43,14 +43,14 @@ void main() {
     expect(find.text('home1'), findsOneWidget);
   });
 
-  testWidgets('routing config works after routing changes', (WidgetTester tester) async {
+  testWidgets('routing config works after routing changes', (tester) async {
     final config = ValueNotifier<RoutingConfig>(
       RoutingConfig(
         routes: <RouteBase>[GoRoute(path: '/', builder: (_, _) => const Text('home'))],
       ),
     );
     addTearDown(config.dispose);
-    final GoRouter router = await createRouterWithRoutingConfig(
+    final router = await createRouterWithRoutingConfig(
       config,
       tester,
       errorBuilder: (_, _) => const Text('error'),
@@ -71,7 +71,7 @@ void main() {
     expect(find.text('/abc'), findsOneWidget);
   });
 
-  testWidgets('routing config works after routing changes case 2', (WidgetTester tester) async {
+  testWidgets('routing config works after routing changes case 2', (tester) async {
     final config = ValueNotifier<RoutingConfig>(
       RoutingConfig(
         routes: <RouteBase>[
@@ -81,7 +81,7 @@ void main() {
       ),
     );
     addTearDown(config.dispose);
-    final GoRouter router = await createRouterWithRoutingConfig(
+    final router = await createRouterWithRoutingConfig(
       config,
       tester,
       errorBuilder: (_, _) => const Text('error'),
@@ -99,7 +99,7 @@ void main() {
     expect(find.text('error'), findsOneWidget);
   });
 
-  testWidgets('routing config works after routing changes case 3', (WidgetTester tester) async {
+  testWidgets('routing config works after routing changes case 3', (tester) async {
     final key = GlobalKey<_StatefulTestState>(debugLabel: 'testState');
     final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -140,7 +140,7 @@ void main() {
     'routing config works with shell route',
     // TODO(tolo): Temporarily skipped due to a bug that causes test to faiL
     skip: true,
-    (WidgetTester tester) async {
+    (tester) async {
       final key = GlobalKey<_StatefulTestState>(debugLabel: 'testState');
       final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
       final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -151,7 +151,7 @@ void main() {
             ShellRoute(
               navigatorKey: shellNavigatorKey,
               routes: <RouteBase>[GoRoute(path: '/', builder: (_, _) => const Text('home'))],
-              builder: (_, _, Widget widget) => StatefulTest(key: key, child: widget),
+              builder: (_, _, widget) => StatefulTest(key: key, child: widget),
             ),
           ],
         ),
@@ -174,7 +174,7 @@ void main() {
               GoRoute(path: '/', builder: (_, _) => const Text('home')),
               GoRoute(path: '/abc', builder: (_, _) => const Text('/abc')),
             ],
-            builder: (_, _, Widget widget) => StatefulTest(key: key, child: widget),
+            builder: (_, _, widget) => StatefulTest(key: key, child: widget),
           ),
         ],
       );
@@ -184,7 +184,7 @@ void main() {
     },
   );
 
-  testWidgets('routing config works with named route', (WidgetTester tester) async {
+  testWidgets('routing config works with named route', (tester) async {
     final config = ValueNotifier<RoutingConfig>(
       RoutingConfig(
         routes: <RouteBase>[
@@ -194,7 +194,7 @@ void main() {
       ),
     );
     addTearDown(config.dispose);
-    final GoRouter router = await createRouterWithRoutingConfig(
+    final router = await createRouterWithRoutingConfig(
       config,
       tester,
       errorBuilder: (_, _) => const Text('error'),
@@ -235,7 +235,7 @@ class StatefulTest extends StatefulWidget {
 }
 
 class _StatefulTestState extends State<StatefulTest> {
-  int value = 0;
+  var value = 0;
 
   @override
   Widget build(BuildContext context) {

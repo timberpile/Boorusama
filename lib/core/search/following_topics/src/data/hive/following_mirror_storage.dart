@@ -350,11 +350,12 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
           overrides.remove(topic.id);
           estimates.remove(topic.id);
           if (!topic.autoUpdateEnabled) overrides[topic.id] = false;
-          if (topic.newPostCountEstimate case final count?)
+          if (topic.newPostCountEstimate case final count?) {
             estimates[topic.id] = {
               'count': count,
               'lowerBound': topic.newPostCountIsLowerBound,
             };
+          }
           await storage.put('search:auto_update_overrides', overrides);
           await storage.put('search:new_post_estimates', estimates);
           if (topic.historyEnd case final end?) {
@@ -402,8 +403,9 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
   }
 
   void _requireWritableFollowing(String id) {
-    if (_followingMirrors().isReceived(id))
+    if (_followingMirrors().isReceived(id)) {
       throw const FollowingMirrorReadOnly();
+    }
   }
 
   void _requireWritableFollowingOrganization(TopicOrganization organization) {
@@ -485,8 +487,9 @@ final class _FollowingMirrorTransactionSource
   @override
   Future<void> apply(ResolvedImportSource plan) async {
     final operation = _apply;
-    if (operation == null)
+    if (operation == null) {
       throw StateError('Recovery cannot apply new definitions');
+    }
     await operation();
   }
 

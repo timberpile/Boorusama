@@ -21,9 +21,7 @@ Map<int, Bookmark> mapBookmarkImportProfiles({
   StoredBookmarkCodec codec = const StoredBookmarkCodec(),
 }) {
   final existing = {
-    for (final record in local)
-      if (bookmarkContentIdentity(record) case final identity?)
-        identity: record,
+    for (final record in local) ?bookmarkContentIdentity(record): record,
   };
   final groups = incomingGroups?.toList();
   final opaqueMatches =
@@ -50,7 +48,7 @@ Map<int, Bookmark> mapBookmarkImportProfiles({
   Map<String, Object?> transferable(Bookmark record) {
     final wire = codec.encodeForTransfer(record)..remove('id');
     if (wire['kind'] == 'post') {
-      ((wire['snapshot'] as Map)['origin'] as Map).remove('profileIdHint');
+      ((wire['snapshot']! as Map)['origin'] as Map).remove('profileIdHint');
     } else if (wire['legacy'] case final Map legacy) {
       ((legacy['metadata'] as Map)['origin'] as Map).remove('profileIdHint');
     } else {

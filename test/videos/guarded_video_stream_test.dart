@@ -12,7 +12,6 @@ import 'package:boorusama/core/videos/engines/types.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 
 const upstream = 'https://private.example/install/video.webm';
 const total = 200 * 1024 * 1024;
@@ -32,10 +31,10 @@ class _Cache extends Fake implements VideoCacheManager {
     required CancelToken cancelToken,
     Map<String, String>? headers,
     bool retain = true,
-  }) async {
+  }) => Future.sync(() {
     reads++;
     throw StateError('Large video must not require a cache file');
-  }
+  });
 }
 
 class _Adapter implements HttpClientAdapter {
@@ -415,7 +414,9 @@ void main() {
       expect(adapter.requests, hasLength(4));
       await stream.close();
       await Future.wait(pending);
-      for (final gate in gates) gate.complete(ResponseBody.fromString('', 200));
+      for (final gate in gates) {
+        gate.complete(ResponseBody.fromString('', 200));
+      }
     },
   );
 }

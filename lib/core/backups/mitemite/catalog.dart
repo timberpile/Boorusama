@@ -181,8 +181,9 @@ final class SyncCatalog {
     Map<String, dynamic> json,
   ) {
     if (!json.containsKey('publicationScopeVersion') &&
-        !json.containsKey('publicationRoots'))
+        !json.containsKey('publicationRoots')) {
       return null;
+    }
     if (json['publicationScopeVersion'] != 1) throw const SyncUpdateRequired();
     final raw = json['publicationRoots'];
     if (raw is! List || raw.length > miteMiteMaxEntries) {

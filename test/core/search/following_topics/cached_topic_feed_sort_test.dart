@@ -28,7 +28,6 @@ void main() {
     expect(
       const CachedTopicFeedFilter(
         query: 'cat',
-        sort: CachedTopicFeedSort.newest,
       ).isActive,
       isTrue,
     );

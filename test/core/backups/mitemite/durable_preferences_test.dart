@@ -34,7 +34,7 @@ void main() {
 
 class _Barriers extends IoFileSystem {
   final calls = <String>[];
-  bool fail = false;
+  var fail = false;
   @override
   Future<void> syncFile(String path) async {
     calls.add(path);

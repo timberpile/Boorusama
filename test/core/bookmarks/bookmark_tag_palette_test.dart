@@ -65,23 +65,25 @@ void main() {
                 colorSchemeProvider.overrideWithValue(scheme),
                 enableDynamicColoringProvider.overrideWithValue(dynamic),
                 bookmarkTagIndexProvider.overrideWith(
-                  (ref, _) async => BookmarkTagIndex([
-                    BookmarkTagEntry(
-                      tag: 'pony',
-                      count: 1,
-                      sources: {
-                        philomena: const {'general'},
-                      },
-                    ),
-                    BookmarkTagEntry(
-                      tag: 'conflict',
-                      count: 2,
-                      sources: {
-                        danbooru: const {'artist'},
-                        philomena: const {'character'},
-                      },
-                    ),
-                  ]),
+                  (ref, _) => Future.sync(
+                    () => BookmarkTagIndex([
+                      BookmarkTagEntry(
+                        tag: 'pony',
+                        count: 1,
+                        sources: {
+                          philomena: const {'general'},
+                        },
+                      ),
+                      BookmarkTagEntry(
+                        tag: 'conflict',
+                        count: 2,
+                        sources: {
+                          danbooru: const {'artist'},
+                          philomena: const {'character'},
+                        },
+                      ),
+                    ]),
+                  ),
                 ),
               ],
             );

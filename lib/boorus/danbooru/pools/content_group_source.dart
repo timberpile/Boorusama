@@ -307,11 +307,12 @@ final class DanbooruGroupSource extends ContentGroupSource
         post,
         site: query.reference.site,
       );
-      if (reference != null)
+      if (reference != null) {
         hydrated.putIfAbsent(
           reference.identity,
           () => PostContentEntry(reference: reference, post: post),
         );
+      }
     }
     final rawCount = result.rawPostCount;
     final countProvesMore =
@@ -357,9 +358,7 @@ final class DanbooruGroupSource extends ContentGroupSource
     _require(reference);
     _pools.invalidate(reference);
     _relatedCounts.invalidate(reference);
-    for (final key in _relatedKeys.remove(reference) ?? {}) {
-      _relatedLists.invalidate(key);
-    }
+    (_relatedKeys.remove(reference) ?? {}).forEach(_relatedLists.invalidate);
     _poolMembers.invalidate(reference);
   }
 

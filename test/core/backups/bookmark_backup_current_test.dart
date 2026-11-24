@@ -9,12 +9,9 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
-import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/types.dart';
-import 'package:boorusama/core/content/groups/group_details.dart';
-import 'package:boorusama/core/content/groups/group_metadata.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/posts/related/related_posts_order.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -64,8 +61,8 @@ void main() {
         coverage: MetadataCoverage.complete,
       ),
     ),
-    createdAt: DateTime.utc(2019, 1, 1),
-    observedAt: DateTime.utc(2024, 1, 1),
+    createdAt: DateTime.utc(2019),
+    observedAt: DateTime.utc(2024),
   );
 
   RelatedBookmark related({required int id}) => RelatedBookmark(
@@ -73,7 +70,7 @@ void main() {
     snapshot: StoredGroupSnapshot(
       summary: ContentGroupSummary(reference: reference('related:900')),
     ),
-    createdAt: DateTime.utc(2018, 1, 1),
+    createdAt: DateTime.utc(2018),
     observedAt: DateTime.utc(2024, 1, 2),
     preferredOrder: RelatedPostsOrder.newest,
   );
@@ -88,8 +85,8 @@ void main() {
           poolId: 777,
           category: BookmarkedPoolCategory.series,
           title: 'Unaddressable legacy pool',
-          createdAt: DateTime.utc(2017, 1, 1),
-          observedAt: DateTime.utc(2024, 2, 1),
+          createdAt: DateTime.utc(2017),
+          observedAt: DateTime.utc(2024, 2),
           groupIds: const {},
           tags: const {'archived-tag'},
           coverage: PoolTagCoverage.unknown,
@@ -134,7 +131,7 @@ void main() {
   ];
 
   List<CollectionFolder> folders() => const [
-    CollectionFolder(id: folderRoot, name: 'Root', position: 0),
+    CollectionFolder(id: folderRoot, name: 'Root'),
     CollectionFolder(
       id: folderChild,
       name: 'Nested',
@@ -261,7 +258,7 @@ void main() {
           BookmarkGroupBackup(
             id: groupA,
             name: 'A',
-            bookmarkIds: [0, 1, 2],
+            bookmarkIds: const [0, 1, 2],
             addedAt: {0: earlyA, 1: earlyA, 2: earlyA},
           ),
         ],
@@ -290,7 +287,7 @@ void main() {
         BookmarkGroupBackup(
           id: groupA,
           name: 'A',
-          bookmarkIds: [0, 1, 2],
+          bookmarkIds: const [0, 1, 2],
           addedAt: {0: earlyA, 1: earlyA, 2: earlyA},
         ),
       ],
@@ -324,7 +321,7 @@ void main() {
         records: records(),
         groups: groups(),
         folders: folders(),
-        scope: BookmarkExportScope.selected(groupIds: {groupB}),
+        scope: BookmarkExportScope.selected(groupIds: const {groupB}),
       );
       final restored = read(payload(data));
       expect(restored.records.map((record) => record.id), [0, 1, 4]);
@@ -369,7 +366,7 @@ void main() {
           BookmarkGroupBackup(
             id: groupA,
             name: 'A',
-            bookmarkIds: [0, 1, 2, 3, 4],
+            bookmarkIds: const [0, 1, 2, 3, 4],
             addedAt: {0: earlyA, 1: earlyA, 2: earlyA, 3: earlyA, 4: earlyA},
           ),
         ],
@@ -442,7 +439,7 @@ void main() {
     );
     final data = BookmarkBackupData.unified(
       records: [privatePost, legacy],
-      groups: [],
+      groups: const [],
     );
     expect(jsonEncode(codec.encode(data)), isNot(contains(secret)));
     expect(privatePost.snapshot.origin.profileIdHint, secret);
@@ -464,7 +461,7 @@ void main() {
       host: 'legacy.example',
     ).toJson()..remove('createdAt');
     oldPool['localId'] = poolProfile;
-    (oldPool['origin'] as Map<String, Object?>)['booruTypeId'] = 777;
+    (oldPool['origin']! as Map<String, Object?>)['booruTypeId'] = 777;
     oldPool['addedAt'] = {
       groupA: earlyA.toIso8601String(),
       groupB: lateB.toIso8601String(),

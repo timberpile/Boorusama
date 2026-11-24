@@ -173,7 +173,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   _BookmarkStorageSession? get _storageSession {
     final session =
         Zone.current[_storageSessionKey] as _BookmarkStorageSession?;
-    return session?.active == true ? session : null;
+    return session?.active ?? false ? session : null;
   }
 
   Future<BookmarkLibraryState> get _librarySnapshot =>
@@ -393,8 +393,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       modes = ref.read(bookmarkGroupViewPreferencesProvider);
     } catch (_) {}
     _hierarchyDeletedModes = Map.unmodifiable({
-      for (final group in deletion.deletedGroups)
-        if (modes[group.id] case final mode?) group.id: mode,
+      for (final group in deletion.deletedGroups) group.id: ?modes[group.id],
     });
     _hierarchyDeletion = deletion;
     _removals.clear();
@@ -405,8 +404,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> undoHierarchyDeletion(
     BookmarkHierarchyDeletion deletion,
   ) => _serialize(() async {
-    if (!identical(_hierarchyDeletion, deletion))
+    if (!identical(_hierarchyDeletion, deletion)) {
       throw StateError('A later action superseded this Undo');
+    }
     await (await _service).undoHierarchyDeletion(deletion);
     try {
       await ref
@@ -444,8 +444,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         try {
           await undoHierarchyDeletion(deletion);
         } catch (_) {
-          if (feedback.mounted)
+          if (feedback.mounted) {
             Kurumi.showErrorToast(feedback, strings.undo_failed);
+          }
         }
       },
     );
@@ -514,8 +515,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             draft.bookmarkId ??
             (identity == null ? null : current.idByContent[identity]);
         final previous = id == null ? null : current.byId[id];
-        if (draft.bookmarkId != null && previous == null)
+        if (draft.bookmarkId != null && previous == null) {
           throw StateError('Saved Group changed before the action completed');
+        }
         final candidate = collectionRecordForSave(
           draft,
           id: 0,
@@ -539,8 +541,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       )).addedCount;
     }
     final repository = await bookmarkGroupRepository;
-    if (await repository.getGroup(groupId) == null)
+    if (await repository.getGroup(groupId) == null) {
       throw StateError('Bookmark group unavailable');
+    }
     final next = {
       for (final pool in await repository.getPoolBookmarks())
         pool.identity: pool,
@@ -570,8 +573,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }) => _serialize(() async {
     try {
       final current = await _librarySnapshot;
-      if (!current.hasUnifiedRecords || !current.byId.containsKey(record.id))
+      if (!current.hasUnifiedRecords || !current.byId.containsKey(record.id)) {
         return BookmarkToggleOutcome.failed;
+      }
       final service = await _service;
       if (current.membershipsForId(record.id).contains(groupId)) {
         final result = await service.removeBookmarksFromGroup([
@@ -775,15 +779,17 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }) => _serialize(() async {
     try {
       final repository = await bookmarkGroupRepository;
-      if (await repository.getGroup(groupId) == null)
+      if (await repository.getGroup(groupId) == null) {
         return BookmarkToggleOutcome.failed;
+      }
       final current = (await repository.getPoolBookmarks())
           .where((p) => p.identity == draft.identity)
           .firstOrNull;
       if ((await _librarySnapshot).hasUnifiedRecords &&
           draft.bookmarkId != null &&
-          current?.bookmarkId != draft.bookmarkId)
+          current?.bookmarkId != draft.bookmarkId) {
         return BookmarkToggleOutcome.failed;
+      }
       if (current?.groupIds.contains(groupId) ?? false) {
         final result = await (await _service).removeBookmarksFromGroup(
           [],
@@ -825,8 +831,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   void _schedulePoolCovers(Iterable<CollectionBookmark> pools) {
     for (final pool in pools) {
       final library = state.valueOrNull;
-      if (library == null || poolCoverHasReceivedMembership(library, pool))
+      if (library == null || poolCoverHasReceivedMembership(library, pool)) {
         continue;
+      }
       unawaited(
         Future<void>.microtask(() => scheduleMissingPoolCover(ref, pool))
             .catchError((Object _) {}),
@@ -871,13 +878,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final pool = library.pools
         .where((p) => p.bookmarkId == bookmarkId && p.isRelated)
         .firstOrNull;
-    if (pool == null)
+    if (pool == null) {
       throw StateError('The saved Related family no longer exists');
+    }
     if (_savedRelatedOrder(record) == order) {
       return RelatedOrderCommitResult.alreadyApplied;
     }
-    if (poolCoverHasReceivedMembership(library, pool))
+    if (poolCoverHasReceivedMembership(library, pool)) {
       throw const BookmarkMirrorReadOnly();
+    }
     final target = BookmarkReaderRequest(
       pool.origin,
       site: pool.sourceSite,
@@ -889,10 +898,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           target,
           ref.read(bookmarkReadProfilesProvider),
         );
-    if (selected == null)
+    if (selected == null) {
       await ref.read(globalBlacklistedTagsProvider.future);
-    else
+    } else {
       await ref.read(blacklistTagsProvider(selected.filter).future);
+    }
     final config =
         selected ?? ref.read(bookmarkReadAccessProvider(target))?.config;
     if (config == null) throw StateError('Bookmark reader unavailable');
@@ -903,22 +913,24 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           );
     if (access == null ||
         access.config != config ||
-        selectBookmarkReadProfile(target, [config]) == null)
+        selectBookmarkReadProfile(target, [config]) == null) {
       throw StateError('Bookmark reader unavailable');
+    }
     bool current() =>
         callerCanCommit() &&
         _relatedOrderRequests[bookmarkId] == request &&
-        ref
+        (ref
                 .read(contentAccessContextProvider(access.key))
-                ?.hasSameAuthorization(access) ==
-            true;
+                ?.hasSameAuthorization(access) ??
+            false);
     final cancellation = CancelToken();
     _relatedOrderCancellations[bookmarkId] = cancellation;
     if (callerCancellation != null) {
       unawaited(
         callerCancellation.whenCancel.then((_) {
-          if (!cancellation.isCancelled)
+          if (!cancellation.isCancelled) {
             cancellation.cancel('Related order cancelled');
+          }
         }),
       );
     }
@@ -926,8 +938,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       _,
       next,
     ) {
-      if (next?.hasSameAuthorization(access) != true)
+      if (next?.hasSameAuthorization(access) != true) {
         cancellation.cancel('Bookmark reader revoked');
+      }
     });
     PoolBookmarkCover? cover;
     try {
@@ -948,8 +961,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           );
     } finally {
       subscription.close();
-      if (identical(_relatedOrderCancellations[bookmarkId], cancellation))
+      if (identical(_relatedOrderCancellations[bookmarkId], cancellation)) {
         _relatedOrderCancellations.remove(bookmarkId);
+      }
     }
     if (!current()) return RelatedOrderCommitResult.stale;
     final chosen = cover ?? pool.cover;
@@ -1028,8 +1042,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
               group.bookmarkIds.contains(expected.id) &&
               mirrors.isReceived(group.id),
         ) ||
-        !canCommit())
+        !canCommit()) {
       return;
+    }
     final prior = expected.summary;
     final summary = ContentGroupSummary(
       reference: prior.reference,
@@ -1087,8 +1102,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
                     '${summary.isRelated ? 'related' : 'pool'}:${summary.referenceId}',
               ) ||
           bookmarkEngine(current) != summary.origin.booruType ||
-          !canCommit())
+          !canCommit()) {
         return false;
+      }
       Future<bool> commitPatch(Bookmark patched) =>
           unified.runReadWriteScope(() async {
             if (!canCommit() || await unified.read(current.id) != current) {
@@ -1123,16 +1139,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
               )
             : current.metadata.withMissingCoverFrom(summary);
         Bookmark patched = current.copyWith(metadata: updated);
-        if (patched is LegacyRelatedGroupBookmark && relatedOrder != null)
+        if (patched is LegacyRelatedGroupBookmark && relatedOrder != null) {
           patched = patched.copyWith(preferredOrder: () => relatedOrder);
+        }
         if (patched == current || !canCommit()) return false;
         return commitPatch(patched);
       }
       if (current is! ContentGroupBookmark ||
           (!replaceExisting &&
               current.summary.cover?.visibility?.tagCoverage ==
-                  MetadataCoverage.complete))
+                  MetadataCoverage.complete)) {
         return false;
+      }
       final media = summary.cover;
       final thumbnail = media?.thumbnail ?? summary.coverUrl;
       if (thumbnail == null || !canCommit()) return false;
@@ -1217,19 +1235,22 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           (p) => p.identity == summary.identity && p.localId == summary.localId,
         )
         .firstOrNull;
-    if (existing == null || canCommit?.call() == false)
+    if (existing == null || canCommit?.call() == false) {
       throw StateError('Bookmark changed during refresh');
+    }
     if (unified != null) {
       final id = existing.bookmarkId ?? int.tryParse(existing.localId);
       final current = id == null ? null : await unified.read(id);
       if (current == null ||
-          (expectedRecord != null && current != expectedRecord))
+          (expectedRecord != null && current != expectedRecord)) {
         throw StateError('Bookmark changed during refresh');
+      }
       final mirrors = storage is BookmarkMirrorReader
           ? await (storage as BookmarkMirrorReader).readMirrorState()
           : const BookmarkMirrorState.empty();
-      if (existing.groupIds.any(mirrors.isReceived))
+      if (existing.groupIds.any(mirrors.isReceived)) {
         throw const BookmarkMirrorReadOnly();
+      }
       var patched = collectionRecordForSave(
         summary.withGroups(existing.groupIds, addedAt: existing.addedAt),
         id: current.id,
@@ -1251,8 +1272,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await withBookmarkCommitGuard(
         () => unified.commitOrganization(records: [patched]),
         () {
-          if (canCommit?.call() == false)
+          if (canCommit?.call() == false) {
             throw StateError('Bookmark reader changed');
+          }
         },
       );
       return;
@@ -1537,10 +1559,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     bool readerCurrent(int id) {
       final access = readers[id];
       return access != null &&
-          ref
+          (ref
                   .read(contentAccessContextProvider(access.key))
-                  ?.hasSameAuthorization(access) ==
-              true;
+                  ?.hasSameAuthorization(access) ??
+              false);
     }
 
     // Network requests and backoff must not hold the global write lock. Each
@@ -1550,8 +1572,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         library: await _service,
         recovery: recovery,
         commitRecovered: (bookmark, post, codec) => _serialize(() async {
-          if (cancellation.cancelled || !readerCurrent(bookmark.id))
+          if (cancellation.cancelled || !readerCurrent(bookmark.id)) {
             return false;
+          }
           final currentState = await _librarySnapshot;
           final current = currentState.bookmarksById[bookmark.id];
           // A deletion, replacement, recovery reload or newer snapshot supersedes
@@ -1572,8 +1595,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
               dataCodec: codec,
             ),
             () {
-              if (cancellation.cancelled || !readerCurrent(bookmark.id))
+              if (cancellation.cancelled || !readerCurrent(bookmark.id)) {
                 throw StateError('Bookmark reader revoked');
+              }
             },
           );
           _pendingHydration[upgraded.id] = upgraded;
@@ -1600,10 +1624,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         resolveReader: (bookmark) async {
           final target = BookmarkReaderRequest(bookmark.post.origin);
           final profile = selectBookmarkReadProfile(target, configs);
-          if (profile != null)
+          if (profile != null) {
             await ref.read(blacklistTagsProvider(profile.filter).future);
-          else
+          } else {
             await ref.read(globalBlacklistedTagsProvider.future);
+          }
           final access = ref.read(bookmarkReadAccessProvider(target));
           if (access != null) readers[bookmark.id] = access;
           return access?.config;
@@ -1668,8 +1693,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         dataCodec: codec,
       ),
       () {
-        if (canUpgrade?.call() == false)
+        if (canUpgrade?.call() == false) {
           throw StateError('Bookmark recovery revoked');
+        }
       },
     );
     await _publishCommittedMutation();
@@ -1842,11 +1868,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         final source = (await repository.getGroup(groupId))!;
         var group = await service.duplicateGroup(groupId, name);
         try {
-          if (source.folderId != null)
+          if (source.folderId != null) {
             await service.moveFolderItems(
               groupIds: {group.id},
               destination: source.folderId,
             );
+          }
         } catch (_) {
           await repository.deleteGroup(group.id);
           rethrow;
@@ -2113,8 +2140,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         [bookmark],
         groupId ?? defaultBookmarkGroupId,
       );
-      if (removal.removedCount > 0)
+      if (removal.removedCount > 0) {
         await _rememberManualGroup(groupId ?? defaultBookmarkGroupId);
+      }
       await _publishCommittedMutation();
       _recordRemoval(removal);
       onRemoved?.call(removal);
@@ -2191,8 +2219,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final repository = await bookmarkGroupRepository;
     final targetId = groupId ?? defaultBookmarkGroupId;
     final previous = await repository.getGroup(targetId);
-    if (previous == null)
+    if (previous == null) {
       throw StateError('The bookmark group no longer exists');
+    }
     final oldPools = await repository.getPoolBookmarks();
     final result = await _addPostsToGroup(config, posts, groupId);
     var poolCount = 0;
@@ -2215,11 +2244,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       } catch (e) {
         errors.add(e);
       }
-      if (errors.isNotEmpty)
+      if (errors.isNotEmpty) {
         throw BookmarkLibraryRollbackException(
           operationError: error,
           rollbackErrors: errors,
         );
+      }
       Error.throwWithStackTrace(error, stack);
     }
     if (manual && result.changedCount + poolCount > 0) {
@@ -2287,11 +2317,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       parentGroupId: service.unifiedStore == null ? parentGroupId : parent,
     );
     try {
-      if (service.unifiedStore == null && folderId != null)
+      if (service.unifiedStore == null && folderId != null) {
         await (await _service).moveFolderItems(
           groupIds: {group.id},
           destination: folderId,
         );
+      }
     } catch (_) {
       await (await bookmarkGroupRepository).deleteGroup(group.id);
       rethrow;
@@ -2336,8 +2367,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
-    if (result.changedCount + addedPools > 0)
+    if (result.changedCount + addedPools > 0) {
       await _rememberManualGroup(group.id);
+    }
     await _publishCommittedMutation();
     return (group: group, addedCount: result.changedCount + addedPools);
   });
@@ -2365,7 +2397,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final bookmark = current.hasUnifiedRecords
           ? current.storedBookmarkForPost(post)
           : current.bookmarkForPost(post, fallbackBooruId: config.booruIdHint);
-      final Object selectionKey = current.hasUnifiedRecords
+      final selectionKey = current.hasUnifiedRecords
           ? bookmark == null
                 ? (identity, post.origin.booruType)
                 : ('saved', bookmark.id)
@@ -2599,8 +2631,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
                             )),
                           )
                           .asData
-                          ?.value ==
-                      true,
+                          ?.value ??
+                      false,
                 );
           } catch (_) {
             // Container/provider disposal revokes pending work too.
@@ -2663,7 +2695,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         }
       }
     } finally {
-      for (final subscription in subscriptions) subscription.close();
+      for (final subscription in subscriptions) {
+        subscription.close();
+      }
     }
   }
 
@@ -2877,5 +2911,5 @@ final class _BookmarkStorageSession {
   final BookmarkRepository repository;
   final BookmarkGroupRepository groups;
   BookmarkLibraryState snapshot;
-  bool active = true;
+  var active = true;
 }

@@ -56,7 +56,7 @@ class CreateNewBooruConfigButton extends ConsumerWidget {
                       initialData: config,
                     );
 
-                Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               }
             : null,
         child: Text(context.t.favorite_groups.create),
@@ -88,7 +88,7 @@ class UpdateBooruConfigButton extends ConsumerWidget {
                       newConfig: data,
                     );
 
-                Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               }
             : null,
         child: Text(context.t.generic.action.save),

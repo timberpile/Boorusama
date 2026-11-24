@@ -19,17 +19,6 @@ import 'state.dart';
 /// Signature of a go router builder function with navigator.
 typedef GoRouterBuilderWithNav = Widget Function(BuildContext context, Widget child);
 
-typedef _PageBuilderForAppType =
-    Page<void> Function({
-      required LocalKey key,
-      required String? name,
-      required Object? arguments,
-      required String restorationId,
-      required Widget child,
-    });
-
-typedef _ErrorBuilderForAppType = Widget Function(BuildContext context, GoRouterState state);
-
 /// Signature for a function that takes in a `route` to be popped with
 /// the `result` and returns a boolean decision on whether the pop
 /// is successful.
@@ -101,7 +90,10 @@ class RouteBuilder {
       // empty box until then.
       return const SizedBox.shrink();
     }
-    assert(matchList.isError || !matchList.last.route.redirectOnly);
+    assert(
+      matchList.isError || !matchList.last.route.redirectOnly,
+      'A redirect-only route cannot be shown.',
+    );
     return builderWithNav(
       context,
       _CustomNavigator(
@@ -164,7 +156,7 @@ class _CustomNavigator extends StatefulWidget {
 class _CustomNavigatorState extends State<_CustomNavigator> {
   HeroController? _controller;
   late Map<Page<Object?>, RouteMatchBase> _pageToRouteMatchBase;
-  final GoRouterStateRegistry _registry = GoRouterStateRegistry();
+  final _registry = GoRouterStateRegistry();
   List<Page<Object?>>? _pages;
 
   @override
@@ -202,24 +194,24 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
   }
 
   void _updatePages(BuildContext context) {
-    assert(_pages == null);
+    assert(_pages == null, 'Clear cached pages before updating them.');
     final pages = <Page<Object?>>[];
     final pageToRouteMatchBase = <Page<Object?>, RouteMatchBase>{};
     final registry = <Page<Object?>, GoRouterState>{};
     if (widget.matchList.isError) {
       pages.add(_buildErrorPage(context, widget.matchList));
     } else {
-      Map<String, dynamic> currentInheritedMetadata = widget.inheritedMetadata;
-      for (final RouteMatchBase match in widget.matches) {
-        final Map<String, dynamic> metadata = match is ImperativeRouteMatch
+      var currentInheritedMetadata = widget.inheritedMetadata;
+      for (final match in widget.matches) {
+        final metadata = match is ImperativeRouteMatch
             ? match.matches.topRouteMetadata
             : RouteMatchList.mergeMetadata(currentInheritedMetadata, match.route.metadata);
-        final GoRouterState state = match.buildState(
+        final state = match.buildState(
           widget.configuration,
           widget.matchList,
           metadata: metadata,
         );
-        final Page<Object?>? page = _buildPage(context, match, state);
+        final page = _buildPage(context, match, state);
         currentInheritedMetadata = metadata;
         if (page == null) {
           continue;
@@ -249,7 +241,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
 
   /// Builds a [Page] for a [RouteMatch]
   Page<Object?>? _buildPageForGoRoute(BuildContext context, RouteMatch match, GoRouterState state) {
-    final GoRouterPageBuilder? pageBuilder = match.route.pageBuilder;
+    final pageBuilder = match.route.pageBuilder;
     if (pageBuilder != null) {
       final Page<Object?> page = pageBuilder(context, state);
       if (page is! NoOpPage) {
@@ -257,7 +249,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
       }
     }
 
-    final GoRouterWidgetBuilder? builder = match.route.builder;
+    final builder = match.route.builder;
 
     if (builder == null) {
       return null;
@@ -266,7 +258,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
       context,
       state,
       Builder(
-        builder: (BuildContext context) {
+        builder: (context) {
           return builder(context, state);
         },
       ),
@@ -279,7 +271,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
     ShellRouteMatch match,
     GoRouterState state,
   ) {
-    final GlobalKey<NavigatorState> navigatorKey = match.navigatorKey;
+    final navigatorKey = match.navigatorKey;
     final shellRouteContext = ShellRouteContext(
       route: match.route,
       routerState: state,
@@ -288,11 +280,11 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
       routeMatchList: widget.matchList,
       navigatorBuilder:
           (
-            GlobalKey<NavigatorState> navigatorKey,
-            ShellRouteMatch match,
-            RouteMatchList matchList,
-            List<NavigatorObserver>? observers,
-            String? restorationScopeId,
+            navigatorKey,
+            match,
+            matchList,
+            observers,
+            restorationScopeId,
           ) {
             return PopScope(
               // Prevent ShellRoute from being popped, for example
@@ -329,43 +321,52 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
       context,
       state,
       Builder(
-        builder: (BuildContext context) {
+        builder: (context) {
           return match.route.buildWidget(context, state, shellRouteContext)!;
         },
       ),
     );
   }
 
-  _PageBuilderForAppType? _pageBuilderForAppType;
+  Page<void> Function({
+    required LocalKey key,
+    required String? name,
+    required Object? arguments,
+    required String restorationId,
+    required Widget child,
+  })?
+  _pageBuilderForAppType;
 
-  _ErrorBuilderForAppType? _errorBuilderForAppType;
+  Widget Function(BuildContext context, GoRouterState state)? _errorBuilderForAppType;
 
   void _cacheAppType(BuildContext context) {
     // cache app type-specific page and error builders
     if (_pageBuilderForAppType == null) {
-      assert(_errorBuilderForAppType == null);
+      assert(
+        _errorBuilderForAppType == null,
+        'The error builder must be unset before choosing an app type.',
+      );
 
       // can be null during testing
-      final Element? elem = context is Element ? context : null;
+      final elem = context is Element ? context : null;
 
       if (elem != null && isMaterialApp(elem)) {
         log('Using MaterialApp configuration');
         _pageBuilderForAppType = pageBuilderForMaterialApp;
-        _errorBuilderForAppType = (BuildContext c, GoRouterState s) => MaterialErrorScreen(s.error);
+        _errorBuilderForAppType = (c, s) => MaterialErrorScreen(s.error);
       } else if (elem != null && isCupertinoApp(elem)) {
         log('Using CupertinoApp configuration');
         _pageBuilderForAppType = pageBuilderForCupertinoApp;
-        _errorBuilderForAppType = (BuildContext c, GoRouterState s) =>
-            CupertinoErrorScreen(s.error);
+        _errorBuilderForAppType = (c, s) => CupertinoErrorScreen(s.error);
       } else {
         log('Using WidgetsApp configuration');
         _pageBuilderForAppType =
             ({
-              required LocalKey key,
-              required String? name,
-              required Object? arguments,
-              required String restorationId,
-              required Widget child,
+              required key,
+              required name,
+              required arguments,
+              required restorationId,
+              required child,
             }) => NoTransitionPage<void>(
               name: name,
               arguments: arguments,
@@ -373,12 +374,18 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
               restorationId: restorationId,
               child: child,
             );
-        _errorBuilderForAppType = (BuildContext c, GoRouterState s) => ErrorScreen(s.error);
+        _errorBuilderForAppType = (c, s) => ErrorScreen(s.error);
       }
     }
 
-    assert(_pageBuilderForAppType != null);
-    assert(_errorBuilderForAppType != null);
+    assert(
+      _pageBuilderForAppType != null,
+      'A page builder must be configured for the active app type.',
+    );
+    assert(
+      _errorBuilderForAppType != null,
+      'An error builder must be configured for the active app type.',
+    );
   }
 
   /// builds the page based on app type, i.e. MaterialApp vs. CupertinoApp
@@ -395,7 +402,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
   }
 
   GoRouterState _buildErrorState(RouteMatchList matchList) {
-    assert(matchList.isError);
+    assert(matchList.isError, 'The route match must contain an error to build an error page.');
     return GoRouterState(
       widget.configuration,
       uri: matchList.uri,
@@ -411,15 +418,15 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
 
   /// Builds a an error page.
   Page<void> _buildErrorPage(BuildContext context, RouteMatchList matchList) {
-    final GoRouterState state = _buildErrorState(matchList);
-    assert(state.error != null);
+    final state = _buildErrorState(matchList);
+    assert(state.error != null, 'Error-page construction requires a failed route match.');
 
     // If the error page builder is provided, use that, otherwise, if the error
     // builder is provided, wrap that in an app-specific page (for example,
     // MaterialPage). Finally, if nothing is provided, use a default error page
     // wrapped in the app-specific page.
     _cacheAppType(context);
-    final GoRouterWidgetBuilder? errorBuilder = widget.errorBuilder;
+    final errorBuilder = widget.errorBuilder;
     return widget.errorPageBuilder != null
         ? widget.errorPageBuilder!(context, state)
         : _buildPlatformAdapterPage(
@@ -433,7 +440,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
 
   bool _handlePopPage(Route<Object?> route, Object? result) {
     final page = route.settings as Page<Object?>;
-    final RouteMatchBase match = _pageToRouteMatchBase[page]!;
+    final match = _pageToRouteMatchBase[page]!;
     return widget.onPopPageWithRouteMatch(route, result, match);
   }
 
@@ -442,7 +449,7 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
     if (_pages == null) {
       _updatePages(context);
     }
-    assert(_pages != null);
+    assert(_pages != null, 'The navigator needs its pages before building.');
     return GoRouterStateRegistryScope(
       registry: _registry,
       child: HeroControllerScope(
@@ -453,6 +460,8 @@ class _CustomNavigatorState extends State<_CustomNavigator> {
           restorationScopeId: widget.navigatorRestorationId,
           pages: _pages!,
           observers: widget.observers,
+          // Preserve GoRoute.onExit vetoes before the route leaves the navigator.
+          // ignore: deprecated_member_use
           onPopPage: _handlePopPage,
         ),
       ),

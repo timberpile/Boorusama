@@ -34,7 +34,7 @@ final preparedViewerDetailsProvider = FutureProvider.autoDispose
 
 final preparedViewerGroupProvider = FutureProvider.autoDispose
     .family<GroupMemberBatch, PreparedViewerKey>(
-      (ref, key) async {
+      (ref, key) => Future.sync(() {
         final shared = ref.watch(preparedGroupReadsProvider(key.access));
         if (shared == null) throw RequestCancelledError();
         final details = ref.watch(preparedViewerDetailsProvider(key).future);
@@ -42,7 +42,7 @@ final preparedViewerGroupProvider = FutureProvider.autoDispose
           await details;
           return shared.firstPage(key.page);
         });
-      },
+      }),
       dependencies: [
         contentGroupSourceProvider,
         preparedGroupReadsProvider,
@@ -69,7 +69,6 @@ Future<T> _preparePhase<T>(
           requestClass: key.foreground
               ? ApiRequestClass.interactive
               : ApiRequestClass.preload,
-          admissionBehavior: ApiAdmissionBehavior.wait,
           allowCooldownRetry: false,
           cancelToken: token,
           canStart: current,

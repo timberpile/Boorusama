@@ -96,7 +96,9 @@ void main() {
           downloadService: downloads,
         ),
         additionalOverrides: [
-          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          blacklistTagsProvider.overrideWith(
+            (_, _) => Future.sync(() => <String>{}),
+          ),
           bookmarkProvider.overrideWith(() => _SavedBookmarks(library)),
           bypassDdosHeadersProvider.overrideWith(
             (_, _) => Future.value(<String, String>{}),
@@ -212,7 +214,9 @@ void main() {
             downloadService: downloads,
           ),
           additionalOverrides: [
-            blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+            blacklistTagsProvider.overrideWith(
+              (_, _) => Future.sync(() => <String>{}),
+            ),
             bookmarkProvider.overrideWith(
               () => _SavedBookmarks(library),
             ),

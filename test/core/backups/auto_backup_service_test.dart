@@ -81,9 +81,9 @@ void main() {
   }
 
   test('defaults to 30 retained backups while honoring saved values', () {
-    expect(const AutoBackupSettings().maxBackups, 30);
-    expect(AutoBackupSettings.parse(<String, dynamic>{}).maxBackups, 30);
-    expect(AutoBackupSettings.parse({'maxBackups': 0}).maxBackups, 30);
+    expect(AutoBackupSettings.disabled.maxBackups, 30);
+    expect(AutoBackupSettings.parse(const <String, dynamic>{}).maxBackups, 30);
+    expect(AutoBackupSettings.parse(const {'maxBackups': 0}).maxBackups, 30);
 
     for (final count in [1, 2, 3, 4, 5, 12, 30, 60, 90, 120]) {
       final restored = AutoBackupSettings.parse({'maxBackups': count});
@@ -207,7 +207,7 @@ void main() {
       repository: repository,
     );
     final result = await service.performBackup(
-      AutoBackupSettings(maxBackups: 30, userSelectedPath: directory.path),
+      AutoBackupSettings(userSelectedPath: directory.path),
     );
     final manifest = await repository.loadManifest(backupDirectory);
     final names = manifest.backups.map((entry) => entry.fileName).toSet();

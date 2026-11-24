@@ -52,9 +52,9 @@ Post postDtoToPost(
     PostOrigin.forBooruType(BooruType.zerochan),
   ).withDetailFacts(
     PostDetailFacts(
-      originalByteSize: e.full?.isNotEmpty == true ? e.size : null,
-      originalWidth: e.full?.isNotEmpty == true ? e.width?.toDouble() : null,
-      originalHeight: e.full?.isNotEmpty == true ? e.height?.toDouble() : null,
+      originalByteSize: e.full?.isNotEmpty ?? false ? e.size : null,
+      originalWidth: e.full?.isNotEmpty ?? false ? e.width?.toDouble() : null,
+      originalHeight: e.full?.isNotEmpty ?? false ? e.height?.toDouble() : null,
       originalFormat: originalFormatFromUrl(e.full),
     ),
   );

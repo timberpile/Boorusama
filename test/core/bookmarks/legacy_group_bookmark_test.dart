@@ -1,6 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/data/legacy_group_codec.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
-import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';

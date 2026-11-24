@@ -89,7 +89,7 @@ class _CapturingGroups extends BookmarkGroupRepositoryHive {
 class _Rows implements BookmarkRepository<Post> {
   _Rows(this.rows);
   final List<PostBookmark> rows;
-  int reads = 0;
+  var reads = 0;
 
   @override
   BookmarksOrError getAllBookmarks({

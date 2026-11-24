@@ -109,8 +109,9 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
 
   void _activate() {
     if (!NavigationActivity.of(context) ||
-        !(ModalRoute.of(context)?.isCurrent ?? true))
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
       return;
+    }
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest();
   }
 
@@ -557,8 +558,9 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   void _activate() {
     if (_filter.isActive ||
         !NavigationActivity.of(context) ||
-        !(ModalRoute.of(context)?.isCurrent ?? true))
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
       return;
+    }
     final generation = _display.generation;
     if (generation == 0 ||
         _interestGeneration == generation && _feedInterest != null) {
@@ -689,9 +691,10 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         ));
         if ((watch ? ref.watch(visibility) : ref.read(visibility))
                 .asData
-                ?.value ==
-            true)
+                ?.value ??
+            false) {
           rows.add(snapshot);
+        }
       }
       return feed.copyWith(posts: rows);
     });
@@ -739,8 +742,9 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         !const DeepCollectionEquality().equals(
           definition,
           _definition(latest, current),
-        ))
+        )) {
       return;
+    }
     setState(() {
       final authorized = _authorizedFeed(latest, current, watch: false)!;
       _display.apply(
@@ -1090,8 +1094,11 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   var _historyReorderPending = false;
 
   void _scheduleHistoryReorder() {
-    if (_history.recoveryRevision == 0 || _historyReorderScheduled || !mounted)
+    if (_history.recoveryRevision == 0 ||
+        _historyReorderScheduled ||
+        !mounted) {
       return;
+    }
     _historyReorderPending = true;
     _historyReorderScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1100,11 +1107,15 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
           !_historyReorderPending ||
           _selectionActive ||
           !NavigationActivity.of(context) ||
-          !(ModalRoute.of(context)?.isCurrent ?? true))
+          !(ModalRoute.of(context)?.isCurrent ?? true)) {
         return;
+      }
       final controller = _controller;
-      if (controller == null || controller.loadingMore || controller.refreshing)
+      if (controller == null ||
+          controller.loadingMore ||
+          controller.refreshing) {
         return;
+      }
       Post? anchor;
       double? anchorTop;
       final indices = _feedScrollController.tagMap.keys.toList()..sort();
@@ -1139,19 +1150,21 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               right.origin.sourceHost,
               right.id,
             )];
-        if (a != null || b != null)
+        if (a != null || b != null) {
           return a == null
               ? 1
               : b == null
               ? -1
               : a.compareTo(b);
+        }
         return compareFeedHistoryPosts(left, right);
       }
 
       if (!controller.reorderLoadedItems(compare) ||
           anchor == null ||
-          anchorTop == null)
+          anchorTop == null) {
         return;
+      }
       final index = controller.items.toList().indexOf(anchor);
       if (index < 0) return;
       final expected = anchor;
@@ -1165,8 +1178,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
             _selectionActive ||
             !(ModalRoute.of(context)?.isCurrent ?? true) ||
             !_feedScrollController.hasClients ||
-            controller.items.elementAtOrNull(index) != expected)
+            controller.items.elementAtOrNull(index) != expected) {
           return;
+        }
         final box = _feedScrollController.tagMap[index]?.context
             .findRenderObject();
         if (box is RenderBox && box.hasSize) {
@@ -1410,8 +1424,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
           if (!mounted ||
               !identical(_history, history) ||
               anchor == null ||
-              controller == null)
+              controller == null) {
             return;
+          }
           final index = controller.items.toList().indexWhere(
             (post) =>
                 post.id == anchor.$1.id && post.origin == anchor.$1.origin,
@@ -1424,8 +1439,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
           );
           if (!mounted ||
               !identical(_history, history) ||
-              !_feedScrollController.hasClients)
+              !_feedScrollController.hasClients) {
             return;
+          }
           final box = _feedScrollController.tagMap[index]?.context
               .findRenderObject();
           if (box is RenderBox && box.hasSize) {
@@ -1447,8 +1463,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     final controller = _controller;
     if (controller == null ||
         !_feedScrollController.hasClients ||
-        _feedScrollController.offset <= 0)
+        _feedScrollController.offset <= 0) {
       return null;
+    }
     final rows = controller.items.toList();
     final indices = _feedScrollController.tagMap.keys.toList()..sort();
     for (final index in indices) {
@@ -1457,8 +1474,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       if (index >= rows.length || box is! RenderBox || !box.hasSize) continue;
       final top = box.localToGlobal(Offset.zero).dy;
       if (top >= MediaQuery.paddingOf(context).top + kToolbarHeight &&
-          top < MediaQuery.sizeOf(context).height)
+          top < MediaQuery.sizeOf(context).height) {
         return (rows[index], top);
+      }
     }
     return null;
   }
@@ -1661,8 +1679,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                     child: _FeedSelectionGuard(
                       onChanged: (active) {
                         _selectionActive = active;
-                        if (!active && _historyReorderPending)
+                        if (!active && _historyReorderPending) {
                           _scheduleHistoryReorder();
+                        }
                       },
                     ),
                   ),
@@ -1676,11 +1695,12 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                   final post = controller.items.elementAt(index);
                   final access = _feedPostAccess(ref, post, widget.sources);
                   final config = access?.config;
-                  if (config == null)
+                  if (config == null) {
                     return AspectRatio(
                       aspectRatio: post.aspectRatio ?? 1,
                       child: const KurumiImagePlaceholder(),
                     );
+                  }
                   return CurrentBooruConfigScope(
                     config: config,
                     accessKey: access!.key,

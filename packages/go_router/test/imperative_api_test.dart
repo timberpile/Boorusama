@@ -9,13 +9,13 @@ import 'package:go_router/go_router.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('replace inside shell route', (WidgetTester tester) async {
+  testWidgets('replace inside shell route', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/134524.
     final a = UniqueKey();
     final b = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell')),
             body: child,
@@ -33,7 +33,7 @@ void main() {
         ],
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/a');
+    final router = await createRouter(routes, tester, initialLocation: '/a');
 
     expect(find.text('shell'), findsOneWidget);
     expect(find.byKey(a), findsOneWidget);
@@ -45,7 +45,7 @@ void main() {
     expect(find.byKey(b), findsOneWidget);
   });
 
-  testWidgets('push from outside of shell route', (WidgetTester tester) async {
+  testWidgets('push from outside of shell route', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/130406.
     final a = UniqueKey();
     final b = UniqueKey();
@@ -55,7 +55,7 @@ void main() {
         builder: (_, _) => DummyScreen(key: a),
       ),
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell')),
             body: child,
@@ -69,7 +69,7 @@ void main() {
         ],
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/a');
+    final router = await createRouter(routes, tester, initialLocation: '/a');
 
     expect(find.text('shell'), findsNothing);
     expect(find.byKey(a), findsOneWidget);
@@ -81,13 +81,13 @@ void main() {
     expect(find.byKey(b), findsOneWidget);
   });
 
-  testWidgets('shell route reflect imperative push', (WidgetTester tester) async {
+  testWidgets('shell route reflect imperative push', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/125752.
     final home = UniqueKey();
     final a = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, GoRouterState state, Widget child) {
+        builder: (_, state, child) {
           return Scaffold(
             appBar: AppBar(title: Text('location: ${state.uri.path}')),
             body: child,
@@ -107,7 +107,7 @@ void main() {
         ],
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/a');
+    final router = await createRouter(routes, tester, initialLocation: '/a');
 
     expect(find.text('location: /a'), findsOneWidget);
     expect(find.byKey(a), findsOneWidget);
@@ -125,13 +125,13 @@ void main() {
     expect(find.byKey(home), findsNothing);
   });
 
-  testWidgets('push shell route in another shell route', (WidgetTester tester) async {
+  testWidgets('push shell route in another shell route', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/120791.
     final b = UniqueKey();
     final a = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell1')),
             body: child,
@@ -145,7 +145,7 @@ void main() {
         ],
       ),
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell2')),
             body: child,
@@ -159,7 +159,7 @@ void main() {
         ],
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/a');
+    final router = await createRouter(routes, tester, initialLocation: '/a');
 
     expect(find.text('shell1'), findsOneWidget);
     expect(find.byKey(a), findsOneWidget);
@@ -172,13 +172,13 @@ void main() {
     expect(find.byKey(b), findsOneWidget);
   });
 
-  testWidgets('push inside or outside shell route', (WidgetTester tester) async {
+  testWidgets('push inside or outside shell route', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/120665.
     final inside = UniqueKey();
     final outside = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell')),
             body: child,
@@ -196,7 +196,7 @@ void main() {
         builder: (_, _) => DummyScreen(key: outside),
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/out');
+    final router = await createRouter(routes, tester, initialLocation: '/out');
 
     expect(find.text('shell'), findsNothing);
     expect(find.byKey(outside), findsOneWidget);
@@ -214,7 +214,7 @@ void main() {
     expect(find.byKey(inside), findsNothing);
   });
 
-  testWidgets('complex case 1', (WidgetTester tester) async {
+  testWidgets('complex case 1', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/113001.
     final a = UniqueKey();
     final b = UniqueKey();
@@ -223,7 +223,7 @@ void main() {
     final e = UniqueKey();
     final routes = <RouteBase>[
       ShellRoute(
-        builder: (_, _, Widget child) {
+        builder: (_, _, child) {
           return Scaffold(
             appBar: AppBar(title: const Text('shell')),
             body: child,
@@ -255,7 +255,7 @@ void main() {
         builder: (_, _) => DummyScreen(key: b),
       ),
     ];
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/a');
+    final router = await createRouter(routes, tester, initialLocation: '/a');
 
     expect(find.text('shell'), findsOneWidget);
     expect(find.byKey(a), findsOneWidget);

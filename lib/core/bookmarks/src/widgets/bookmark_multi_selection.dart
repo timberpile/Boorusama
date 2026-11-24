@@ -85,10 +85,11 @@ Future<bool> _remove(
         bookmarks,
         groupId,
         onRemoved: (r) {
-          if (context.mounted)
+          if (context.mounted) {
             container
                 .read(bookmarkProvider.notifier)
                 .showRemovalUndo(context, r);
+          }
         },
       );
   return false;
@@ -355,10 +356,8 @@ class _BookmarkMultiSelectionMenuState
     final selectedRecords = <Bookmark>[
       ...widget.records,
       if (widget.records.isNotEmpty) ...[
-        for (final post in selectedPosts)
-          if (current?.storedBookmarkForPost(post) case final saved?) saved,
-        for (final pool in selectedPools)
-          if (current?.byId[pool.bookmarkId] case final saved?) saved,
+        for (final post in selectedPosts) ?current?.storedBookmarkForPost(post),
+        for (final pool in selectedPools) ?current?.byId[pool.bookmarkId],
       ],
     ];
     final useRecords = selectedRecords.isNotEmpty;
@@ -408,11 +407,13 @@ class _BookmarkMultiSelectionMenuState
                     pools: selectedPools,
                   ));
         if (!navigator.mounted) return;
+        final navigatorContext = navigator.context;
         final feedback =
-            navigation.feedbackKey.currentContext ?? navigator.context;
+            navigation.feedbackKey.currentContext ?? navigatorContext;
+        if (!navigatorContext.mounted || !feedback.mounted) return;
         Kurumi.showSuccessToast(
           feedback,
-          navigator.context.t.bookmark.bulk.add_success
+          navigatorContext.t.bookmark.bulk.add_success
               .replaceAll('{0}', '$changed')
               .replaceAll('{1}', target.name),
         );

@@ -71,8 +71,9 @@ final class SyncBookmarkMirrorEngine {
     Set<String>? directRoots,
   }) async {
     ensureCurrent?.call();
-    if (syncDigest(publisherKey) != ticket.fingerprint)
+    if (syncDigest(publisherKey) != ticket.fingerprint) {
       throw const FormatException('Publisher key does not match catalog');
+    }
     final initial = await mirrors.readMirrorState();
     final owned = initial.owners.values
         .where((owner) => owner.publisher == ticket.publisher)
@@ -102,12 +103,13 @@ final class SyncBookmarkMirrorEngine {
           if (owner.publisher == ticket.publisher) owner.source,
       },
     );
-    if (units.length <= 1)
+    if (units.length <= 1) {
       return _receiveUnit(
         ticket: ticket,
         publisherKey: publisherKey,
         directRoots: directRoots,
       );
+    }
     final failures = <String, Object>{};
     final sourceUnits = {
       for (final unit in units)
@@ -137,8 +139,9 @@ final class SyncBookmarkMirrorEngine {
         failures[root.firstOrNull ?? unit.first] = error;
       }
     }
-    if (failures.isNotEmpty)
+    if (failures.isNotEmpty) {
       throw SyncPartialReceiveFailure('bookmarks', failures);
+    }
   }
 
   Future<void> _receiveUnit({
@@ -254,8 +257,9 @@ final class SyncBookmarkMirrorEngine {
       final descriptorDigest = syncDigest(syncJsonBytes(revision.toJson()));
       if (before != null) {
         _checkRevision(before, revision);
-        if (before.retired && revision.revision <= before.revision)
+        if (before.retired && revision.revision <= before.revision) {
           throw const SyncReplayRejected();
+        }
       }
       if (owned.containsKey(source) &&
           before?.revision == revision.revision &&
@@ -429,9 +433,7 @@ final class SyncBookmarkMirrorEngine {
             reading: reading.toJson(),
           );
         }
-        for (final id in removeGroups) {
-          nextOwners.remove(id);
-        }
+        removeGroups.forEach(nextOwners.remove);
         final desiredGroups = {
           for (final entry in allGroups.entries)
             if (!removeGroups.contains(entry.key)) entry.key: entry.value,
@@ -464,8 +466,9 @@ final class SyncBookmarkMirrorEngine {
           String? cursor = source;
           while (cursor != null && visited.add(cursor)) {
             final entry = entries[cursor];
-            if (entry == null || entry.state != SyncPublicationState.active)
+            if (entry == null || entry.state != SyncPublicationState.active) {
               return false;
+            }
             if (previousRoots.contains(cursor)) return true;
             cursor = entry.parent;
           }
@@ -493,8 +496,9 @@ final class SyncBookmarkMirrorEngine {
           if (old != null &&
               old.groupDigest == owner.groupDigest &&
               old.parentSource == owner.parentSource &&
-              !group.bookmarkIds.any(writtenIds.contains))
+              !group.bookmarkIds.any(writtenIds.contains)) {
             continue;
+          }
           // Initial manual hydration is a baseline. A future child of a prior
           // subscription is an incoming membership change, even if also linked
           // as a direct root. Reading flags never drive the addition set.
@@ -786,8 +790,9 @@ final class SyncBookmarkMirrorEngine {
     } else {
       aliases[publisher] = syncLabel(normalized);
     }
-    if (const MapEquality<String, String>().equals(current.aliases, aliases))
+    if (const MapEquality<String, String>().equals(current.aliases, aliases)) {
       return;
+    }
     await mirrors.commitMirrorOrganization(
       expected: current,
       next: BookmarkMirrorState(
@@ -809,8 +814,9 @@ final class SyncBookmarkMirrorEngine {
   Future<void> acknowledgePostNotifications(int cursor) => _runScope(() async {
     final current = await mirrors.readMirrorState();
     if (current.activity.pendingPosts.isEmpty ||
-        cursor <= current.activity.notificationCursor)
+        cursor <= current.activity.notificationCursor) {
       return;
+    }
     final activity = current.activity.acknowledgePostsThrough(cursor);
     await mirrors.commitMirrorOrganization(
       expected: current,
@@ -842,8 +848,9 @@ final class SyncBookmarkMirrorEngine {
       final current = await mirrors.readMirrorState();
       final selected = <String, Set<String>>{};
       for (final target in captured) {
-        if (target.isCurrentMirrors(current))
+        if (target.isCurrentMirrors(current)) {
           selected.putIfAbsent(target.groupId, () => {}).add(target.member);
+        }
       }
       final owners = Map<String, BookmarkMirrorOwner>.of(current.owners);
       var changed = false;

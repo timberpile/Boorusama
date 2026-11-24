@@ -52,13 +52,15 @@ BooruConfig? selectBookmarkReadProfile(
 ) {
   for (final profile in profiles) {
     if (profile.auth.booruType != target.origin.booruType ||
-        normalizePostSourceHost(profile.url) != target.origin.sourceHost)
+        normalizePostSourceHost(profile.url) != target.origin.sourceHost) {
       continue;
+    }
     try {
       final site = BoorusamaPostLink.parseSourceSite(profile.url);
       if (target.site != null &&
-          site != BoorusamaPostLink.parseSourceSite(target.site.toString()))
+          site != BoorusamaPostLink.parseSourceSite(target.site.toString())) {
         continue;
+      }
       return profile;
     } on FormatException {
       continue;
@@ -105,8 +107,9 @@ final bookmarkReadAccessProvider = Provider.autoDispose
           target,
           ref.watch(bookmarkReadProfilesProvider),
         );
-        if (profile != null)
+        if (profile != null) {
           return ref.watch(contentProfileAccessProvider(profile.id));
+        }
         final policy = ref.watch(anonymousSourcePolicyProvider);
         final source = target.site == null
             ? policy.forNamespace(
@@ -117,8 +120,9 @@ final bookmarkReadAccessProvider = Provider.autoDispose
         if (source == null ||
             !ref.watch(bookmarkReadAdapterProvider(target)) ||
             normalizePostSourceHost(source.site.toString()) !=
-                target.origin.sourceHost)
+                target.origin.sourceHost) {
           return null;
+        }
         return ref.watch(anonymousContentAccessProvider(source));
       },
       dependencies: [
@@ -139,8 +143,9 @@ ViewerSourceBinding? bookmarkReadBinding(
     target,
     ref.read(bookmarkReadProfilesProvider),
   );
-  if (profile != null)
+  if (profile != null) {
     return ViewerSourceBinding(profile, bookmarkId: bookmarkId);
+  }
   final policy = ref.read(anonymousSourcePolicyProvider);
   final source = target.site == null
       ? policy.forNamespace(target.origin.booruType, target.origin.sourceHost)

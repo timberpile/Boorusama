@@ -9,6 +9,7 @@ import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -77,7 +78,7 @@ void main() {
         ),
       )!;
       watch.stop();
-      print(
+      debugPrintSynchronously(
         jsonEncode({
           'incoming': records.length,
           'local': populated ? records.length : 0,

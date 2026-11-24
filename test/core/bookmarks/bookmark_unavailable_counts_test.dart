@@ -23,14 +23,14 @@ void main() {
         BookmarkGroup(
           id: defaultBookmarkGroupId,
           name: 'Default',
-          bookmarkIds: {4},
+          bookmarkIds: const {4},
         ),
-        BookmarkGroup(id: root, name: 'Root', bookmarkIds: {1, 2}),
+        BookmarkGroup(id: root, name: 'Root', bookmarkIds: const {1, 2}),
         BookmarkGroup(
           id: child,
           name: 'Child',
           parentGroupId: root,
-          bookmarkIds: {2, 3},
+          bookmarkIds: const {2, 3},
         ),
       ],
     );

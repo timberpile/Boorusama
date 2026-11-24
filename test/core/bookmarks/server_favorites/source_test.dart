@@ -106,7 +106,7 @@ class _RecordingRepository extends PostRepository<Post> {
   PostFetchOptions? options;
   int? limit;
   String? query;
-  bool capped = false;
+  var capped = false;
   @override
   PostsOrError<Post> getPosts(
     String tags,

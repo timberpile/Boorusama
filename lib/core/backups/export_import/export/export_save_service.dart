@@ -34,7 +34,7 @@ class AndroidExportSaveService {
     final saved = await _channel.invokeMethod<String>('saveToDirectory', {
       'source': source,
       'directory': directory,
-      if (fileName != null) 'fileName': fileName,
+      'fileName': ?fileName,
     });
     if (saved == null) {
       throw PlatformException(code: 'export_save_failed');

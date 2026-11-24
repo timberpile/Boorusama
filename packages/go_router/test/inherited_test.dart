@@ -15,7 +15,7 @@ void main() {
       final goRouter = GoRouter(
         routes: <GoRoute>[GoRoute(path: '/', builder: (_, _) => const Page1())],
       );
-      final bool shouldNotify = setupInheritedGoRouterChange(
+      final shouldNotify = setupInheritedGoRouterChange(
         oldGoRouter: goRouter,
         newGoRouter: goRouter,
       );
@@ -29,7 +29,7 @@ void main() {
       final newGoRouter = GoRouter(
         routes: <GoRoute>[GoRoute(path: '/', builder: (_, _) => const Page2())],
       );
-      final bool shouldNotify = setupInheritedGoRouterChange(
+      final shouldNotify = setupInheritedGoRouterChange(
         oldGoRouter: oldGoRouter,
         newGoRouter: newGoRouter,
       );
@@ -49,7 +49,7 @@ void main() {
     expect(properties.properties.first.value, goRouter);
   });
 
-  testWidgets("mediates Widget's access to GoRouter.", (WidgetTester tester) async {
+  testWidgets("mediates Widget's access to GoRouter.", (tester) async {
     final router = MockGoRouter();
     await tester.pumpWidget(
       MaterialApp(
@@ -60,7 +60,7 @@ void main() {
     expect(router.latestPushedName, 'my_page');
   });
 
-  testWidgets('builder can access GoRouter', (WidgetTester tester) async {
+  testWidgets('builder can access GoRouter', (tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/110512.
     late final GoRouter buildContextRouter;
     final router = GoRouter(
@@ -68,7 +68,7 @@ void main() {
       routes: <GoRoute>[
         GoRoute(
           path: '/',
-          builder: (BuildContext context, _) {
+          builder: (context, _) {
             buildContextRouter = GoRouter.of(context);
             return const DummyScreen();
           },

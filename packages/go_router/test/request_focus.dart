@@ -8,9 +8,9 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   testWidgets('GoRouter does not request focus if requestFocus is false', (
-    WidgetTester tester,
+    tester,
   ) async {
-    final GlobalKey innerKey = GlobalKey();
+    final innerKey = GlobalKey();
     final focusNode = FocusScopeNode();
     final router = GoRouter(
       initialLocation: '/',

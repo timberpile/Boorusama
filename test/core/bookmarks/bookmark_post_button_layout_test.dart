@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart' as legacy;
-import 'package:flutter/rendering.dart' show RenderBox;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +26,8 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/details_parts/src/toolbars/bookmark_post_button.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+
+import '../../support/legacy_material_test_scope.dart';
 
 const _groupId = '550e8400-e29b-41d4-a716-446655440000';
 const _otherGroupId = '550e8400-e29b-41d4-a716-446655440002';
@@ -427,7 +428,9 @@ Future<_Library> _pump(
           () => _FavoriteSettings(ignoreSyncedGroup),
         ),
         recentBookmarkGroupsProvider.overrideWith(
-          (ref) async => recent ? [saved, if (twoRecentGroups) other] : [],
+          (ref) => Future.sync(
+            () => recent ? [saved, if (twoRecentGroups) other] : [],
+          ),
         ),
         currentReadOnlyBooruConfigAuthProvider.overrideWithValue(
           BooruConfig.empty.auth,
@@ -444,7 +447,7 @@ Future<_Library> _pump(
               data: KurumiThemeData.fromMaterial(
                 Theme.of(context).withBoorusamaColors(),
               ),
-              child: MaterialUiCompatibilityBridge(
+              child: LegacyMaterialTestScope(
                 child: OKToast(child: child!),
               ),
             ),

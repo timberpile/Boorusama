@@ -20,8 +20,9 @@ final class BookmarkSubtreeProjection {
         if (record == null) continue;
         ids.add(id);
         final date = group.addedAt[id] ?? bookmarkCreatedAt(record);
-        if (earliest[id] == null || date.isBefore(earliest[id]!))
+        if (earliest[id] == null || date.isBefore(earliest[id]!)) {
           earliest[id] = date;
+        }
         if (latest[id] == null || date.isAfter(latest[id]!)) latest[id] = date;
       }
     }

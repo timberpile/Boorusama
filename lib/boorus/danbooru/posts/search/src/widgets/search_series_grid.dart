@@ -103,8 +103,7 @@ class SearchSeriesIndex extends ChangeNotifier {
       }
     }
     await Future.wait({
-      for (final key in keys)
-        if (_pending[key] case final future?) future,
+      for (final key in keys) ?_pending[key],
     });
   }
 
@@ -146,8 +145,9 @@ class SearchSeriesGrid extends ConsumerWidget {
     metadataChanges: index,
     onAdmit: (start, posts) {
       final capability = ref.read(poolBookmarkCapabilityProvider(config));
-      if (capability != null)
+      if (capability != null) {
         unawaited(index.load(config, posts.skip(start).toList(), capability));
+      }
     },
   );
 }

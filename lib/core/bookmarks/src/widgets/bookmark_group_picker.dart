@@ -280,7 +280,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       memberships = id == null ? const {} : library!.membershipsForId(id);
     } else if (request case PostBookmarkPickerRequest(:final post)) {
       final saved = library?.storedBookmarkForPost(post);
-      memberships = library?.hasUnifiedRecords == true
+      memberships = library?.hasUnifiedRecords ?? false
           ? saved == null
                 ? const {}
                 : library!.membershipsForId(saved.id)
@@ -356,7 +356,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                     navigationLabel:
                         '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
                     onOpen: () => _navigation.open(group.id),
-                    hasChildren: tree?.childrenOf(group.id).isNotEmpty == true,
+                    hasChildren: tree?.childrenOf(group.id).isNotEmpty ?? false,
                     child: row(group, recent: true),
                   ),
               ],
@@ -374,8 +374,9 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       final outcome = await _actions.toggle(
         groupId,
         onRemoved: (removal) {
-          if (navigator.mounted)
+          if (navigator.mounted) {
             notifier.showRemovalUndo(navigator.context, removal);
+          }
         },
       );
       if (outcome == null) return;

@@ -107,8 +107,9 @@ class _ServerFavoriteTargetPickerState
       final group = await ref
           .read(bookmarkLibraryProvider.notifier)
           .createGroup(name, parentGroupId: parentGroupId);
-      if (mounted && (ModalRoute.of(context)?.isCurrent ?? false))
+      if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
         Navigator.pop(context, ServerFavoriteTarget.group(group.id));
+      }
     } catch (_) {
       if (mounted) setState(() => _failed = true);
     } finally {

@@ -69,10 +69,11 @@ class ContentGroupPage extends ConsumerWidget {
     final sourceState = ref.watch(contentGroupSourceStateProvider(access.key));
     final source = sourceState.asData?.value;
     if (source == null) {
-      if (sourceState.isLoading)
+      if (sourceState.isLoading) {
         return const ViewerEntryNavigationStatus(
           child: CircularProgressIndicator(),
         );
+      }
       return ViewerEntryNavigationStatus(
         child: Text(context.t.bookmark.pool_unavailable),
       );
@@ -167,7 +168,7 @@ class _RegisteredGroupContentState
         : const <Widget>[];
     return ViewerEntryNavigationStatus(
       actions: actions,
-      child: state?.hasError == true
+      child: state?.hasError ?? false
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [

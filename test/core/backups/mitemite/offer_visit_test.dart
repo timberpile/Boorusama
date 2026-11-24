@@ -34,18 +34,16 @@ void main() {
           ),
         ),
       );
-      unawaited(
-        navigator.currentState!.push(
-          MaterialPageRoute<void>(
-            builder: (_) => Consumer(
-              builder: (context, ref, _) => SyncOfferVisit(
-                ready: ref.watch(ready),
-                keys: ref.watch(keys),
-                onLeave: (snapshot) async {
-                  receipts.add(snapshot);
-                },
-                child: const Text('Subscriptions NEW'),
-              ),
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => Consumer(
+            builder: (context, ref, _) => SyncOfferVisit(
+              ready: ref.watch(ready),
+              keys: ref.watch(keys),
+              onLeave: (snapshot) async {
+                receipts.add(snapshot);
+              },
+              child: const Text('Subscriptions NEW'),
             ),
           ),
         ),
@@ -73,10 +71,8 @@ void main() {
       expect(receipts, isEmpty);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      unawaited(
-        navigator.currentState!.push(
-          MaterialPageRoute<void>(builder: (_) => const Text('Other Page')),
-        ),
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(builder: (_) => const Text('Other Page')),
       );
       await tester.pumpAndSettle();
       expect(receipts, [
@@ -113,17 +109,15 @@ void main() {
         ),
       ),
     );
-    unawaited(
-      navigator.currentState!.push(
-        MaterialPageRoute<void>(
-          builder: (_) => SyncOfferVisit(
-            ready: false,
-            keys: const {'not-loaded'},
-            onLeave: (snapshot) async {
-              receipts.add(snapshot);
-            },
-            child: const Text('Loading'),
-          ),
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => SyncOfferVisit(
+          ready: false,
+          keys: const {'not-loaded'},
+          onLeave: (snapshot) async {
+            receipts.add(snapshot);
+          },
+          child: const Text('Loading'),
         ),
       ),
     );

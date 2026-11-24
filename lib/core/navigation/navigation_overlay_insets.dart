@@ -114,7 +114,7 @@ class _NavigationOverlayInsetsScopeState
         ? 0.0
         : geometry.visible;
     final bottom = math.max(keyboard ? 0.0 : media.padding.bottom, overlap);
-    _publishBottomPadding(math.max(0.0, bottom - media.padding.bottom));
+    _publishBottomPadding(math.max(0, bottom - media.padding.bottom));
   }
 
   void _retarget() {

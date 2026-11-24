@@ -369,7 +369,7 @@ void main() {
     );
 
     expect(restored.byId.keys.toSet(), {0, 1, 2, 4, 5});
-    final remapped = restored.byId[5] as LegacyGroupBookmark;
+    final remapped = restored.byId[5]! as LegacyGroupBookmark;
     expect(remapped.metadata.origin, savedLegacy.metadata.origin);
     expect(remapped.metadata.sourceTypeId, savedLegacy.metadata.sourceTypeId);
     expect(remapped.metadata.referenceId, savedLegacy.metadata.referenceId);

@@ -26,8 +26,9 @@ final class OwnedReadCache<K, T> {
     bool replaceExisting = false,
   }) {
     if (_disposed ||
-        (!replaceExisting && _invalidatedSeeds.contains(reference)))
+        (!replaceExisting && _invalidatedSeeds.contains(reference))) {
       return false;
+    }
     if (validateKey?.call(reference) == false) {
       throw const FormatException('Invalid shared read key');
     }

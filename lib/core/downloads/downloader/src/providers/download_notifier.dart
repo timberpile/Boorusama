@@ -74,8 +74,9 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? postUrl,
     bool Function()? isCurrent,
   }) async {
-    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true)) {
       return null;
+    }
 
     final perm = await _getPermissionStatus();
     if (!(isCurrent?.call() ?? true)) return null;
@@ -107,8 +108,9 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     int Function(Post)? indexOf,
     bool Function()? isCurrent,
   }) async {
-    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true)) {
       return;
+    }
 
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
@@ -193,10 +195,10 @@ Future<DownloadTaskInfo?> _download(
       bool current() =>
           (isCurrent?.call() ?? true) &&
           access != null &&
-          ref
+          (ref
                   .read(contentAccessContextProvider(access.key))
-                  ?.hasSameAuthorization(access) ==
-              true;
+                  ?.hasSameAuthorization(access) ??
+              false);
       if (current()) {
         final resolved = await runWithApiRequestContext(
           ApiRequestContext(canStart: current, canAdmit: current),
@@ -276,8 +278,9 @@ Future<DownloadTaskInfo?> _download(
         ref,
         params.settings.downloadNetworkPolicy,
       );
-  if (resolvedNetworkConstraint == null || !(isCurrent?.call() ?? true))
+  if (resolvedNetworkConstraint == null || !(isCurrent?.call() ?? true)) {
     return null;
+  }
 
   Future<DownloadTaskInfo?> download() async {
     if (!(isCurrent?.call() ?? true)) return null;

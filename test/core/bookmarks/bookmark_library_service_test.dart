@@ -923,10 +923,9 @@ void main() {
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
   _FailingReadBookmarkRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -940,10 +939,9 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
 
 class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
   _FailingBookmarkRemovalRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -957,10 +955,9 @@ class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
 class _CommitsThenThrowsBookmarkRemovalRepository
     extends BookmarkHiveRepository {
   _CommitsThenThrowsBookmarkRemovalRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -975,7 +972,7 @@ class _CommitsThenThrowsBookmarkRemovalRepository
 
 class _CommitsThenThrowsCreateGroupRepository
     extends BookmarkGroupRepositoryHive {
-  _CommitsThenThrowsCreateGroupRepository(super._box);
+  _CommitsThenThrowsCreateGroupRepository(super.box);
 
   @override
   Future<BookmarkGroup> createGroup(String name, {String? id}) async {
@@ -1280,20 +1277,21 @@ class _FailingReplaceGroupRepository implements BookmarkGroupRepository {
 }
 
 class _FailsSecondCopyRepository extends BookmarkGroupRepositoryHive {
-  _FailsSecondCopyRepository(Box<BookmarkGroupHiveObject> box)
-    : super(box, organizationBox: MemoryBox<dynamic>());
+  _FailsSecondCopyRepository(super.box)
+    : super(organizationBox: MemoryBox<dynamic>());
   final attempted = <String>[];
   @override
-  Future<BookmarkGroup> createGroup(String name, {String? id}) async {
-    attempted.add(name);
-    if (name == 'Copy B') throw StateError('second copy rejected');
-    return super.createGroup(name, id: id);
-  }
+  Future<BookmarkGroup> createGroup(String name, {String? id}) =>
+      Future.sync(() {
+        attempted.add(name);
+        if (name == 'Copy B') throw StateError('second copy rejected');
+        return super.createGroup(name, id: id);
+      });
 }
 
 class _FailsFirstReplaceGroupRepository extends BookmarkGroupRepositoryHive {
   _FailsFirstReplaceGroupRepository(super.box);
-  bool _failed = false;
+  var _failed = false;
   @override
   Future<BookmarkGroup> replaceMemberships(
     String id,

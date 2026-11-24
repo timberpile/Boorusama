@@ -21,14 +21,14 @@ void main() {
     GoRoute(path: '/', redirect: (_, _) => '/a');
   });
 
-  testWidgets('ShellRoute can use parent navigator key', (WidgetTester tester) async {
+  testWidgets('ShellRoute can use parent navigator key', (tester) async {
     final rootNavigatorKey = GlobalKey<NavigatorState>();
     final shellNavigatorKey = GlobalKey<NavigatorState>();
 
     final routes = <RouteBase>[
       ShellRoute(
         navigatorKey: shellNavigatorKey,
-        builder: (BuildContext context, GoRouterState state, Widget child) {
+        builder: (context, state, child) {
           return Scaffold(
             body: Column(
               children: <Widget>[
@@ -41,13 +41,13 @@ void main() {
         routes: <RouteBase>[
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) {
+            builder: (context, state) {
               return const Scaffold(body: Text('Screen B'));
             },
             routes: <RouteBase>[
               ShellRoute(
                 parentNavigatorKey: rootNavigatorKey,
-                builder: (BuildContext context, GoRouterState state, Widget child) {
+                builder: (context, state, child) {
                   return Scaffold(
                     body: Column(
                       children: <Widget>[
@@ -60,7 +60,7 @@ void main() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'c',
-                    builder: (BuildContext context, GoRouterState state) {
+                    builder: (context, state) {
                       return const Scaffold(body: Text('Screen C'));
                     },
                   ),
@@ -79,14 +79,14 @@ void main() {
     expect(find.text('Screen C'), findsOneWidget);
   });
 
-  testWidgets('StatefulShellRoute can use parent navigator key', (WidgetTester tester) async {
+  testWidgets('StatefulShellRoute can use parent navigator key', (tester) async {
     final rootNavigatorKey = GlobalKey<NavigatorState>();
     final shellNavigatorKey = GlobalKey<NavigatorState>();
 
     final routes = <RouteBase>[
       ShellRoute(
         navigatorKey: shellNavigatorKey,
-        builder: (BuildContext context, GoRouterState state, Widget child) {
+        builder: (context, state, child) {
           return Scaffold(
             body: Column(
               children: <Widget>[
@@ -99,13 +99,13 @@ void main() {
         routes: <RouteBase>[
           GoRoute(
             path: '/b',
-            builder: (BuildContext context, GoRouterState state) {
+            builder: (context, state) {
               return const Scaffold(body: Text('Screen B'));
             },
             routes: <RouteBase>[
               StatefulShellRoute.indexedStack(
                 parentNavigatorKey: rootNavigatorKey,
-                builder: (_, _, StatefulNavigationShell navigationShell) {
+                builder: (_, _, navigationShell) {
                   return Column(
                     children: <Widget>[
                       const Text('Screen D'),
@@ -118,7 +118,7 @@ void main() {
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'c',
-                        builder: (BuildContext context, GoRouterState state) {
+                        builder: (context, state) {
                           return const Scaffold(body: Text('Screen C'));
                         },
                       ),
@@ -139,31 +139,30 @@ void main() {
     expect(find.text('Screen C'), findsOneWidget);
   });
 
-  test('ShellRoute parent navigator key throw if not match', () async {
+  test('ShellRoute parent navigator key throw if not match', () {
     final key1 = GlobalKey<NavigatorState>();
     final key2 = GlobalKey<NavigatorState>();
-    var hasError = false;
-    try {
-      ShellRoute(
-        navigatorKey: key1,
-        builder: (_, _, Widget child) => child,
-        routes: <RouteBase>[
-          ShellRoute(
-            parentNavigatorKey: key2,
-            builder: (_, _, Widget child) => child,
-            routes: <RouteBase>[GoRoute(path: '1', builder: (_, _) => const Text('/route/1'))],
-          ),
-        ],
-      );
-    } on AssertionError catch (_) {
-      hasError = true;
-    }
-    expect(hasError, isTrue);
+    expect(
+      () {
+        ShellRoute(
+          navigatorKey: key1,
+          builder: (_, _, child) => child,
+          routes: <RouteBase>[
+            ShellRoute(
+              parentNavigatorKey: key2,
+              builder: (_, _, child) => child,
+              routes: <RouteBase>[GoRoute(path: '1', builder: (_, _) => const Text('/route/1'))],
+            ),
+          ],
+        );
+      },
+      throwsA(isA<AssertionError>()),
+    );
   });
 
   group('Redirect only GoRoute', () {
-    testWidgets('can redirect to subroute', (WidgetTester tester) async {
-      final GoRouter router = await createRouter(<RouteBase>[
+    testWidgets('can redirect to subroute', (tester) async {
+      final router = await createRouter(<RouteBase>[
         GoRoute(
           path: '/',
           builder: (_, _) => const Text('home'),
@@ -189,8 +188,8 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
 
-    testWidgets('throw if redirect to itself.', (WidgetTester tester) async {
-      final GoRouter router = await createRouter(<RouteBase>[
+    testWidgets('throw if redirect to itself.', (tester) async {
+      final router = await createRouter(<RouteBase>[
         GoRoute(
           path: '/',
           builder: (_, _) => const Text('home'),
@@ -211,8 +210,8 @@ void main() {
       expect(tester.takeException(), isAssertionError);
     });
 
-    testWidgets('redirects to a valid route based on fragment.', (WidgetTester tester) async {
-      final GoRouter router = await createRouter(<RouteBase>[
+    testWidgets('redirects to a valid route based on fragment.', (tester) async {
+      final router = await createRouter(<RouteBase>[
         GoRoute(
           path: '/',
           builder: (_, _) => const Text('home'),
@@ -220,7 +219,7 @@ void main() {
             GoRoute(
               path: 'route',
               name: 'route',
-              redirect: (BuildContext context, GoRouterState state) {
+              redirect: (context, state) {
                 // Redirection logic based on the fragment in the URI
                 if (state.uri.fragment == '1') {
                   // If fragment is "1", redirect to "/route/1"
@@ -242,7 +241,7 @@ void main() {
       expect(find.text('home'), findsOneWidget);
 
       // Generate a location string for the named route "route" with fragment "2"
-      final String locationWithFragment = router.namedLocation('route', fragment: '2');
+      final locationWithFragment = router.namedLocation('route', fragment: '2');
       expect(locationWithFragment, '/route#2'); // Expect the generated location to be "/route#2"
 
       // Navigate to the named route "route" with fragment "1"
@@ -257,33 +256,32 @@ void main() {
     });
 
     testWidgets('throw if sub route does not conform with parent navigator key', (
-      WidgetTester tester,
+      tester,
     ) async {
       final key1 = GlobalKey<NavigatorState>();
       final key2 = GlobalKey<NavigatorState>();
-      var hasError = false;
-      try {
-        ShellRoute(
-          navigatorKey: key1,
-          builder: (_, _, Widget child) => child,
-          routes: <RouteBase>[
-            GoRoute(
-              path: '/',
-              redirect: (_, _) => '/route',
-              routes: <RouteBase>[
-                GoRoute(
-                  parentNavigatorKey: key2,
-                  path: 'route',
-                  builder: (_, _) => const Text('/route/1'),
-                ),
-              ],
-            ),
-          ],
-        );
-      } on AssertionError catch (_) {
-        hasError = true;
-      }
-      expect(hasError, isTrue);
+      expect(
+        () {
+          ShellRoute(
+            navigatorKey: key1,
+            builder: (_, _, child) => child,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/',
+                redirect: (_, _) => '/route',
+                routes: <RouteBase>[
+                  GoRoute(
+                    parentNavigatorKey: key2,
+                    path: 'route',
+                    builder: (_, _) => const Text('/route/1'),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }

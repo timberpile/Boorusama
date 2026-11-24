@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// ignore_for_file: cascade_invocations, diagnostic_describe_all_properties
-
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -133,7 +131,7 @@ class GoRouterPopSpy extends GoRouter {
   GoRouterPopSpy({required List<RouteBase> routes})
     : super.routingConfig(routingConfig: ConstantRoutingConfig(RoutingConfig(routes: routes)));
 
-  bool popped = false;
+  var popped = false;
   Object? poppedResult;
 
   @override
@@ -269,7 +267,7 @@ class DummyScreen extends StatelessWidget {
 
 Widget dummy(BuildContext context, GoRouterState state) => const DummyScreen();
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final navigatorKey = GlobalKey<NavigatorState>();
 
 class DummyStatefulWidget extends StatefulWidget {
   const DummyStatefulWidget({super.key});
@@ -279,7 +277,7 @@ class DummyStatefulWidget extends StatefulWidget {
 }
 
 class DummyStatefulWidgetState extends State<DummyStatefulWidget> {
-  int counter = 0;
+  var counter = 0;
 
   void increment() => setState(() {
     counter++;
@@ -300,7 +298,7 @@ class DummyRestorableStatefulWidget extends StatefulWidget {
 
 class DummyRestorableStatefulWidgetState extends State<DummyRestorableStatefulWidget>
     with RestorationMixin {
-  final RestorableInt _counter = RestorableInt(0);
+  final _counter = RestorableInt(0);
 
   @override
   String? get restorationId => widget.restorationId;
@@ -329,7 +327,7 @@ class DummyRestorableStatefulWidgetState extends State<DummyRestorableStatefulWi
 }
 
 Future<void> simulateAndroidBackButton(WidgetTester tester) async {
-  final ByteData message = const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute'));
+  final message = const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute'));
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'flutter/navigation',
     message,
@@ -342,13 +340,11 @@ Future<void> simulateIosBackGesture(WidgetTester tester) async {
 }
 
 GoRouterPageBuilder createPageBuilder({String? restorationId, required Widget child}) =>
-    (BuildContext context, GoRouterState state) =>
-        MaterialPage<dynamic>(restorationId: restorationId, child: child);
+    (context, state) => MaterialPage<dynamic>(restorationId: restorationId, child: child);
 
-StatefulShellRouteBuilder mockStackedShellBuilder =
-    (BuildContext context, GoRouterState state, StatefulNavigationShell navigationShell) {
-      return navigationShell;
-    };
+StatefulShellRouteBuilder mockStackedShellBuilder = (context, state, navigationShell) {
+  return navigationShell;
+};
 
 /// A routing config that is never going to change.
 class ConstantRoutingConfig extends ValueListenable<RoutingConfig> {
@@ -389,15 +385,14 @@ class SimpleDependencyProvider extends InheritedNotifier<SimpleDependency> {
   }) : super(notifier: dependency);
 
   static SimpleDependency of(BuildContext context) {
-    final SimpleDependencyProvider result = context
-        .dependOnInheritedWidgetOfExactType<SimpleDependencyProvider>()!;
+    final result = context.dependOnInheritedWidgetOfExactType<SimpleDependencyProvider>()!;
     return result.notifier!;
   }
 }
 
 class SimpleDependency extends ChangeNotifier {
   bool get boolProperty => _boolProperty;
-  bool _boolProperty = true;
+  var _boolProperty = true;
   set boolProperty(bool value) {
     if (value == _boolProperty) {
       return;

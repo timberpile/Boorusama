@@ -8,7 +8,7 @@ final class TestPost extends Post {
   TestPost({
     required int id,
     PostOrigin? origin,
-    BooruPostData booruData = const EmptyPostData(typeKey: 'test'),
+    super.booruData = const EmptyPostData(typeKey: 'test'),
     Set<String> tags = const {},
     PostSource? source,
     String thumbnailImageUrl = '',
@@ -21,7 +21,6 @@ final class TestPost extends Post {
     String format = '.jpg',
   }) : super(
          origin: origin ?? PostOrigin.forBooruType(BooruType.unknown),
-         booruData: booruData,
          core: PostCoreData(
            id: id,
            tags: tags,
@@ -40,7 +39,6 @@ final class TestPost extends Post {
            source: source ?? PostSource.none(),
            score: 10,
            duration: kNoduration,
-           hasSound: null,
            videoThumbnailUrl: '',
            videoUrl: '',
          ),

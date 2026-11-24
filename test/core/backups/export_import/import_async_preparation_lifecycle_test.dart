@@ -74,9 +74,7 @@ void main() {
           ),
           backupRegistryProvider.overrideWith((ref) {
             final registry = BackupRegistry();
-            for (final source in ref.read(sources)) {
-              registry.register(source);
-            }
+            ref.read(sources).forEach(registry.register);
             return registry;
           }),
           exportImportSourcesProvider.overrideWith(
@@ -296,18 +294,16 @@ class _GatedProfileRepository implements BooruConfigRepository {
 class _FixtureSource<T> extends JsonBackupSource<T> {
   _FixtureSource(
     Ref ref, {
-    required String id,
+    required super.id,
     required Future<T> Function() getData,
-    required JsonHandler<T> handler,
+    required super.handler,
     this.onParsed,
   }) : super(
-         id: id,
          priority: 0,
          version: 1,
          appVersion: null,
          dataGetter: getData,
          executor: (_, _) async {},
-         handler: handler,
          ref: ref,
        );
 

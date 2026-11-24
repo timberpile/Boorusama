@@ -8,6 +8,8 @@ import 'package:i18n/i18n.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
 import 'package:boorusama/core/backups/widgets/bookmark_group_conflict_dialog.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 void main() {
   const conflict = BookmarkGroupImport(
     id: '550e8400-e29b-41d4-a716-446655440000',
@@ -21,8 +23,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
@@ -53,15 +54,13 @@ void main() {
   ) async {
     BookmarkImportPlan? result;
     final plan = BookmarkImportPlan(
-      records: [],
-      alreadyExistedCount: 0,
-      groups: [conflict],
+      records: const [],
+      groups: const [conflict],
     );
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
@@ -87,9 +86,8 @@ void main() {
   ) async {
     BookmarkImportPlan? result;
     final plan = BookmarkImportPlan(
-      records: [],
-      alreadyExistedCount: 0,
-      groups: [
+      records: const [],
+      groups: const [
         conflict,
         BookmarkGroupImport(
           id: '5f1d7f5e-3114-4dc7-a347-18f95852fc31',
@@ -102,8 +100,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {

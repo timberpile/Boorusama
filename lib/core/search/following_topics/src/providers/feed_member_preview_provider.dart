@@ -107,8 +107,9 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
                             )),
                           )
                           .valueOrNull !=
-                      true))
+                      true)) {
             continue;
+          }
           final media = resolver.resolve(post, settings: settings);
           final urls =
               <String>{
@@ -136,8 +137,9 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
         for (final bytesFuture in variants) {
           try {
             final bytes = await bytesFuture;
-            if (disposed || owner.anonymousReadScope?.isCurrent == false)
+            if (disposed || owner.anonymousReadScope?.isCurrent == false) {
               return const [];
+            }
             if (bytes == null || bytes.isEmpty) continue;
             final image = _cachedImage(bytes);
             if (await _decodeCachedImage(image, ref)) {

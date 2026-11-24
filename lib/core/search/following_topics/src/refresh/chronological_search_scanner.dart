@@ -77,7 +77,7 @@ class ChronologicalSearchScanner {
       // lower bound; never claim that the complete delta was enumerated.
       final mayContinue =
           chunk.posts.length >= limit &&
-          chunk.hasMore != false &&
+          (chunk.hasMore ?? true) &&
           (chunk.maxPage == null || pageNumber < chunk.maxPage!);
       if (pageNumber == maxPages && mayContinue) truncated = true;
       if (!mayContinue) break;

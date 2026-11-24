@@ -846,9 +846,9 @@ void main() {
               hasLength(populated ? 3 : 2),
             );
             expect(
-              ((await harness.groups.getGroups())
-                      .where((g) => !g.isDefault)
-                      .toList())
+              (await harness.groups.getGroups())
+                  .where((g) => !g.isDefault)
+                  .toList()
                   .map((group) => group.id),
               contains(imported.id),
             );
@@ -1077,7 +1077,6 @@ class _Harness {
               searchIds: [topic.id],
             ),
           ],
-          homeSearchIds: const [],
         ),
       );
     }

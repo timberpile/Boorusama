@@ -49,8 +49,9 @@ class _BoorusamaGroupLinkPageState
     if (link == null) return _message(context.t.post.app_link.invalid);
     final reference = link.reference;
     final profiles = ref.watch(orderedProfileConfigsProvider);
-    if (_addingProfile)
+    if (_addingProfile) {
       return _frame(const Center(child: CircularProgressIndicator()));
+    }
     final origin = PostOrigin.fromSource(
       booruType: reference.engine,
       booruId: 0,

@@ -289,8 +289,9 @@ class VideoCacheManager implements ImageCacheManager {
         throw const VideoCacheException('Video exceeds cache size limit');
       }
       final body = response.data;
-      if (body == null)
+      if (body == null) {
         throw const VideoCacheException('Missing video response body');
+      }
       stage = File(
         join(dir.path, '$key.${identityHashCode(this)}.${_stageSerial++}.part'),
       );
@@ -353,8 +354,9 @@ class VideoCacheManager implements ImageCacheManager {
       );
     } finally {
       try {
-        if (!ownedToken.isCancelled)
+        if (!ownedToken.isCancelled) {
           ownedToken.cancel('Guarded transfer finished');
+        }
         try {
           if (sink != null) await sink.close();
         } finally {

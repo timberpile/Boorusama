@@ -30,7 +30,7 @@ void main() {
         final other = await library.createGroup('Other');
         await library.addPostsToGroup(h.profile.auth, [h.post(3)], target.id);
         await library.addPostsToGroup(h.profile.auth, [h.post(3)], other.id);
-        final created = DateTime.utc(2026, 10, 1);
+        final created = DateTime.utc(2026, 10);
         final added = DateTime.utc(2026, 10, 2);
         final origin = postOriginFromConfig(h.profile);
         await h.groups.writePoolBookmarks([

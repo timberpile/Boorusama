@@ -64,15 +64,17 @@ final class MediaRequest extends Equatable {
         source.userInfo.isNotEmpty ||
         uri.scheme != source.scheme ||
         uri.host != source.host ||
-        uri.port != source.port)
+        uri.port != source.port) {
       return false;
+    }
     if (uri.path.contains(r'\') ||
         RegExp(
           '%(?:2f|5c|2e|25)',
           caseSensitive: false,
         ).hasMatch(uri.toString().split('?').first.split('#').first) ||
-        uri.pathSegments.any((part) => part == '.' || part == '..'))
+        uri.pathSegments.any((part) => part == '.' || part == '..')) {
       return false;
+    }
     final base = source.path.replaceFirst(RegExp(r'/+$'), '');
     return base.isEmpty || uri.path == base || uri.path.startsWith('$base/');
   }

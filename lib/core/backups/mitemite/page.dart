@@ -66,8 +66,9 @@ class MiteMitePage extends ConsumerWidget {
             final pinned = service.gate.approvedKey(device.id);
             if (pinned == null ||
                 syncDigest(pinned) != device.fingerprint ||
-                device.catalog?.publicationRoots == null)
+                device.catalog?.publicationRoots == null) {
               continue;
+            }
             pinnedFingerprints[device.id] = device.fingerprint;
             offered.addAll(
               device.catalog!.offeredEntries.map((entry) => entry.id),
@@ -402,8 +403,9 @@ class MiteMitePage extends ConsumerWidget {
     final tree = BookmarkGroupTree(local);
     final rows = <Widget>[];
     if (service.publishedRoots.isEmpty &&
-        service.publishedFollowingRoots.isEmpty)
+        service.publishedFollowingRoots.isEmpty) {
       rows.add(ListTile(title: Text(t.empty_publication)));
+    }
     // Only direct rules are managed here. Covered children stay in the payload
     // tree, not as misleading, separately published top-level rows.
     for (final source in service.publishedRoots.toList()..sort()) {
@@ -487,8 +489,9 @@ class MiteMitePage extends ConsumerWidget {
         ),
       );
     }
-    if (service.outgoingFailure != null)
+    if (service.outgoingFailure != null) {
       rows.add(ListTile(title: Text(t.publication_pending)));
+    }
     return rows;
   }
 
@@ -539,15 +542,17 @@ class MiteMitePage extends ConsumerWidget {
       ...?service.receiverFollowing?.mirrors.subscriptions.keys,
       ...service.deviceFailures.keys,
     }.difference(visibleIds);
-    if (visibleIds.isEmpty && offline.isEmpty)
+    if (visibleIds.isEmpty && offline.isEmpty) {
       rows.add(ListTile(title: Text(t.empty_devices)));
+    }
     final devices = service.devices.toList();
-    if (focusPublisher != null)
+    if (focusPublisher != null) {
       devices.sort(
         (a, b) => (a.id == focusPublisher ? 0 : 1).compareTo(
           b.id == focusPublisher ? 0 : 1,
         ),
       );
+    }
     for (final device in devices) {
       final approved = service.gate.approvedKey(device.id) != null;
       final alias = library?.mirrors.aliases[device.id];
@@ -562,7 +567,6 @@ class MiteMitePage extends ConsumerWidget {
           trailing: approved
               ? null
               : TextButton(
-                  child: Text(t.trust),
                   onPressed: service.isActionPending('trust:${device.id}')
                       ? null
                       : () => runCurrentSyncAction(context, service, () async {
@@ -576,6 +580,7 @@ class MiteMitePage extends ConsumerWidget {
                             await service.approve(device);
                           }
                         }),
+                  child: Text(t.trust),
                 ),
         ),
       ];
@@ -671,14 +676,13 @@ class MiteMitePage extends ConsumerWidget {
             );
           }
         }
-        if (!subscriptions)
+        if (!subscriptions) {
           children.add(
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
               children: [
                 TextButton(
-                  child: Text(context.t.generic.action.edit),
                   onPressed: service.isActionPending('alias:${device.id}')
                       ? null
                       : () async {
@@ -693,24 +697,27 @@ class MiteMitePage extends ConsumerWidget {
                             ),
                           );
                         },
+                  child: Text(context.t.generic.action.edit),
                 ),
                 TextButton(
-                  child: Text(t.forget),
                   onPressed:
                       service.isActionPending('forget:${device.id}') ||
                           library == null
                       ? null
                       : () => _forget(context, service, library, device.id),
+                  child: Text(t.forget),
                 ),
               ],
             ),
           );
+        }
       } else {
         children.add(ListTile(title: Text(t.not_trusted)));
       }
       final error = service.deviceFailures[device.id];
-      if (error != null)
+      if (error != null) {
         children.add(ListTile(title: Text(syncErrorMessage(context, error))));
+      }
       rows.add(
         Card(
           key: ValueKey('sync-device:${device.id}'),
@@ -742,10 +749,10 @@ class MiteMitePage extends ConsumerWidget {
                           false)
               ? null
               : TextButton(
-                  child: Text(t.forget),
                   onPressed: service.isActionPending('forget:$publisher')
                       ? null
                       : () => _forget(context, service, library, publisher),
+                  child: Text(t.forget),
                 ),
         ),
       );
@@ -834,13 +841,6 @@ class MiteMitePage extends ConsumerWidget {
       SyncCollectionId(publisher: publisher, kind: sourceKind, source: source),
     );
     final button = TextButton(
-      child: Text(
-        pending
-            ? t.working
-            : subscribed
-            ? t.unsubscribe
-            : t.subscribe,
-      ),
       onPressed:
           pending ||
               library == null ||
@@ -878,6 +878,13 @@ class MiteMitePage extends ConsumerWidget {
                 await service.subscribe(publisher, {source});
               }
             }),
+      child: Text(
+        pending
+            ? t.working
+            : subscribed
+            ? t.unsubscribe
+            : t.subscribe,
+      ),
     );
     return LayoutBuilder(
       builder: (context, constraints) {

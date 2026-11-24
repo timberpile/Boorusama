@@ -51,7 +51,7 @@ void main() {
           await tester.binding.setSurfaceSize(const Size(320, 1600));
           addTearDown(() => tester.binding.setSurfaceSize(null));
           final savedRetention =
-              location?.startsWith('content://example.') == true ? 12 : 30;
+              location?.startsWith('content://example.') ?? false ? 12 : 30;
           final settings = Settings.defaultSettings.copyWith(
             autoBackup: AutoBackupSettings(
               enabled: true,

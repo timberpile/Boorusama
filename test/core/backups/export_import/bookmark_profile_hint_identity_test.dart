@@ -123,7 +123,7 @@ void main() {
     );
     final payload = encodeData(
       version: 6,
-      exportDate: DateTime.utc(2026, 1, 1),
+      exportDate: DateTime.utc(2026),
       exportVersion: null,
       payload: codec.encode(data),
       extraFields: data.extraFields,

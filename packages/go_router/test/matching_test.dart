@@ -12,27 +12,27 @@ import 'package:go_router/src/match.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('RouteMatchList toString prints the fullPath', (WidgetTester tester) async {
+  testWidgets('RouteMatchList toString prints the fullPath', (tester) async {
     final routes = <GoRoute>[
       GoRoute(
         path: '/page-0',
-        builder: (BuildContext context, GoRouterState state) => const Placeholder(),
+        builder: (context, state) => const Placeholder(),
       ),
     ];
 
-    final GoRouter router = await createRouter(routes, tester, initialLocation: '/page-0');
+    final router = await createRouter(routes, tester, initialLocation: '/page-0');
 
-    final RouteMatchList matches = router.routerDelegate.currentConfiguration;
+    final matches = router.routerDelegate.currentConfiguration;
     expect(matches.toString(), contains('/page-0'));
   });
 
-  test('RouteMatchList compares', () async {
+  test('RouteMatchList compares', () {
     final route = GoRoute(
       path: '/page-0',
-      builder: (BuildContext context, GoRouterState state) => const Placeholder(),
+      builder: (context, state) => const Placeholder(),
     );
     final params1 = <String, String>{};
-    final List<RouteMatchBase> match1 = RouteMatchBase.match(
+    final match1 = RouteMatchBase.match(
       route: route,
       uri: Uri.parse('/page-0'),
       rootNavigatorKey: GlobalKey<NavigatorState>(),
@@ -40,7 +40,7 @@ void main() {
     );
 
     final params2 = <String, String>{};
-    final List<RouteMatchBase> match2 = RouteMatchBase.match(
+    final match2 = RouteMatchBase.match(
       route: route,
       uri: Uri.parse('/page-0'),
       rootNavigatorKey: GlobalKey<NavigatorState>(),
@@ -62,15 +62,15 @@ void main() {
   });
 
   test('RouteMatchList is encoded and decoded correctly', () {
-    final RouteConfiguration configuration = createRouteConfiguration(
+    final configuration = createRouteConfiguration(
       routes: <GoRoute>[
         GoRoute(
           path: '/a',
-          builder: (BuildContext context, GoRouterState state) => const Placeholder(),
+          builder: (context, state) => const Placeholder(),
         ),
         GoRoute(
           path: '/b',
-          builder: (BuildContext context, GoRouterState state) => const Placeholder(),
+          builder: (context, state) => const Placeholder(),
         ),
       ],
       redirectLimit: 0,
@@ -79,8 +79,8 @@ void main() {
     );
     final codec = RouteMatchListCodec(configuration);
 
-    final RouteMatchList list1 = configuration.findMatch(Uri.parse('/a'));
-    final RouteMatchList list2 = configuration.findMatch(Uri.parse('/b'));
+    final list1 = configuration.findMatch(Uri.parse('/a'));
+    final list2 = configuration.findMatch(Uri.parse('/b'));
     list1.push(
       ImperativeRouteMatch(
         pageKey: const ValueKey<String>('/b-p0'),
@@ -89,8 +89,8 @@ void main() {
       ),
     );
 
-    final Map<Object?, Object?> encoded = codec.encode(list1);
-    final RouteMatchList decoded = codec.decode(encoded);
+    final encoded = codec.encode(list1);
+    final decoded = codec.decode(encoded);
 
     expect(decoded, isNotNull);
     expect(decoded, equals(list1));

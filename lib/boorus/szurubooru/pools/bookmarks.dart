@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/boorus/booru/types.dart';
@@ -105,12 +107,15 @@ final class SzurubooruPoolBookmarks implements PoolBookmarkCapability {
         .read(szurubooruPoolRepoProvider(config.auth))
         .getPool(id);
     if (!target.context.mounted) return;
-    if (!target.read(booruConfigProvider).contains(config))
+    if (!target.read(booruConfigProvider).contains(config)) {
       throw StateError('Pool profile changed');
+    }
     if (pool == null) throw StateError('Pool unavailable');
-    target.pushRoute(
-      '/szurubooru/pools/$id',
-      extra: (pool: pool, config: config),
+    unawaited(
+      target.pushRoute(
+        '/szurubooru/pools/$id',
+        extra: (pool: pool, config: config),
+      ),
     );
   }
 }

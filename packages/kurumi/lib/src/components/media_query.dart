@@ -1,5 +1,6 @@
 // Public toast helpers cannot override native keyboard movement per call.
 // Keep the scope adapter here so full-viewport feedback is displaced once.
+// ignore: implementation_imports
 import 'package:oktoast/src/core/toast.dart' show ToastTheme;
 
 import 'package:flutter/foundation.dart';

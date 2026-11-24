@@ -111,7 +111,7 @@ void main() {
         ResolvedImportSource(
           id: 'bookmarks',
           action: action,
-          items: [
+          items: const [
             ResolvedImportItem(
               id: 'group:$poolGroupA',
               action: ImportAction.update,
@@ -163,7 +163,7 @@ void main() {
           BookmarkGroupBackup(
             id: poolGroupA,
             name: 'Work',
-            bookmarkIds: [10],
+            bookmarkIds: const [10],
             addedAt: {10: DateTime.utc(2021)},
           ),
         ],
@@ -173,7 +173,7 @@ void main() {
         ResolvedImportSource(
           id: 'bookmarks',
           action: ImportAction.configureItems,
-          items: [
+          items: const [
             ResolvedImportItem(
               id: 'group:$poolGroupA',
               action: ImportAction.merge,

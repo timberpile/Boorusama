@@ -69,14 +69,14 @@ FollowingTopicBackupData _nested() => FollowingTopicBackupData(
       id: _id(10),
       name: 'Literal // root',
       position: 0,
-      searchIds: [],
+      searchIds: const [],
     ),
     FollowingTopicFolderBackupRecord(
       id: _id(11),
       name: 'Middle',
       parentId: _id(10),
       position: 0,
-      searchIds: [],
+      searchIds: const [],
     ),
     FollowingTopicFolderBackupRecord(
       id: _id(12),
@@ -90,13 +90,13 @@ FollowingTopicBackupData _nested() => FollowingTopicBackupData(
       name: 'Empty',
       parentId: _id(11),
       position: 1,
-      searchIds: [],
+      searchIds: const [],
     ),
   ],
 );
 
 class _FailOnceFolders extends MemoryBox<dynamic> {
-  bool failNextWrite = false;
+  var failNextWrite = false;
   @override
   Future<void> put(dynamic key, dynamic value) async {
     await super.put(key, value);
@@ -266,7 +266,7 @@ void main() {
       final selected = filterFollowingTopicBackupData(
         _nested(),
         FollowingTopicExportScope.selected(
-          searchIds: [],
+          searchIds: const [],
           folderIds: [_id(13)],
           includeHome: false,
         ),
@@ -308,12 +308,12 @@ void main() {
       final group = BookmarkGroupBackup(
         id: _id(1),
         name: 'Literal // group',
-        bookmarkIds: [],
+        bookmarkIds: const [],
         folderId: _id(11),
         position: 3,
       );
       final data = BookmarkBackupData(
-        bookmarks: [],
+        bookmarks: const [],
         groups: [group],
         folders: folders,
       );

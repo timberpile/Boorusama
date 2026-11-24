@@ -285,11 +285,12 @@ void main() {
             ServerFavoritePage(page == 1 ? [6, 5] : [4, 3], hasMore: page == 1),
         identity: (post) => post,
         validateSession: () async {},
-        addPage: (posts, token) async {
-          if (posts.contains(6) && fail)
+        addPage: (posts, token) => Future.sync(() {
+          if (posts.contains(6) && fail) {
             throw StateError('storage unavailable');
+          }
           return addTo(saved, posts);
-        },
+        }),
       );
       final first = await runner.run(
         cancellation: ServerFavoriteCancellation(),

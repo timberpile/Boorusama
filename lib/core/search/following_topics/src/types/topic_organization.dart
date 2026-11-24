@@ -14,7 +14,10 @@ final class TopicFolder extends CollectionFolder {
     this.feedEnabled = false,
     this.feedMaxPosts = topicFeedRetention,
     this.nameScope,
-  }) : assert(feedMaxPosts > 0),
+  }) : assert(
+         feedMaxPosts > 0,
+         'A Following Topic feed must allow at least one post.',
+       ),
        _explicitPosition = position != null,
        searchIds = List.unmodifiable(searchIds),
        super(name: name.trim(), position: position ?? 0);
@@ -62,6 +65,48 @@ final class TopicFolder extends CollectionFolder {
 }
 
 final class TopicOrganization extends Equatable {
+  TopicOrganization({
+    required Iterable<TopicFolder> folders,
+    Iterable<String> homeSearchIds = const [],
+    Iterable<FolderPlacement>? placements,
+  }) {
+    final raw = folders.toList();
+    this.placements = List.unmodifiable(
+      placements ??
+          [
+            for (final (position, id) in homeSearchIds.indexed)
+              FolderPlacement(itemId: id, position: position),
+            for (final folder in raw)
+              for (final (position, id) in folder.searchIds.indexed)
+                FolderPlacement(
+                  itemId: id,
+                  folderId: folder.id,
+                  position: position,
+                ),
+          ],
+    );
+    // Lists exposed to callers are projections of the single placement source.
+    final nextPosition = <String?, int>{};
+    this.folders = List.unmodifiable([
+      for (final f in raw)
+        TopicFolder(
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          position: f._explicitPosition
+              ? f.position
+              : nextPosition.update(
+                  f.parentId,
+                  (p) => p + 1,
+                  ifAbsent: () => 0,
+                ),
+          searchIds: directIds(f.id),
+          feedEnabled: f.feedEnabled,
+          feedMaxPosts: f.feedMaxPosts,
+          nameScope: f.nameScope,
+        ),
+    ]);
+  }
   factory TopicOrganization.fromJson(
     Map<dynamic, dynamic> json, {
     Map<String, String> folderScopes = const {},
@@ -123,48 +168,6 @@ final class TopicOrganization extends Equatable {
     );
     result.tree.validatePlacements(result.placements);
     return result;
-  }
-  TopicOrganization({
-    required Iterable<TopicFolder> folders,
-    Iterable<String> homeSearchIds = const [],
-    Iterable<FolderPlacement>? placements,
-  }) {
-    final raw = folders.toList();
-    this.placements = List.unmodifiable(
-      placements ??
-          [
-            for (final (position, id) in homeSearchIds.indexed)
-              FolderPlacement(itemId: id, position: position),
-            for (final folder in raw)
-              for (final (position, id) in folder.searchIds.indexed)
-                FolderPlacement(
-                  itemId: id,
-                  folderId: folder.id,
-                  position: position,
-                ),
-          ],
-    );
-    // Lists exposed to callers are projections of the single placement source.
-    final nextPosition = <String?, int>{};
-    this.folders = List.unmodifiable([
-      for (final f in raw)
-        TopicFolder(
-          id: f.id,
-          name: f.name,
-          parentId: f.parentId,
-          position: f._explicitPosition
-              ? f.position
-              : nextPosition.update(
-                  f.parentId,
-                  (p) => p + 1,
-                  ifAbsent: () => 0,
-                ),
-          searchIds: directIds(f.id),
-          feedEnabled: f.feedEnabled,
-          feedMaxPosts: f.feedMaxPosts,
-          nameScope: f.nameScope,
-        ),
-    ]);
   }
   late final List<TopicFolder> folders;
   late final List<FolderPlacement> placements;

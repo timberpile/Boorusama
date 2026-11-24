@@ -13,6 +13,77 @@ enum BookmarkedPoolCategory { series, collection, unknown }
 /// A remote collection reference. Member IDs and member snapshots are transient
 /// indexing inputs and deliberately have no representation in this record.
 class CollectionBookmark extends Equatable {
+  factory CollectionBookmark.fromJson(Map<String, dynamic> json) {
+    final memberIds = (json['groupIds'] as List)
+        .cast<String>()
+        .map((id) => id.toLowerCase())
+        .toSet();
+    final dates = _parseMembershipDates(json['addedAt']);
+    if (!memberIds.containsAll(dates.keys)) {
+      throw const FormatException('Membership date references an absent group');
+    }
+    // Refuse unsupported entries rather than silently dropping them on a
+    // subsequent write or export by an older application version.
+    if (json['kind'] != 'pool' && json['kind'] != 'related') {
+      throw const FormatException('Unsupported bookmark entry type');
+    }
+    if ((json['kind'] == 'related' && json.containsKey('poolId')) ||
+        (json['kind'] == 'pool' && json.containsKey('anchorId'))) {
+      throw const FormatException('Conflicting bookmark reference IDs');
+    }
+    if (json['kind'] == 'related' &&
+        (json['category'] != BookmarkedPoolCategory.unknown.name ||
+            json['title'] != '')) {
+      throw const FormatException('Invalid Related metadata');
+    }
+    final origin = PostOriginSnapshot.fromJson(
+      Map<String, dynamic>.from(json['origin'] as Map),
+    );
+    return CollectionBookmark._(
+      localId: json['localId'] as String,
+      origin: PostOrigin.fromSnapshot(origin),
+      sourceTypeId: origin.booruTypeId,
+      referenceId:
+          (json['kind'] == 'related' ? json['anchorId'] : json['poolId'])
+              as int,
+      family: json['kind'] == 'related'
+          ? RelatedFamilyReference(
+              origin: PostOrigin.fromSnapshot(origin),
+              anchorId: json['anchorId'] as int,
+            )
+          : null,
+      category: BookmarkedPoolCategory.values.byName(
+        json['category'] as String,
+      ),
+      title: json['title'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      observedAt: DateTime.parse(json['observedAt'] as String),
+      groupIds: (json['groupIds'] as List)
+          .cast<String>()
+          .map((id) => id.toLowerCase())
+          .toSet(),
+      addedAt: dates,
+      tags: (json['tags'] as List).cast<String>().toSet(),
+      coverage: PoolTagCoverage.values.byName(json['coverage'] as String),
+      total: json['total'] as int?,
+      coverUrl: json['coverUrl'] as String?,
+      cover: switch (json['cover']) {
+        final Map value => PoolBookmarkCover.fromJson(
+          Map<String, dynamic>.from(value),
+        ),
+        _ => null,
+      },
+      coverPolicy: json['coverPolicy'] as String?,
+      newestUpload: switch (json['newestUpload']) {
+        final String value => DateTime.parse(value),
+        _ => null,
+      },
+      oldestUpload: switch (json['oldestUpload']) {
+        final String value => DateTime.parse(value),
+        _ => null,
+      },
+    )._typed();
+  }
   CollectionBookmark._({
     required this.localId,
     required this.origin,
@@ -182,78 +253,6 @@ class CollectionBookmark extends Equatable {
     'oldestUpload': ?oldestUpload?.toIso8601String(),
   };
 
-  factory CollectionBookmark.fromJson(Map<String, dynamic> json) {
-    final memberIds = (json['groupIds'] as List)
-        .cast<String>()
-        .map((id) => id.toLowerCase())
-        .toSet();
-    final dates = _parseMembershipDates(json['addedAt']);
-    if (!memberIds.containsAll(dates.keys)) {
-      throw const FormatException('Membership date references an absent group');
-    }
-    // Refuse unsupported entries rather than silently dropping them on a
-    // subsequent write or export by an older application version.
-    if (json['kind'] != 'pool' && json['kind'] != 'related') {
-      throw const FormatException('Unsupported bookmark entry type');
-    }
-    if ((json['kind'] == 'related' && json.containsKey('poolId')) ||
-        (json['kind'] == 'pool' && json.containsKey('anchorId'))) {
-      throw const FormatException('Conflicting bookmark reference IDs');
-    }
-    if (json['kind'] == 'related' &&
-        (json['category'] != BookmarkedPoolCategory.unknown.name ||
-            json['title'] != '')) {
-      throw const FormatException('Invalid Related metadata');
-    }
-    final origin = PostOriginSnapshot.fromJson(
-      Map<String, dynamic>.from(json['origin'] as Map),
-    );
-    return CollectionBookmark._(
-      localId: json['localId'] as String,
-      origin: PostOrigin.fromSnapshot(origin),
-      sourceTypeId: origin.booruTypeId,
-      referenceId:
-          (json['kind'] == 'related' ? json['anchorId'] : json['poolId'])
-              as int,
-      family: json['kind'] == 'related'
-          ? RelatedFamilyReference(
-              origin: PostOrigin.fromSnapshot(origin),
-              anchorId: json['anchorId'] as int,
-            )
-          : null,
-      category: BookmarkedPoolCategory.values.byName(
-        json['category'] as String,
-      ),
-      title: json['title'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      observedAt: DateTime.parse(json['observedAt'] as String),
-      groupIds: (json['groupIds'] as List)
-          .cast<String>()
-          .map((id) => id.toLowerCase())
-          .toSet(),
-      addedAt: dates,
-      tags: (json['tags'] as List).cast<String>().toSet(),
-      coverage: PoolTagCoverage.values.byName(json['coverage'] as String),
-      total: json['total'] as int?,
-      coverUrl: json['coverUrl'] as String?,
-      cover: switch (json['cover']) {
-        final Map value => PoolBookmarkCover.fromJson(
-          Map<String, dynamic>.from(value),
-        ),
-        _ => null,
-      },
-      coverPolicy: json['coverPolicy'] as String?,
-      newestUpload: switch (json['newestUpload']) {
-        final String value => DateTime.parse(value),
-        _ => null,
-      },
-      oldestUpload: switch (json['oldestUpload']) {
-        final String value => DateTime.parse(value),
-        _ => null,
-      },
-    )._typed();
-  }
-
   CollectionBookmark _typed() => family == null
       ? PoolBookmark(
           poolId: referenceId,
@@ -332,7 +331,7 @@ final class PoolBookmark extends CollectionBookmark {
     super.bookmarkId,
     super.sourceSite,
     super.loadedDetails,
-    int? sourceTypeId,
+    super.sourceTypeId,
     required super.category,
     required super.title,
     required super.createdAt,
@@ -347,57 +346,42 @@ final class PoolBookmark extends CollectionBookmark {
     super.coverPolicy,
     super.newestUpload,
     super.oldestUpload,
-  }) : super._(referenceId: poolId, sourceTypeId: sourceTypeId);
+  }) : super._(referenceId: poolId);
+  factory PoolBookmark.fromJson(Map<String, dynamic> json) {
+    if (json['kind'] != 'pool') {
+      throw const FormatException('Expected Pool bookmark');
+    }
+    return CollectionBookmark.fromJson(json) as PoolBookmark;
+  }
   int get poolId => referenceId;
   @override
   (int, String, int) get identity => (sourceTypeId, origin.sourceHost, poolId);
-  factory PoolBookmark.fromJson(Map<String, dynamic> json) {
-    if (json['kind'] != 'pool')
-      throw const FormatException('Expected Pool bookmark');
-    return CollectionBookmark.fromJson(json) as PoolBookmark;
-  }
 }
 
 final class RelatedCollectionBookmark extends CollectionBookmark {
   RelatedCollectionBookmark({
-    required RelatedFamilyReference family,
-    required String localId,
-    int? bookmarkId,
-    Uri? sourceSite,
-    ContentGroupDetails? loadedDetails,
-    required DateTime createdAt,
-    required DateTime observedAt,
-    required Set<String> groupIds,
-    Map<String, DateTime> addedAt = const {},
-    Set<String> tags = const {},
-    PoolTagCoverage coverage = PoolTagCoverage.unknown,
-    int? total,
-    PoolBookmarkCover? cover,
-    String? coverPolicy,
-    DateTime? newestUpload,
-    DateTime? oldestUpload,
+    required RelatedFamilyReference super.family,
+    required super.localId,
+    super.bookmarkId,
+    super.sourceSite,
+    super.loadedDetails,
+    required super.createdAt,
+    required super.observedAt,
+    required super.groupIds,
+    super.addedAt,
+    super.tags = const {},
+    super.coverage = PoolTagCoverage.unknown,
+    super.total,
+    super.cover,
+    super.coverPolicy,
+    super.newestUpload,
+    super.oldestUpload,
   }) : super._(
-         localId: localId,
-         bookmarkId: bookmarkId,
-         sourceSite: sourceSite,
-         loadedDetails: loadedDetails,
          origin: family.origin,
          referenceId: family.anchorId,
-         family: family,
          category: BookmarkedPoolCategory.unknown,
          title: '',
-         createdAt: createdAt,
-         observedAt: observedAt,
-         groupIds: groupIds,
-         addedAt: addedAt,
-         tags: tags,
-         coverage: coverage,
-         total: total,
          coverUrl: cover?.thumbnail,
-         cover: cover,
-         coverPolicy: coverPolicy,
-         newestUpload: newestUpload,
-         oldestUpload: oldestUpload,
        );
 }
 

@@ -122,8 +122,9 @@ class BookmarkProfileAvailability {
     final native = <int>{};
     for (final record in library.records.whereType<ContentGroupBookmark>()) {
       if (record.reference.sourceKey.startsWith('pool:') ||
-          record.reference.sourceKey.startsWith('related:'))
+          record.reference.sourceKey.startsWith('related:')) {
         continue;
+      }
       final profile = selectBookmarkReadProfile(
         BookmarkReaderRequest.reference(record.reference),
         profiles,

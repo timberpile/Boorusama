@@ -610,8 +610,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
                   for (final settlement in _feedSettlements.values) {
                     settlement.pending.remove(id);
                     if (settlement.pending.isEmpty &&
-                        !settlement.done.isCompleted)
+                        !settlement.done.isCompleted) {
                       settlement.done.complete();
+                    }
                   }
                 }
                 if (identical(_automaticOwners[id], ownerToken)) {

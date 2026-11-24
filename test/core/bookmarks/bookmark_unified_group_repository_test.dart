@@ -31,7 +31,7 @@ void main() {
   late Box<dynamic> activeOrganization;
   late BookmarkHiveRepository bookmarks;
   late UnifiedBookmarkGroupRepository groups;
-  DateTime now = DateTime.utc(2026, 6, 1);
+  var now = DateTime.utc(2026, 6);
 
   Future<void> sync(Iterable<BoxBase<dynamic>> boxes) async {
     const fs = IoFileSystem();
@@ -90,7 +90,7 @@ void main() {
     if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
-    now = DateTime.utc(2026, 6, 1);
+    now = DateTime.utc(2026, 6);
     await openBoxes();
     await posts.put(0, favoriteToHiveObject(testPoolPost(7).copyWith(id: 0)));
     await legacyOrganization.put('version', 1);

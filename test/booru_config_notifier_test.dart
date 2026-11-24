@@ -130,9 +130,7 @@ class RecordingFollowingTopicRepository implements FollowingTopicRepository {
     List<TopicFeed> feeds = const [],
   }) : _topics = topics.toList(),
        _feeds = feeds.toList(),
-       organization =
-           organization ??
-           TopicOrganization(folders: const [], homeSearchIds: const []);
+       organization = organization ?? TopicOrganization(folders: const []);
 
   final List<FollowingTopic> _topics;
   final List<TopicFeed> _feeds;

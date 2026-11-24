@@ -164,7 +164,7 @@ final class SyncPublicationWriter {
 
   Future<SyncRevision> publishRevision(
     ValidatedSyncBookmarkPackage package,
-  ) async {
+  ) => Future.sync(() {
     if (!package.forPublication) {
       throw const FormatException('Incoming payload cannot be republished');
     }
@@ -174,11 +174,11 @@ final class SyncPublicationWriter {
       semanticHash: package.semanticHash,
       schema: ValidatedSyncBookmarkPackage.schema,
     );
-  }
+  });
 
   Future<SyncRevision> publishFollowingRevision(
     ValidatedSyncFollowingPackage package,
-  ) async {
+  ) => Future.sync(() {
     if (!package.forPublication) {
       throw const FormatException('Incoming payload cannot be republished');
     }
@@ -188,7 +188,7 @@ final class SyncPublicationWriter {
       semanticHash: package.semanticHash,
       schema: ValidatedSyncFollowingPackage.schema,
     );
-  }
+  });
 
   Future<SyncRevision> _writeRevision({
     required SyncCollectionId collection,
@@ -392,8 +392,9 @@ final class SyncFollowingPublisher {
       final prior = SyncRevision.fromJson(
         jsonDecode(encoded) as Map<String, dynamic>,
       );
-      if (prior.collection != collection)
+      if (prior.collection != collection) {
         throw const FormatException('Foreign local publication');
+      }
       if (prior.schema == ValidatedSyncFollowingPackage.schema &&
           prior.semanticHash == semantic &&
           !writer.sequences.isWithdrawnRevision(prior)) {
@@ -416,8 +417,9 @@ final class SyncFollowingPublisher {
       appVersion: appVersion,
       createdAt: createdAt,
     );
-    if (package.semanticHash != semantic)
+    if (package.semanticHash != semantic) {
       throw StateError('Following source changed during preparation');
+    }
     await validateSnapshot?.call();
     final revision = await writer.publishFollowingRevision(package);
     await writer.sequences.mutations.runExclusive(() async {

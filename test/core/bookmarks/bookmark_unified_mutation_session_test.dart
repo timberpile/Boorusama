@@ -178,7 +178,7 @@ void main() {
       activeMutation = writeView;
       deltaVisibleBeforeDurableSync = false;
       finalDurableSyncObserved = false;
-      final updatedPost = (records.whereType<PostBookmark>().single).copyWith(
+      final updatedPost = records.whereType<PostBookmark>().single.copyWith(
         updatedAt: DateTime.utc(2026, 11, 7, 1),
       );
       final groupRecord = nativeGroup();
@@ -238,11 +238,11 @@ void main() {
     performanceRecorder.stop();
 
     expect(found, isA<ContentGroupBookmark>());
-    expect((found as ContentGroupBookmark).summary.title, 'Only Group');
+    expect((found! as ContentGroupBookmark).summary.title, 'Only Group');
     expect(writeView.revision, base.revision + 1);
     expect(groupCount, 1);
     final operations =
-        (performanceRecorder.snapshot()['summary'] as Map)['operations']
+        (performanceRecorder.snapshot()['summary']! as Map)['operations']
             as List;
     expect(
       operations.where((item) => (item as Map)['op'] == 'bookmarkDecodeAll'),
@@ -272,7 +272,7 @@ void main() {
 
       final recovered = await writeView.read(before.id);
       expect(recovered, isA<ContentGroupBookmark>());
-      expect((recovered as ContentGroupBookmark).summary.title, 'Recovered');
+      expect((recovered! as ContentGroupBookmark).summary.title, 'Recovered');
       expect(await repository.readRevision(), base.revision + 1);
     },
   );

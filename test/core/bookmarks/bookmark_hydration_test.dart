@@ -1028,7 +1028,9 @@ void main() {
       container = ProviderContainer(
         overrides: [
           ...storage.overrides,
-          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+          blacklistTagsProvider.overrideWith(
+            (ref, filter) => Future.sync(() => {}),
+          ),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1243,7 +1245,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           ...storage.overrides,
-          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+          blacklistTagsProvider.overrideWith(
+            (ref, filter) => Future.sync(() => {}),
+          ),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1340,7 +1344,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           ...storage.overrides,
-          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+          blacklistTagsProvider.overrideWith(
+            (ref, filter) => Future.sync(() => {}),
+          ),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1383,7 +1389,7 @@ void main() {
 
 class _CountingRepository extends BookmarkHiveRepository {
   _CountingRepository(
-    super._posts, {
+    super.posts, {
     required super.groupPayloadBox,
     required super.metadataBox,
     required super.coordinator,

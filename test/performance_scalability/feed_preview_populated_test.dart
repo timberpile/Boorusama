@@ -90,8 +90,7 @@ void main() {
         await h.container
             .read(followingTopicsProvider.notifier)
             .runSerializedMutation(
-              (_) =>
-                  h.seed([topicFixture(id: id, query: 'cat', previewCount: 0)]),
+              (_) => h.seed([topicFixture(id: id, query: 'cat')]),
             );
         final changed = h.container.read(provider.future);
         expect(await changed, isEmpty);

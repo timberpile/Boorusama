@@ -193,7 +193,6 @@ void main() {
   test('legacy folders have feed mode off with the new default limit', () {
     final organization = TopicOrganization(
       folders: [TopicFolder(id: 'legacy', name: 'Older folder')],
-      homeSearchIds: const [],
     );
     final data = organization.toJson();
     final rows = (data['folders']! as List).cast<Map<String, Object?>>();

@@ -43,7 +43,7 @@ PixivIllustDto work({
   'caption': '<p>Work caption</p>',
   'user': {
     'id': 7,
-    if (artist != null) 'name': artist,
+    'name': ?artist,
     'account': 'artist',
     if (avatar != null) 'profile_image_urls': {'medium': avatar},
   },

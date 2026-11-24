@@ -186,11 +186,9 @@ void main() {
     await h.reply(tester, count: 1, more: true);
     expect(h.controller.loadingMore, isTrue);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    unawaited(
-      navigator.push<void>(
-        MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Text('Covered')),
-        ),
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) => const Scaffold(body: Text('Covered')),
       ),
     );
     await h.advance(tester);
@@ -395,7 +393,7 @@ class _Harness {
   final scroll = ScrollController();
   final active = ValueNotifier(true);
   final automatic = ValueNotifier(true);
-  final height = ValueNotifier(400.0);
+  final height = ValueNotifier<double>(400);
   final pages = <int>[];
   final responses = <Completer<PostResult<Post>>>[];
   var _nextId = 1;
@@ -437,7 +435,7 @@ class _Harness {
                       scrollController: scroll,
                       child: inner!,
                     ),
-                    child: child!,
+                    child: child,
                   ),
                 ),
                 child: ListenableBuilder(

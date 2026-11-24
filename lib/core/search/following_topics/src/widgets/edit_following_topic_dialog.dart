@@ -117,10 +117,11 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
         setState(() => _error = context.t.following_topics.edit_duplicate);
       }
     } on MissingFollowingTopicProfileException {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = context.t.following_topics.edit_missing_profile,
         );
+      }
     } on StaleFollowingTopicEditException {
       if (mounted) {
         setState(() => _error = context.t.following_topics.edit_conflict);

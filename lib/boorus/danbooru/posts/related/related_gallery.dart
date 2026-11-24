@@ -71,7 +71,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   final _scroll = AutoScrollController();
   final _selection = SelectionModeController();
   PostDetailsPageViewController? _pager;
-  bool _selecting = false;
+  var _selecting = false;
   Object? _scrollOrder;
 
   @override
@@ -124,8 +124,9 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
     final reading = ref.watch(groupReadingProvider(widget.entry));
-    if (reading.initializing)
+    if (reading.initializing) {
       return const Center(child: CircularProgressIndicator());
+    }
     final order = RelatedPostsOrder.values.byName(reading.orderKey!);
     if (_scrollOrder != null && _scrollOrder != order) {
       PageStorage.maybeOf(context)?.writeState(
@@ -134,8 +135,9 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
         identifier: (widget.entry.occurrenceId, 'related-viewport', order),
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _scrollOrder == order && _scroll.hasClients)
+        if (mounted && _scrollOrder == order && _scroll.hasClients) {
           _scroll.jumpTo(0);
+        }
       });
     }
     _scrollOrder = order;
@@ -234,8 +236,9 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
                           controller.selectionKeysBuilder
                               ?.call(controller.items.toList())
                               .elementAtOrNull(index),
-                        ))
+                        )) {
                           return;
+                        }
                         goToPostDetailsPageFromController(
                           ref: ref,
                           initialIndex: index,

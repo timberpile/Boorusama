@@ -59,10 +59,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('membership_dates_');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     postsBox = await Hive.openBox('membership_posts');
     storage = await BookmarkTestStorage.open(postsBox);
     groupsBox = await Hive.openBox('membership_groups');
@@ -346,7 +348,7 @@ void main() {
         localId: poolGroupB,
         createdAt: old,
         observedAt: old,
-        groupIds: {poolGroupA},
+        groupIds: const {poolGroupA},
         addedAt: {poolGroupA: first},
       );
       final state = BookmarkLibraryState(
@@ -670,7 +672,7 @@ void main() {
 
 class _Groups extends BookmarkGroupRepositoryHive {
   _Groups(super.box, {super.organizationBox, super.now});
-  bool failNext = false;
+  var failNext = false;
   @override
   Future<void> writePoolBookmarks(List<CollectionBookmark> bookmarks) async {
     if (failNext) {

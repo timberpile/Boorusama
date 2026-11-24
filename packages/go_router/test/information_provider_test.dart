@@ -7,12 +7,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-const String initialRoute = '/';
-const String newRoute = '/new';
+const initialRoute = '/';
+const newRoute = '/new';
 
 void main() {
   group('GoRouteInformationProvider', () {
-    testWidgets('notifies its listeners when set by the app', (WidgetTester tester) async {
+    testWidgets('notifies its listeners when set by the app', (tester) async {
       late final provider = GoRouteInformationProvider(
         initialLocation: initialRoute,
         initialExtra: null,
@@ -22,7 +22,7 @@ void main() {
       provider.go(newRoute);
     });
 
-    testWidgets('notifies its listeners when set by the platform', (WidgetTester tester) async {
+    testWidgets('notifies its listeners when set by the platform', (tester) async {
       late final provider = GoRouteInformationProvider(
         initialLocation: initialRoute,
         initialExtra: null,
@@ -33,7 +33,7 @@ void main() {
     });
 
     testWidgets('didPushRouteInformation maintains uri scheme and host', (
-      WidgetTester tester,
+      tester,
     ) async {
       const expectedScheme = 'https';
       const expectedHost = 'www.example.com';
@@ -52,7 +52,7 @@ void main() {
       expect(provider.value.uri.toString(), expectedUriString);
     });
 
-    testWidgets('didPushRoute maintains uri scheme and host', (WidgetTester tester) async {
+    testWidgets('didPushRoute maintains uri scheme and host', (tester) async {
       const expectedScheme = 'https';
       const expectedHost = 'www.example.com';
       const expectedPath = '/some/path';
@@ -71,7 +71,7 @@ void main() {
     });
 
     testWidgets('Route is correctly neglected when routerNeglect is true', (
-      WidgetTester tester,
+      tester,
     ) async {
       final systemChannelsMock = _SystemChannelsNavigationMock();
       late final provider = GoRouteInformationProvider(
@@ -89,7 +89,7 @@ void main() {
       expect(systemChannelsMock.uriIsNeglected[newRoute], true);
     });
 
-    testWidgets('Route is NOT neglected when routerNeglect is false', (WidgetTester tester) async {
+    testWidgets('Route is NOT neglected when routerNeglect is false', (tester) async {
       final systemChannelsMock = _SystemChannelsNavigationMock();
       late final provider = GoRouteInformationProvider(
         initialLocation: initialRoute,
@@ -111,11 +111,11 @@ class _SystemChannelsNavigationMock {
   _SystemChannelsNavigationMock() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.navigation,
-      (MethodCall methodCall) async {
+      (methodCall) async {
         if (methodCall.method == 'routeInformationUpdated' &&
             methodCall.arguments is Map<String, dynamic>) {
           final args = methodCall.arguments as Map<String, dynamic>;
-          final String? uri = args['location'] as String? ?? args['uri'] as String?;
+          final uri = args['location'] as String? ?? args['uri'] as String?;
           uriIsNeglected[uri ?? ''] = args['replace'] as bool;
         }
         return null;
@@ -123,5 +123,5 @@ class _SystemChannelsNavigationMock {
     );
   }
 
-  Map<String, bool> uriIsNeglected = <String, bool>{};
+  var uriIsNeglected = <String, bool>{};
 }

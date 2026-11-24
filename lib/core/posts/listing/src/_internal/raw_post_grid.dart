@@ -118,7 +118,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   var hasMore = true;
   final loading = ValueNotifier(false);
   final refreshing = ValueNotifier(false);
-  final _selectionBottomObstruction = ValueNotifier(0.0);
+  final _selectionBottomObstruction = ValueNotifier<double>(0);
   var items = <T>[];
   final _identities = PostSelectionIdentity();
   var _filterScope = <String, bool>{};
@@ -726,7 +726,7 @@ class _SelectionMode extends ConsumerWidget {
                                           controller: selectionModeController,
                                           itemCount: itemCount,
                                         ),
-                                        if (footer case final footer?) footer,
+                                        ?footer,
                                       ],
                                     ),
                                   ),

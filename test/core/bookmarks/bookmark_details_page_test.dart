@@ -7,7 +7,6 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_read_projection.d
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
 import 'package:boorusama/core/backups/mitemite/reading_state.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
-import 'package:boorusama/core/posts/listing/src/widgets/default_image_grid_item.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
@@ -57,7 +56,6 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/rendering.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,6 +112,8 @@ import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/widgets/booru_menu_button_row.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+
+import '../../support/legacy_material_test_scope.dart';
 
 void main() {
   testWidgets(
@@ -660,13 +660,13 @@ void main() {
         parentId: 'root',
       );
       final state = BookmarkLibraryState(
-        bookmarks: [],
-        folders: [root, child],
+        bookmarks: const [],
+        folders: const [root, child],
         groups: [
           BookmarkGroup(
             id: '550e8400-e29b-41d4-a716-446655440099',
             name: 'Leaf // literal',
-            bookmarkIds: {},
+            bookmarkIds: const {},
             folderId: 'child',
           ),
         ],
@@ -677,12 +677,12 @@ void main() {
         _BookmarkViewerHarness(
           controller: controller,
           bookmarkNotifier: _CacheBookmarkNotifier(state),
-          home: MediaQuery(
-            data: const MediaQueryData(
+          home: const MediaQuery(
+            data: MediaQueryData(
               size: Size(320, 700),
               textScaler: TextScaler.linear(2),
             ),
-            child: const BookmarkGroupBrowserPage(),
+            child: BookmarkGroupBrowserPage(),
           ),
         ),
       );
@@ -1857,7 +1857,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
           data: KurumiThemeData.fromMaterial(
             Theme.of(context).withBoorusamaColors(),
           ),
-          child: MaterialUiCompatibilityBridge(child: child!),
+          child: LegacyMaterialTestScope(child: child!),
         ),
         home:
             home ??

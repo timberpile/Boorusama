@@ -92,13 +92,13 @@ void main() {
       );
     }
   });
-  tearDown(() async => directory.delete(recursive: true));
+  tearDown(() => Future.sync(() => directory.delete(recursive: true)));
 
   test('keeps two complete catalogs and referenced revisions while preserving identities and foreign/unknown files', () async {
     final ownIdentity = (await storage.read(
       'devices/${identity.id}/identity.json',
     ))!;
-    final foreignPath =
+    const foreignPath =
         'devices/$foreign/collections/following_topics/$source/1.json';
     final unknownPath =
         'devices/${identity.id}/collections/following_topics/$other/1.json';
@@ -314,8 +314,9 @@ class _ReadFailure implements MiteMiteStorage {
   Future<List<String>> list(String path) => delegate.list(path);
   @override
   Future<Uint8List?> read(String path, {int maxBytes = miteMiteMaxBytes}) {
-    if (path == this.path)
+    if (path == this.path) {
       throw const FileSystemException('Controlled provider failure');
+    }
     return delegate.read(path, maxBytes: maxBytes);
   }
 

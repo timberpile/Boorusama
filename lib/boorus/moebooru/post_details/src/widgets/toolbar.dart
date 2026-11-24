@@ -55,8 +55,9 @@ class _Toolbar<T extends Post> extends ConsumerWidget {
     Future<void> addFavorite() =>
         repository.addToFavorites(post.id).then((value) {
           if (value == AddFavoriteStatus.success ||
-              value == AddFavoriteStatus.alreadyExists)
+              value == AddFavoriteStatus.alreadyExists) {
             notifier.clear();
+          }
         });
     Future<void> removeFavorite() =>
         repository.removeFromFavorites(post.id).then((value) {

@@ -99,7 +99,6 @@ class PostDetailsOverlay extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(
-            flex: 1,
             child: OverflowBar(
               spacing: 4,
               children: [

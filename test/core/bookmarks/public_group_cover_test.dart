@@ -39,7 +39,6 @@ import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -53,7 +52,6 @@ import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
-import 'package:boorusama/core/posts/listing/src/types/grid_thumbnail_url_generator.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
@@ -81,7 +79,7 @@ final _cover = PoolBookmarkCover(
   sample: 'https://cdn.donmai.us/sample/pool-cover.jpg',
   original: 'https://cdn.donmai.us/original/pool-cover.jpg',
   visibility: GroupCoverVisibility(
-    tags: {'visible'},
+    tags: const {'visible'},
     rating: 'general',
     deleted: false,
     banned: false,
@@ -233,7 +231,7 @@ Future<_Mounted> _pumpCover(
       ),
       bookmarkReadAdapterProvider.overrideWith((ref, request) => true),
       blacklistTagsProvider.overrideWith(
-        (ref, filter) async => ref.watch(_currentBlacklist),
+        (ref, filter) => Future.sync(() => ref.watch(_currentBlacklist)),
       ),
       booruConfigProvider.overrideWith(() => _Configs(profiles)),
       globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
@@ -565,8 +563,8 @@ void main() {
     (tester) async {
       final pool = _relatedPool(null, groups: {_otherProfileId});
       final library = BookmarkLibraryState(
-        bookmarks: [],
-        groups: [],
+        bookmarks: const [],
+        groups: const [],
         pools: [pool],
         mirrors: BookmarkMirrorState(
           epoch: 1,
@@ -627,8 +625,8 @@ void main() {
       final actor = StateProvider<ContentAccessContext?>((ref) => first);
       final pool = _relatedPool(_cover, groups: {_otherProfileId});
       final library = BookmarkLibraryState(
-        bookmarks: [],
-        groups: [],
+        bookmarks: const [],
+        groups: const [],
         pools: [pool],
         mirrors: BookmarkMirrorState(
           epoch: 1,
@@ -886,8 +884,8 @@ void main() {
   ) async {
     final pool = _relatedPool(null, groups: {_otherProfileId});
     final library = BookmarkLibraryState(
-      bookmarks: [],
-      groups: [],
+      bookmarks: const [],
+      groups: const [],
       pools: [pool],
       mirrors: BookmarkMirrorState(
         epoch: 1,
@@ -1114,11 +1112,11 @@ void main() {
         ..._pool(site: _publicSite, profileHint: _profileId).toJson(),
         'cover': null,
         'coverUrl': null,
-        'groupIds': [_otherProfileId],
+        'groupIds': const [_otherProfileId],
       });
       final library = BookmarkLibraryState(
-        bookmarks: [],
-        groups: [],
+        bookmarks: const [],
+        groups: const [],
         pools: [pool],
         mirrors: BookmarkMirrorState(
           epoch: 1,
@@ -1179,7 +1177,7 @@ void main() {
         ..._pool(site: _publicSite).toJson(),
         'cover': null,
         'coverUrl': null,
-        'groupIds': [_otherProfileId],
+        'groupIds': const [_otherProfileId],
       });
       final readers = <BooruConfig>[];
       final mounted = await _pumpCover(
@@ -1188,13 +1186,19 @@ void main() {
         additionalOverrides: [
           bookmarkProvider.overrideWith(
             () => _Library(
-              BookmarkLibraryState(bookmarks: [], groups: [], pools: [pool]),
+              BookmarkLibraryState(
+                bookmarks: const [],
+                groups: const [],
+                pools: [pool],
+              ),
             ),
           ),
-          missingPoolCoverProvider.overrideWith((ref, request) async {
-            readers.add(request.$1);
-            return null;
-          }),
+          missingPoolCoverProvider.overrideWith(
+            (ref, request) => Future.sync(() {
+              readers.add(request.$1);
+              return null;
+            }),
+          ),
         ],
       );
       addTearDown(() => _close(tester, mounted));

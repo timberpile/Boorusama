@@ -70,8 +70,9 @@ final class UnifiedBookmarkGroupRepository
   Future<BookmarkGroup> createGroup(String name, {String? id}) =>
       _run(() async {
         final localId = id == null ? _uuid.v4().toLowerCase() : _id(id);
-        if (await _reader.getGroup(localId) != null)
+        if (await _reader.getGroup(localId) != null) {
           throw StateError('Group already exists');
+        }
         final groups = await _reader.getGroups();
         final group = BookmarkGroup(
           id: localId,
@@ -196,8 +197,9 @@ final class UnifiedBookmarkGroupRepository
     final changed = <BookmarkGroup>[];
     for (final group in await _reader.getGroups()) {
       final ids = group.bookmarkIds.intersection(validBookmarkIds);
-      if (ids.length != group.bookmarkIds.length)
+      if (ids.length != group.bookmarkIds.length) {
         changed.add(group.copyWith(bookmarkIds: ids));
+      }
     }
     if (changed.isNotEmpty) await bookmarks.commitOrganization(groups: changed);
     return changed.isNotEmpty;
@@ -224,16 +226,14 @@ final class UnifiedBookmarkGroupRepository
     final groups = await _reader.getGroups();
     return [
       for (final record in records)
-        if (bookmarkCollectionProjection(
-              record,
-              memberships: {
-                for (final group in groups)
-                  if (group.bookmarkIds.contains(record.id))
-                    group.id: group.addedAt[record.id]!,
-              },
-            )
-            case final projection?)
-          projection,
+        ?bookmarkCollectionProjection(
+          record,
+          memberships: {
+            for (final group in groups)
+              if (group.bookmarkIds.contains(record.id))
+                group.id: group.addedAt[record.id]!,
+          },
+        ),
     ];
   }
 
@@ -243,9 +243,7 @@ final class UnifiedBookmarkGroupRepository
 
   static Map<String, Object?> _metadata(CollectionBookmark value) {
     final wire = value.toJson();
-    for (final key in ['localId', 'groupIds', 'addedAt', 'createdAt']) {
-      wire.remove(key);
-    }
+    ['localId', 'groupIds', 'addedAt', 'createdAt'].forEach(wire.remove);
     return wire;
   }
 
@@ -265,8 +263,7 @@ final class UnifiedBookmarkGroupRepository
     };
     final known = <Object, Bookmark>{
       for (final record in existingRecords)
-        if (bookmarkContentIdentity(record) case final identity?)
-          identity: record,
+        ?bookmarkContentIdentity(record): record,
     };
     final seen = <Object>{};
     final seenContent = <Object>{};

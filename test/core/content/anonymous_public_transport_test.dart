@@ -46,8 +46,9 @@ void main() {
       expect(response.data, [1, 2, 3]);
       expect(delegate.calls, hasLength(2));
       expect(delegate.calls.last.options.uri.toString(), cdn);
-      for (final call in delegate.calls)
+      for (final call in delegate.calls) {
         _expectNoCredentialHeaders(call.options.headers);
+      }
     },
   );
   test(

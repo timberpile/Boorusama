@@ -29,13 +29,14 @@ final class SyncLocalEvents {
 
   Map<String, dynamic> _read() {
     final encoded = preferences.get(_key);
-    if (encoded == null)
+    if (encoded == null) {
       return {
         'version': 1,
         'notificationOutbox': SyncNotificationOutbox.empty().toJson(),
         'discoveries': <String, dynamic>{},
         'events': <dynamic>[],
       };
+    }
     final value = jsonDecode(encoded);
     if (value is! Map<String, dynamic> ||
         value['version'] != 1 ||
@@ -50,11 +51,13 @@ final class SyncLocalEvents {
     for (final entry
         in (value['discoveries'] as Map<String, dynamic>).entries) {
       _discovery(entry.key);
-      if (entry.value is! bool)
+      if (entry.value is! bool) {
         throw const FormatException('Invalid discovery delivery state');
+      }
     }
-    if (value['notificationOutbox'] is! Map)
+    if (value['notificationOutbox'] is! Map) {
       throw const FormatException('Missing typed notification outbox');
+    }
     final cursors = value['activityCursors'];
     if (cursors != null &&
         (cursors is! Map ||
@@ -68,8 +71,9 @@ final class SyncLocalEvents {
                   entry.value is! int ||
                   (entry.value as int) < 0 ||
                   (entry.value as int) > miteMiteMaxSequence,
-            )))
+            ))) {
       throw const FormatException('Invalid Activity delivery cursors');
+    }
     return value;
   }
 
@@ -123,18 +127,19 @@ final class SyncLocalEvents {
     SyncActivityLog log, {
     Set<String> forgottenPublishers = const {},
   }) => mutations.runExclusive(() async {
-    if (!const {'bookmarks', 'following_topics'}.contains(domain))
+    if (!const {'bookmarks', 'following_topics'}.contains(domain)) {
       throw const FormatException('Invalid Activity domain');
+    }
     final state = _read();
     final cursors = Map<String, dynamic>.from(
       state['activityCursors'] as Map? ?? const {},
     );
     final cursor = cursors[domain] ?? 0;
-    if (cursor is! int || cursor < 0 || cursor > log.sequence)
+    if (cursor is! int || cursor < 0 || cursor > log.sequence) {
       throw const FormatException('Mirror Activity cursor rollback');
+    }
     final outbox = _outbox(state)..prune(now());
-    for (final publisher in forgottenPublishers)
-      outbox.removePublisher(publisher);
+    forgottenPublishers.forEach(outbox.removePublisher);
     if (cursor == log.sequence) {
       // A durable preference adapter may expose its new cached value after
       // a failed flush. Re-establish the barrier before the caller retires
@@ -154,8 +159,9 @@ final class SyncLocalEvents {
     ];
     _appendMany(state, fresh);
     for (final event in fresh) {
-      if (event.kind == SyncEventKind.forgotten && event.publisher != null)
+      if (event.kind == SyncEventKind.forgotten && event.publisher != null) {
         outbox.removePublisher(event.publisher!);
+      }
     }
     {
       final changes = [
@@ -169,7 +175,7 @@ final class SyncLocalEvents {
                 fingerprint: entry.event.fingerprint!,
                 at: entry.event.at,
                 sourceKind: domain,
-                source: entry.event.source!,
+                source: entry.event.source,
                 member: member,
               ),
       ];
@@ -198,13 +204,14 @@ final class SyncLocalEvents {
     var changed = previous == null;
     for (final kind in const ['bookmarks', 'following_topics']) {
       final current = (roots[kind] ?? const <String>{}).map(syncUuid).toSet();
-      if (current.length > miteMiteMaxEntries)
+      if (current.length > miteMiteMaxEntries) {
         throw const FormatException('Publication history exceeds bounds');
+      }
       final old = ((previous?[kind] as List?) ?? const [])
           .map(syncUuid)
           .toSet();
       if (previous != null) {
-        for (final source in current.difference(old))
+        for (final source in current.difference(old)) {
           changes.add(
             SyncEvent(
               kind: SyncEventKind.published,
@@ -213,7 +220,8 @@ final class SyncLocalEvents {
               sourceKind: kind,
             ),
           );
-        for (final source in old.difference(current))
+        }
+        for (final source in old.difference(current)) {
           changes.add(
             SyncEvent(
               kind: SyncEventKind.stopped,
@@ -222,6 +230,7 @@ final class SyncLocalEvents {
               sourceKind: kind,
             ),
           );
+        }
       }
       changed =
           changed || current.length != old.length || !current.containsAll(old);
@@ -278,8 +287,9 @@ final class SyncLocalEvents {
         : Map<String, String>.of(previous);
     final changes = <SyncEvent>[];
     for (final event in events) {
-      if (event.kind != SyncEventKind.failed || event.failure == null)
+      if (event.kind != SyncEventKind.failed || event.failure == null) {
         throw const FormatException('Invalid Sync failure event');
+      }
       SyncEvent.fromJson(event.toJson());
       final key = canonicalSyncJson([
         event.sourceKind,
@@ -289,8 +299,9 @@ final class SyncLocalEvents {
       next[key] = event.failure!.name;
       if (previous[key] != event.failure!.name) changes.add(event);
     }
-    if (next.length > miteMiteMaxEntries * 3)
+    if (next.length > miteMiteMaxEntries * 3) {
       throw const FormatException('Failure receipts exceed bounds');
+    }
     final attempt = attemptedAt?.toUtc().toIso8601String();
     final completion = completedAt?.toUtc().toIso8601String();
     final changed =
@@ -354,8 +365,9 @@ final class SyncLocalEvents {
       }
       for (final notice in outbox.pending) {
         if (notice.kind == SyncNoticeKind.device &&
-            captured.contains(notice.items.single.publisherKey))
+            captured.contains(notice.items.single.publisherKey)) {
           outbox.acknowledge(notice);
+        }
       }
       await _save(state, outbox: outbox);
     });
@@ -491,12 +503,14 @@ final class SyncLocalEvents {
     };
     final discoveries = state['discoveries'] as Map<String, dynamic>;
     for (final key in discoveries.keys.toList()) {
-      if (discoveries[key] == false && !pendingDevices.contains(key))
+      if (discoveries[key] == false && !pendingDevices.contains(key)) {
         discoveries[key] = true;
+      }
     }
     state['notificationOutbox'] = value.toJson();
     final encoded = canonicalSyncJson(state);
-    if (force || preferences.get(_key) != encoded)
+    if (force || preferences.get(_key) != encoded) {
       await preferences.put(_key, encoded);
+    }
   }
 }

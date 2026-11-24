@@ -6,7 +6,7 @@ import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/performance.dart';
 
-Map get _summary => performanceRecorder.snapshot()['summary'] as Map;
+Map get _summary => performanceRecorder.snapshot()['summary']! as Map;
 num _counter(String name) =>
     ((_summary['counters'] as Map)[name] as Map?)?['total'] as num? ?? 0;
 num _operations(String name) {
@@ -123,13 +123,13 @@ void main() {
             } else {
               await manager.clearCache('A');
             }
-            expect(await File(path).exists(), isTrue);
+            expect(File(path).existsSync(), isTrue);
             expect((await manager.getStats()).retainedBytes, 4);
           } finally {
             gate.release.complete();
           }
           expect(await reading, [1, 2, 3, 4]);
-          expect(await File(path).exists(), isFalse);
+          expect(File(path).existsSync(), isFalse);
           expect(await manager.getCachedFileBytes('A'), isNull);
           expect((await manager.getStats()).retainedBytes, 0);
         }, gate);
@@ -146,7 +146,7 @@ void main() {
       await IOOverrides.runWithIOOverrides(() async {
         expect(await manager.getCachedFileBytes('A'), isNull);
         await manager.clearCache('A');
-        expect(await File(path).exists(), isFalse);
+        expect(File(path).existsSync(), isFalse);
         expect((await manager.getStats()).retainedBytes, 0);
       }, gate);
     },
@@ -173,9 +173,11 @@ class _GatedFile implements File {
   @override
   String get path => file.path;
   @override
-  Future<FileStat> stat() => file.stat();
+  Future<FileStat> stat() => Future.sync(file.statSync);
   @override
-  Future<bool> exists() => file.exists();
+  Future<bool> exists() => Future.sync(existsSync);
+  @override
+  bool existsSync() => file.existsSync();
   @override
   Future<int> length() => file.length();
   @override

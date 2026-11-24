@@ -6,10 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/src/path_utils.dart';
 
 void main() {
-  test('patternToRegExp without path parameter', () async {
+  test('patternToRegExp without path parameter', () {
     const pattern = '/settings/detail';
     final pathParameter = <String>[];
-    final RegExp regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
+    final regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
     expect(pathParameter.isEmpty, isTrue);
     expect(regex.hasMatch('/settings/detail'), isTrue);
     expect(regex.hasMatch('/settings/'), isFalse);
@@ -19,17 +19,17 @@ void main() {
     expect(regex.hasMatch('/setting/detail'), isFalse);
   });
 
-  test('patternToRegExp with path parameter', () async {
+  test('patternToRegExp with path parameter', () {
     const pattern = '/user/:id/book/:bookId';
     final pathParameter = <String>[];
-    final RegExp regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
+    final regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
     expect(pathParameter.length, 2);
     expect(pathParameter[0], 'id');
     expect(pathParameter[1], 'bookId');
 
-    final RegExpMatch? match = regex.firstMatch('/user/123/book/456/');
+    final match = regex.firstMatch('/user/123/book/456/');
     expect(match, isNotNull);
-    final Map<String, String> parameterValues = extractPathParameters(pathParameter, match!);
+    final parameterValues = extractPathParameters(pathParameter, match!);
     expect(parameterValues.length, 2);
     expect(parameterValues[pathParameter[0]], '123');
     expect(parameterValues[pathParameter[1]], '456');
@@ -40,39 +40,39 @@ void main() {
     expect(regex.hasMatch('/'), isFalse);
   });
 
-  test('patternToPath without path parameter', () async {
+  test('patternToPath without path parameter', () {
     const pattern = '/settings/detail';
     final pathParameter = <String>[];
-    final RegExp regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
+    final regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
 
     const url = '/settings/detail';
-    final RegExpMatch? match = regex.firstMatch(url);
+    final match = regex.firstMatch(url);
     expect(match, isNotNull);
 
-    final Map<String, String> parameterValues = extractPathParameters(pathParameter, match!);
-    final String restoredUrl = patternToPath(pattern, parameterValues);
+    final parameterValues = extractPathParameters(pathParameter, match!);
+    final restoredUrl = patternToPath(pattern, parameterValues);
 
     expect(url, restoredUrl);
   });
 
-  test('patternToPath with path parameter', () async {
+  test('patternToPath with path parameter', () {
     const pattern = '/user/:id/book/:bookId';
     final pathParameter = <String>[];
-    final RegExp regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
+    final regex = patternToRegExp(pattern, pathParameter, caseSensitive: true);
 
     const url = '/user/123/book/456';
-    final RegExpMatch? match = regex.firstMatch(url);
+    final match = regex.firstMatch(url);
     expect(match, isNotNull);
 
-    final Map<String, String> parameterValues = extractPathParameters(pathParameter, match!);
-    final String restoredUrl = patternToPath(pattern, parameterValues);
+    final parameterValues = extractPathParameters(pathParameter, match!);
+    final restoredUrl = patternToPath(pattern, parameterValues);
 
     expect(url, restoredUrl);
   });
 
   test('concatenatePaths', () {
     void verify(String pathA, String pathB, String expected) {
-      final String result = concatenatePaths(pathA, pathB);
+      final result = concatenatePaths(pathA, pathB);
       expect(result, expected);
     }
 

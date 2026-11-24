@@ -21,8 +21,9 @@ class E621TagColorGenerator implements TagColorGenerator {
       'invalid',
       'meta',
       'lore',
-    }.contains(category))
+    }.contains(category)) {
       return null;
+    }
     final tagCategory = stringToE621TagCategory(category);
 
     if (tagCategory == e621InvalidTagCategory) {

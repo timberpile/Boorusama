@@ -42,8 +42,9 @@ void main() {
       final page = _Harness(
         loadImages: true,
         onMediaRequest: (options) {
-          if (options.uri.host == 'i.pximg.net')
+          if (options.uri.host == 'i.pximg.net') {
             starts.add((options.uri.toString(), tester.binding.clock.now()));
+          }
         },
       );
       await page.pump(tester);

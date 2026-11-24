@@ -28,17 +28,17 @@ void main() {
     bookmarks: [known, opaque],
     records: [known, opaque, collection],
     groups: [
-      BookmarkGroup(id: parent, name: 'Parent', bookmarkIds: {}),
+      BookmarkGroup(id: parent, name: 'Parent', bookmarkIds: const {}),
       BookmarkGroup(
         id: child,
         name: 'Actual source',
         parentGroupId: parent,
-        bookmarkIds: {21, 22, 23},
+        bookmarkIds: const {21, 22, 23},
       ),
       BookmarkGroup(
         id: outside,
         name: 'Outside subtree',
-        bookmarkIds: {21, 22, 23},
+        bookmarkIds: const {21, 22, 23},
       ),
     ],
   );

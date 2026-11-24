@@ -97,10 +97,10 @@ void main() {
     final topic = await repository.create(
       profileId: profileId,
       query: 'cat',
-      queryStructure: SearchQueryStructure.typedTags(['cat']),
+      queryStructure: SearchQueryStructure.typedTags(const ['cat']),
       name: null,
     );
-    final structure = SearchQueryStructure.typedTags(['dog', '-cat']);
+    final structure = SearchQueryStructure.typedTags(const ['dog', '-cat']);
     final edited = await repository.edit(
       topic.id,
       profileId: profileId,
@@ -122,7 +122,7 @@ void main() {
         query: 'cat',
         name: null,
       );
-      final checkedAt = DateTime.utc(2026, 10, 1);
+      final checkedAt = DateTime.utc(2026, 10);
       await repository.commitRefresh(
         SearchRefreshCommit(
           topicId: topic.id,
@@ -138,7 +138,7 @@ void main() {
         topic.id,
         profileId: profileId,
         query: 'cat',
-        queryStructure: () => SearchQueryStructure.typedTags(['cat']),
+        queryStructure: () => SearchQueryStructure.typedTags(const ['cat']),
         name: 'Cats',
       );
       expect(typed.queryStructure!.typedTags, ['cat']);
@@ -160,7 +160,7 @@ void main() {
 
   test('legacy edits preserve only compatible structure', () async {
     final repository = memorySubscriptionRepository();
-    final structure = SearchQueryStructure.typedTags(['cat']);
+    final structure = SearchQueryStructure.typedTags(const ['cat']);
     final topic = await repository.create(
       profileId: profileId,
       query: 'cat',
@@ -195,7 +195,7 @@ void main() {
       topic.id,
       profileId: profileId,
       query: 'dog',
-      queryStructure: () => SearchQueryStructure.typedTags(['cat']),
+      queryStructure: () => SearchQueryStructure.typedTags(const ['cat']),
       name: null,
     );
     expect(edited.query, 'dog');

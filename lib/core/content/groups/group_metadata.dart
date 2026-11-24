@@ -100,20 +100,6 @@ final class GroupCoverVisibility extends Equatable {
       throw const FormatException('Invalid selected-cover Post facts');
     }
   }
-  final Set<String> tags;
-  final Map<String, Object?>? postFacts;
-  final MetadataCoverage tagCoverage;
-  final String rating;
-  final bool deleted;
-  final bool banned;
-  Map<String, Object?> toJson() => {
-    'tags': tags.toList()..sort(),
-    'rating': rating,
-    'deleted': deleted,
-    'banned': banned,
-    'tagCoverage': tagCoverage.name,
-    'postFacts': ?postFacts,
-  };
   factory GroupCoverVisibility.fromJson(Map<String, dynamic> json) =>
       GroupCoverVisibility(
         tags: (json['tags'] as List).cast<String>(),
@@ -130,6 +116,20 @@ final class GroupCoverVisibility extends Equatable {
                       .firstOrNull ??
                   MetadataCoverage.unknown,
       );
+  final Set<String> tags;
+  final Map<String, Object?>? postFacts;
+  final MetadataCoverage tagCoverage;
+  final String rating;
+  final bool deleted;
+  final bool banned;
+  Map<String, Object?> toJson() => {
+    'tags': tags.toList()..sort(),
+    'rating': rating,
+    'deleted': deleted,
+    'banned': banned,
+    'tagCoverage': tagCoverage.name,
+    'postFacts': ?postFacts,
+  };
   @override
   List<Object?> get props => [
     tags,

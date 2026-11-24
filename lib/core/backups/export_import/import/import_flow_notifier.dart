@@ -382,8 +382,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               searches: local.searches,
               organization: local.organization,
               usedIds: usedIds,
-              folderActions: const {},
-              restoreHierarchy: false,
               importFolderName: Translations().folders.imported_searches,
             );
             if (match != null) {
@@ -396,7 +394,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         final items = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => _profilePlanningItems(
             profiles,
-            wrapper._localSnapshot as List<BooruConfig>,
+            wrapper._localSnapshot! as List<BooruConfig>,
             manifest.itemRecommendedActions,
           ),
           _ => [
@@ -562,8 +560,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     final resolved = state.resolved?.replaceSource(source);
     if (state.proposed == null ||
         resolved == null ||
-        resolved == state.resolved)
+        resolved == state.resolved) {
       return;
+    }
     _schedulePreview(resolved);
   }
 
@@ -1004,14 +1003,17 @@ ResolvedImportPlan _retainImportChoices(
                 final old = oldSources[source.id]?.items
                     .where((old) => old.id == item.id)
                     .firstOrNull;
-                if (old == null || !item.availableActions.contains(old.action))
+                if (old == null ||
+                    !item.availableActions.contains(old.action)) {
                   return defaults.sources[index].items[itemIndex];
+                }
                 final targetRequired =
                     old.action == ImportAction.mergeIntoTarget ||
                     item.targetRequiredActions.contains(old.action);
                 if (targetRequired &&
-                    !item.compatibleTargetIds.contains(old.targetId))
+                    !item.compatibleTargetIds.contains(old.targetId)) {
                   return defaults.sources[index].items[itemIndex];
+                }
                 return old;
               })(),
           ],
@@ -1150,8 +1152,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
     final copies = Map<String, String>.unmodifiable(copyProfileIds);
     final key = [resolution, mappings, explicit, copies];
     if (const DeepCollectionEquality().equals(_projectionKey, key) &&
-        _projection != null)
+        _projection != null) {
       return _projection!;
+    }
     _projectionKey = key;
     _projection = null;
     projectionRuns++;
@@ -1570,8 +1573,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     if (store != null && groupRepository is UnifiedBookmarkOrganization) return;
     final mappedByIdentity = {
       for (final bookmark in selected.bookmarks)
-        if (bookmark.post.origin.profileIdHint case final hint?)
-          bookmark.transferIdentity: hint,
+        bookmark.transferIdentity: ?bookmark.post.origin.profileIdHint,
     };
     for (final bookmark in await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: resolver,

@@ -41,13 +41,14 @@ final bookmarkRecoveryServiceProvider = Provider<BookmarkRecoveryService>((
     final access = key == null
         ? null
         : ref.read(contentAccessContextProvider(key));
-    if (access == null || access.config != config)
+    if (access == null || access.config != config) {
       throw StateError('Bookmark reader revoked');
+    }
     bool current() =>
         ref
             .read(contentAccessContextProvider(access.key))
-            ?.hasSameAuthorization(access) ==
-        true;
+            ?.hasSameAuthorization(access) ??
+        false;
     Future<Post?> load() async {
       final caller = share
           ? ApiRequestContext.current()
@@ -63,8 +64,9 @@ final bookmarkRecoveryServiceProvider = Provider<BookmarkRecoveryService>((
       final subscription = ref.listen(
         contentAccessContextProvider(access.key),
         (_, next) {
-          if (next?.hasSameAuthorization(access) != true)
+          if (next?.hasSameAuthorization(access) != true) {
             cancellation.cancel('Bookmark reader revoked');
+          }
         },
       );
       try {
@@ -104,10 +106,10 @@ final bookmarkRecoveryServiceProvider = Provider<BookmarkRecoveryService>((
       return () =>
           access != null &&
           access.config == config &&
-          ref
+          (ref
                   .read(contentAccessContextProvider(access.key))
-                  ?.hasSameAuthorization(access) ==
-              true;
+                  ?.hasSameAuthorization(access) ??
+              false);
     },
     latestBookmark: (post) async =>
         (await ref.read(bookmarkProvider.future)).bookmarkForPost(post),
@@ -116,8 +118,8 @@ final bookmarkRecoveryServiceProvider = Provider<BookmarkRecoveryService>((
               .read(bookmarkProvider)
               .valueOrNull
               ?.localBookmarkIds
-              .contains(bookmark.id) ==
-          true) {
+              .contains(bookmark.id) ??
+          false) {
         await ref
             .read(bookmarkProvider.notifier)
             .upgradeBookmarkSnapshot(bookmark, post, canUpgrade: current);
@@ -135,8 +137,9 @@ final bookmarkRecoveryServiceProvider = Provider<BookmarkRecoveryService>((
                   filter.ratingFilter != BooruConfigRatingFilter.none) ||
               (post.status == null &&
                   (filter.deletedItemBehavior.isHidden ||
-                      filter.bannedPostVisibility.isHidden))))
+                      filter.bannedPostVisibility.isHidden)))) {
         return false;
+      }
       return isExactLookupPostVisible(post, config, blacklist);
     },
     fetchPost: fetchPost,

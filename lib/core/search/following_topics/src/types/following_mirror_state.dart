@@ -235,14 +235,6 @@ final class FollowingMirrorOwner extends Equatable {
 }
 
 final class FollowingMirrorState extends Equatable {
-  const FollowingMirrorState.empty()
-    : activity = const SyncActivityLog.empty(),
-      epoch = 0,
-      owners = const {},
-      checkpoints = const {},
-      subscriptions = const {},
-      publisherNames = const {};
-
   FollowingMirrorState({
     required this.epoch,
     this.activity = const SyncActivityLog.empty(),
@@ -276,13 +268,20 @@ final class FollowingMirrorState extends Equatable {
       }
     }
   }
+  const FollowingMirrorState.empty()
+    : activity = const SyncActivityLog.empty(),
+      epoch = 0,
+      owners = const {},
+      checkpoints = const {},
+      subscriptions = const {},
+      publisherNames = const {};
 
   factory FollowingMirrorState.fromJson(Map<String, dynamic> json) {
     if (json['version'] != 1) {
       throw const FormatException('Unsupported Following mirror metadata');
     }
     Map<String, FollowingMirrorOwner> owners(Object? value) => {
-      for (final entry in (value as Map).entries)
+      for (final entry in (value! as Map).entries)
         entry.key as String: FollowingMirrorOwner.fromJson(
           Map<String, dynamic>.from(entry.value as Map),
         ),

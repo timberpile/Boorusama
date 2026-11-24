@@ -165,8 +165,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
   };
   void _select(String id, {bool folder = false}) {
     if (ref.read(followingTopicsProvider).valueOrNull?.mirrors.isReceived(id) ??
-        false)
+        false) {
       return;
+    }
     final index = _selection.indexOf((
       folder ? CollectionSelectionKind.folder : CollectionSelectionKind.topic,
       id,
@@ -208,13 +209,14 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         });
         if (found) return;
       }
-      if (id != null)
+      if (id != null) {
         unawaited(
           ref.pushNamedRoute<void>(
             '/following-topics/folder',
             pathParameters: {'folderId': id},
           ),
         );
+      }
       return;
     }
     final previous = widget._ancestorRoutes[id];
@@ -279,14 +281,16 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
     final activity = ref.watch(followingTopicsProvider).valueOrNull;
     for (final topic in activity?.topics ?? const <FollowingTopic>[]) {
       if (!(activity?.mirrors.isReceived(topic.id) ?? false) &&
-          topic.localSource == null)
+          topic.localSource == null) {
         continue;
+      }
       final config = ref.watch(followingTopicConfigProvider(topic.id));
       if (config != null &&
           ref.watch(followingTopicTrackingSupportedProvider(config.auth))) {
         refreshableProfileIds.add(topic.profileId);
-        if (!eligibleProfiles.contains(topic.profileId))
+        if (!eligibleProfiles.contains(topic.profileId)) {
           eligibleProfiles.add(topic.profileId);
+        }
       }
     }
 
@@ -338,7 +342,6 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         controller: _selection,
         selected: _selecting,
         child: PopScope(
-          canPop: true,
           child: Scaffold(
             appBar: KurumiAppBar(
               title: Row(
@@ -672,8 +675,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
       final notifier = ref.read(followingTopicsProvider.notifier);
       for (final index in moves) {
         if (ref.read(followingTopicsProvider).requireValue.organization !=
-            expected)
+            expected) {
           throw StateError('Topic organization changed');
+        }
         if (folderIds.isNotEmpty) {
           await notifier.reorderSharedFolders(
             index,
@@ -931,8 +935,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
     if (_bodyInputs == inputs &&
         mapEquals(_bodyFilterReaders, filterReaders) &&
         setEquals(_bodyRefreshable, refreshableProfileIds) &&
-        _cachedBody != null)
+        _cachedBody != null) {
       return _cachedBody!;
+    }
     _bodyInputs = inputs;
     _bodyFilterReaders = filterReaders;
     _bodyRefreshable = {...refreshableProfileIds};
@@ -1160,17 +1165,17 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
               ...folders.map((f) => f.id),
               ...displayItems.map((t) => t.id),
             ])
-              if (activity?.mirrors.owners[id]?.publisher case final publisher?)
-                publisher,
+              ?activity?.mirrors.owners[id]?.publisher,
           }.toList()..sort();
           final sections = _folderId == null && publishers.isNotEmpty;
           for (final publisher in <String?>[null, ...publishers]) {
-            if (sections)
+            if (sections) {
               records.add((
                 section: publisher ?? '',
                 folder: null,
                 topic: null,
               ));
+            }
             for (final f in folders.where(
               (f) => activity?.mirrors.owners[f.id]?.publisher == publisher,
             )) {
@@ -1573,7 +1578,6 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                                               .owners[topic.id]
                                               ?.hasDefinitionChange ??
                                           false,
-                                      published: false,
                                       syncActions: activity == null
                                           ? null
                                           : followingSyncMenu(
@@ -1662,8 +1666,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
             .valueOrNull
             ?.mirrors
             .isReceived(_folderId ?? '') ??
-        false)
+        false) {
       return;
+    }
     final profiles = ref.read(booruConfigProvider);
     if (profiles.isEmpty) return;
     final profileId = profiles.any((profile) => profile.id == ref.readConfig.id)
@@ -1735,8 +1740,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                 .isReceived(folder.id) ??
             false) &&
         action != FollowingTopicAction.refresh &&
-        action != FollowingTopicAction.info)
+        action != FollowingTopicAction.info) {
       return;
+    }
     switch (action) {
       case FollowingTopicAction.refresh:
         await _runAction(() => notifier.refreshSharedFolder(folder.id));
@@ -1820,26 +1826,30 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
       if (!mounted) return;
       switch (topic.queryStructure) {
         case final structure?:
-          goToSearchPage(
-            ref,
-            tags: SearchTagSet.fromList(structure.typedTags),
-            queryType: QueryType.list,
-            config: owner,
-            originatingTopicId: topic.id,
-            followingDefinitionReceipts: definitionDigest == null
-                ? const {}
-                : {topic.id: definitionDigest},
+          unawaited(
+            goToSearchPage(
+              ref,
+              tags: SearchTagSet.fromList(structure.typedTags),
+              queryType: QueryType.list,
+              config: owner,
+              originatingTopicId: topic.id,
+              followingDefinitionReceipts: definitionDigest == null
+                  ? const {}
+                  : {topic.id: definitionDigest},
+            ),
           );
         case null:
-          goToSearchPage(
-            ref,
-            tag: topic.query,
-            queryType: QueryType.simple,
-            config: owner,
-            originatingTopicId: topic.id,
-            followingDefinitionReceipts: definitionDigest == null
-                ? const {}
-                : {topic.id: definitionDigest},
+          unawaited(
+            goToSearchPage(
+              ref,
+              tag: topic.query,
+              queryType: QueryType.simple,
+              config: owner,
+              originatingTopicId: topic.id,
+              followingDefinitionReceipts: definitionDigest == null
+                  ? const {}
+                  : {topic.id: definitionDigest},
+            ),
           );
       }
     } catch (_) {
@@ -1895,8 +1905,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                 .isReceived(topic.id) ??
             false) &&
         action != FollowingTopicAction.refresh &&
-        action != FollowingTopicAction.info)
+        action != FollowingTopicAction.info) {
       return;
+    }
     switch (action) {
       case FollowingTopicAction.rename:
         return;

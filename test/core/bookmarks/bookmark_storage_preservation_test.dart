@@ -37,9 +37,9 @@ void main() {
         0,
         reason: 'The first durable local Post ID includes zero',
       );
-      final created = DateTime.utc(2025, 1, 1);
-      final firstAdded = DateTime.utc(2025, 2, 1);
-      final secondAdded = DateTime.utc(2025, 3, 1);
+      final created = DateTime.utc(2025);
+      final firstAdded = DateTime.utc(2025, 2);
+      final secondAdded = DateTime.utc(2025, 3);
       await h.groups.replaceMemberships(
         a.id,
         {post.id},

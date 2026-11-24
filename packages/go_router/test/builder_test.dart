@@ -10,18 +10,18 @@ import 'test_helpers.dart';
 
 void main() {
   group('RouteBuilder', () {
-    testWidgets('Builds GoRoute', (WidgetTester tester) async {
-      final RouteConfiguration config = createRouteConfiguration(
+    testWidgets('Builds GoRoute', (tester) async {
+      final config = createRouteConfiguration(
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) {
+            builder: (context, state) {
               return _DetailsScreen();
             },
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
         navigatorKey: GlobalKey<NavigatorState>(),
@@ -44,19 +44,19 @@ void main() {
       expect(find.byType(_DetailsScreen), findsOneWidget);
     });
 
-    testWidgets('Builds ShellRoute', (WidgetTester tester) async {
+    testWidgets('Builds ShellRoute', (tester) async {
       final shellNavigatorKey = GlobalKey<NavigatorState>();
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         routes: <RouteBase>[
           ShellRoute(
             navigatorKey: shellNavigatorKey,
-            builder: (BuildContext context, GoRouterState state, Widget child) {
+            builder: (context, state, child) {
               return _DetailsScreen();
             },
             routes: <GoRoute>[
               GoRoute(
                 path: '/',
-                builder: (BuildContext context, GoRouterState state) {
+                builder: (context, state) {
                   return _DetailsScreen();
                 },
               ),
@@ -64,7 +64,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
         navigatorKey: GlobalKey<NavigatorState>(),
@@ -95,20 +95,20 @@ void main() {
       expect(find.byType(_DetailsScreen), findsOneWidget);
     });
 
-    testWidgets('Uses the correct navigatorKey', (WidgetTester tester) async {
+    testWidgets('Uses the correct navigatorKey', (tester) async {
       final rootNavigatorKey = GlobalKey<NavigatorState>();
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         navigatorKey: rootNavigatorKey,
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) {
+            builder: (context, state) {
               return _DetailsScreen();
             },
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -130,21 +130,21 @@ void main() {
       expect(find.byKey(rootNavigatorKey), findsOneWidget);
     });
 
-    testWidgets('Builds a Navigator for ShellRoute', (WidgetTester tester) async {
+    testWidgets('Builds a Navigator for ShellRoute', (tester) async {
       final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
       final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         navigatorKey: rootNavigatorKey,
         routes: <RouteBase>[
           ShellRoute(
-            builder: (BuildContext context, GoRouterState state, Widget child) {
+            builder: (context, state, child) {
               return _HomeScreen(child: child);
             },
             navigatorKey: shellNavigatorKey,
             routes: <RouteBase>[
               GoRoute(
                 path: '/details',
-                builder: (BuildContext context, GoRouterState state) {
+                builder: (context, state) {
                   return _DetailsScreen();
                 },
               ),
@@ -152,7 +152,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -186,28 +186,28 @@ void main() {
     });
 
     testWidgets('Builds a Navigator for ShellRoute with parentNavigatorKey', (
-      WidgetTester tester,
+      tester,
     ) async {
       final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
       final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         navigatorKey: rootNavigatorKey,
         routes: <RouteBase>[
           ShellRoute(
-            builder: (BuildContext context, GoRouterState state, Widget child) {
+            builder: (context, state, child) {
               return _HomeScreen(child: child);
             },
             navigatorKey: shellNavigatorKey,
             routes: <RouteBase>[
               GoRoute(
                 path: '/a',
-                builder: (BuildContext context, GoRouterState state) {
+                builder: (context, state) {
                   return _DetailsScreen();
                 },
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'details',
-                    builder: (BuildContext context, GoRouterState state) {
+                    builder: (context, state) {
                       return _DetailsScreen();
                     },
                     // This screen should stack onto the root navigator.
@@ -219,7 +219,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -244,14 +244,14 @@ void main() {
       expect(find.byType(_DetailsScreen), findsOneWidget);
     });
 
-    testWidgets('Uses the correct restorationScopeId for ShellRoute', (WidgetTester tester) async {
+    testWidgets('Uses the correct restorationScopeId for ShellRoute', (tester) async {
       final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
       final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
-      final RouteConfiguration config = createRouteConfiguration(
+      final config = createRouteConfiguration(
         navigatorKey: rootNavigatorKey,
         routes: <RouteBase>[
           ShellRoute(
-            builder: (BuildContext context, GoRouterState state, Widget child) {
+            builder: (context, state, child) {
               return _HomeScreen(child: child);
             },
             navigatorKey: shellNavigatorKey,
@@ -259,7 +259,7 @@ void main() {
             routes: <RouteBase>[
               GoRoute(
                 path: '/a',
-                builder: (BuildContext context, GoRouterState state) {
+                builder: (context, state) {
                   return _DetailsScreen();
                 },
               ),
@@ -267,7 +267,7 @@ void main() {
           ),
         ],
         redirectLimit: 10,
-        topRedirect: (BuildContext context, GoRouterState state) {
+        topRedirect: (context, state) {
           return null;
         },
       );
@@ -300,7 +300,7 @@ void main() {
     });
 
     testWidgets('Uses the correct restorationScopeId for StatefulShellRoute', (
-      WidgetTester tester,
+      tester,
     ) async {
       final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
       final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -312,9 +312,9 @@ void main() {
             restorationScopeId: 'shell',
             builder:
                 (
-                  BuildContext context,
-                  GoRouterState state,
-                  StatefulNavigationShell navigationShell,
+                  context,
+                  state,
+                  navigationShell,
                 ) => _HomeScreen(child: navigationShell),
             branches: <StatefulShellBranch>[
               StatefulShellBranch(
@@ -323,7 +323,7 @@ void main() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: '/a',
-                    builder: (BuildContext context, GoRouterState state) {
+                    builder: (context, state) {
                       return _DetailsScreen();
                     },
                   ),
@@ -342,13 +342,12 @@ void main() {
       expect((shellNavigatorKey.currentWidget as Navigator?)?.restorationScopeId, 'scope1');
     });
 
-    testWidgets('GoRouter requestFocus defaults to true', (WidgetTester tester) async {
+    testWidgets('GoRouter requestFocus defaults to true', (tester) async {
       final router = GoRouter(
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) =>
-                const Scaffold(body: Center(child: Text('Home'))),
+            builder: (context, state) => const Scaffold(body: Center(child: Text('Home'))),
           ),
         ],
       );
@@ -357,17 +356,16 @@ void main() {
 
       addTearDown(() => router.dispose());
 
-      final Navigator navigator = tester.widget<Navigator>(find.byType(Navigator));
+      final navigator = tester.widget<Navigator>(find.byType(Navigator));
       expect(navigator.requestFocus, isTrue);
     });
 
-    testWidgets('GoRouter requestFocus can be set to false', (WidgetTester tester) async {
+    testWidgets('GoRouter requestFocus can be set to false', (tester) async {
       final router = GoRouter(
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (BuildContext context, GoRouterState state) =>
-                const Scaffold(body: Center(child: Text('Home'))),
+            builder: (context, state) => const Scaffold(body: Center(child: Text('Home'))),
           ),
         ],
         requestFocus: false,
@@ -377,7 +375,7 @@ void main() {
 
       addTearDown(() => router.dispose());
 
-      final Navigator navigator = tester.widget<Navigator>(find.byType(Navigator));
+      final navigator = tester.widget<Navigator>(find.byType(Navigator));
       expect(navigator.requestFocus, isFalse);
     });
   });
@@ -420,13 +418,13 @@ class _BuilderTestWidget extends StatelessWidget {
   static RouteBuilder _routeBuilder(RouteConfiguration configuration) {
     return RouteBuilder(
       configuration: configuration,
-      builderWithNav: (BuildContext context, Widget child) {
+      builderWithNav: (context, child) {
         return child;
       },
-      errorPageBuilder: (BuildContext context, GoRouterState state) {
+      errorPageBuilder: (context, state) {
         return MaterialPage<dynamic>(child: Text('Error: ${state.error}'));
       },
-      errorBuilder: (BuildContext context, GoRouterState state) {
+      errorBuilder: (context, state) {
         return Text('Error: ${state.error}');
       },
       restorationScopeId: null,

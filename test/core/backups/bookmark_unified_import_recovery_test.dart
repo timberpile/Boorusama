@@ -66,7 +66,7 @@ void main() {
         : null;
     if (journal != null) {
       sawJournal = true;
-      observedJournalVersion = journal['version'] as int;
+      observedJournalVersion = journal['version']! as int;
       observedOperation = journal['operation'];
     }
     // Reservation and initialization syncs happen before the mutation journal;
@@ -227,7 +227,7 @@ void main() {
   setUp(initialize);
   tearDown(() async {
     await Hive.close();
-    if (await directory.exists()) await directory.delete(recursive: true);
+    if (directory.existsSync()) await directory.delete(recursive: true);
   });
 
   test('journaled import resumes a complete common generation at every sync boundary', () async {

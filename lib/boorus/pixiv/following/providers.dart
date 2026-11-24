@@ -81,8 +81,9 @@ class PixivFollowingNotifier
     if (state.isLoading ||
         current == null ||
         current.loadingMore ||
-        !current.hasMore)
+        !current.hasMore) {
       return;
+    }
     final token = _cancel!;
     final load = _load;
     state = AsyncData(current.progress(loading: true));

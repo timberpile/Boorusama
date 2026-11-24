@@ -116,37 +116,6 @@ final class SyncActivityRecord extends Equatable {
 }
 
 final class SyncActivityLog extends Equatable {
-  const SyncActivityLog.empty()
-    : sequence = 0,
-      entries = const [],
-      notificationCursor = 0,
-      pendingPosts = const [],
-      notificationKnown = const {},
-      _notificationState = false;
-  SyncActivityLog._(
-    this.sequence,
-    Iterable<SyncActivityRecord> entries, {
-    this.notificationCursor = 0,
-    Iterable<SyncActivityRecord> pendingPosts = const [],
-    Map<String, Set<String>> notificationKnown = const {},
-    bool notificationState = false,
-  }) : entries = List.unmodifiable(entries),
-       pendingPosts = List.unmodifiable(pendingPosts),
-       notificationKnown = Map.unmodifiable(
-         notificationKnown.map(
-           (key, value) => MapEntry(key, Set<String>.unmodifiable(value)),
-         ),
-       ),
-       _notificationState = notificationState;
-
-  static const limit = 200;
-  final int sequence;
-  final List<SyncActivityRecord> entries;
-  final int notificationCursor;
-  final List<SyncActivityRecord> pendingPosts;
-  final Map<String, Set<String>> notificationKnown;
-  final bool _notificationState;
-
   factory SyncActivityLog.fromJson(Map<String, dynamic> json) {
     final sequence = json['sequence'];
     final entries = json['entries'];
@@ -183,8 +152,9 @@ final class SyncActivityLog extends Equatable {
       throw const FormatException('Invalid journaled notification intent');
     }
     final cursor = notification['cursor'];
-    if (cursor is! int || cursor < 0 || cursor > sequence)
+    if (cursor is! int || cursor < 0 || cursor > sequence) {
       throw const FormatException('Invalid notification delivery cursor');
+    }
     final pending = <SyncActivityRecord>[];
     var previous = cursor;
     for (final raw in notification['pending'] as List) {
@@ -206,8 +176,9 @@ final class SyncActivityLog extends Equatable {
     for (final entry in (notification['known'] as Map).entries) {
       final key = syncString(entry.key);
       final parts = key.split('/');
-      if (parts.length != 2)
+      if (parts.length != 2) {
         throw const FormatException('Invalid notification source identity');
+      }
       syncUuid(parts.first);
       syncUuid(parts.last);
       known[key] = _notificationKeys(entry.value);
@@ -235,6 +206,36 @@ final class SyncActivityLog extends Equatable {
     result._checkBounds();
     return result;
   }
+  const SyncActivityLog.empty()
+    : sequence = 0,
+      entries = const [],
+      notificationCursor = 0,
+      pendingPosts = const [],
+      notificationKnown = const {},
+      _notificationState = false;
+  SyncActivityLog._(
+    this.sequence,
+    Iterable<SyncActivityRecord> entries, {
+    this.notificationCursor = 0,
+    Iterable<SyncActivityRecord> pendingPosts = const [],
+    Map<String, Set<String>> notificationKnown = const {},
+    bool notificationState = false,
+  }) : entries = List.unmodifiable(entries),
+       pendingPosts = List.unmodifiable(pendingPosts),
+       notificationKnown = Map.unmodifiable(
+         notificationKnown.map(
+           (key, value) => MapEntry(key, Set<String>.unmodifiable(value)),
+         ),
+       ),
+       _notificationState = notificationState;
+
+  static const limit = 200;
+  final int sequence;
+  final List<SyncActivityRecord> entries;
+  final int notificationCursor;
+  final List<SyncActivityRecord> pendingPosts;
+  final Map<String, Set<String>> notificationKnown;
+  final bool _notificationState;
 
   SyncActivityLog append(
     Iterable<SyncEvent> events, {
@@ -242,8 +243,9 @@ final class SyncActivityLog extends Equatable {
   }) {
     final captured = events.toList();
     if (captured.isEmpty && observedMembers == null) return this;
-    if (sequence > miteMiteMaxSequence - captured.length)
+    if (sequence > miteMiteMaxSequence - captured.length) {
       throw const FormatException('Mirror Activity sequence exhausted');
+    }
     final added = [
       for (final (index, event) in captured.indexed)
         SyncActivityRecord(sequence + index + 1, event),
@@ -257,8 +259,9 @@ final class SyncActivityLog extends Equatable {
         in observedMembers?.entries ??
             const Iterable<MapEntry<String, Set<String>>>.empty()) {
       final parts = entry.key.split('/');
-      if (parts.length != 2)
+      if (parts.length != 2) {
         throw const FormatException('Invalid observed notification source');
+      }
       syncUuid(parts.first);
       syncUuid(parts.last);
       _notificationKeys(entry.value.toList());
@@ -288,8 +291,9 @@ final class SyncActivityLog extends Equatable {
   }
 
   SyncActivityLog acknowledgePostsThrough(int cursor) {
-    if (cursor < notificationCursor || cursor > sequence)
+    if (cursor < notificationCursor || cursor > sequence) {
       throw const FormatException('Invalid notification acknowledgement');
+    }
     if (cursor == notificationCursor) return this;
     return SyncActivityLog._(
       sequence,
@@ -304,8 +308,9 @@ final class SyncActivityLog extends Equatable {
   bool follows(SyncActivityLog previous) {
     if (sequence < previous.sequence ||
         notificationCursor < previous.notificationCursor ||
-        previous._notificationState && !_notificationState)
+        previous._notificationState && !_notificationState) {
       return false;
+    }
     final existing = {
       for (final record in previous.entries) record.sequence: record,
     };
@@ -313,13 +318,15 @@ final class SyncActivityLog extends Equatable {
       (record) =>
           !existing.containsKey(record.sequence) ||
           existing[record.sequence] == record,
-    ))
+    )) {
       return false;
+    }
     for (final entry in previous.notificationKnown.entries) {
       if (!(notificationKnown[entry.key] ?? const <String>{}).containsAll(
         entry.value,
-      ))
+      )) {
         return false;
+      }
     }
     final pending = {
       for (final record in pendingPosts) record.sequence: record,
@@ -379,8 +386,9 @@ Set<String> _notificationKeys(Object? raw) {
     throw const FormatException('Invalid notification member identities');
   }
   final values = raw.cast<String>().toSet();
-  if (values.length != raw.length)
+  if (values.length != raw.length) {
     throw const FormatException('Duplicate notification member identity');
+  }
   return Set.unmodifiable(values);
 }
 

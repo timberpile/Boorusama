@@ -56,12 +56,14 @@ void main() {
             supported: false,
             overrides: [
               loggerProvider.overrideWithValue(AppLogger()),
-              untrackedTopicPreviewProvider.overrideWith((ref, _) async {
-                if (fail) throw StateError('independent preview failed');
-                return [
-                  for (var i = 0; i < 4; i++) 'https://images.example/$i.jpg',
-                ];
-              }),
+              untrackedTopicPreviewProvider.overrideWith(
+                (ref, _) => Future.sync(() {
+                  if (fail) throw StateError('independent preview failed');
+                  return [
+                    for (var i = 0; i < 4; i++) 'https://images.example/$i.jpg',
+                  ];
+                }),
+              ),
             ],
           );
           addTearDown(harness.dispose);
@@ -123,7 +125,7 @@ void main() {
           overrides: [
             loggerProvider.overrideWithValue(AppLogger()),
             untrackedTopicPreviewProvider.overrideWith(
-              (ref, _) async => throw StateError('preview failed'),
+              (ref, _) => Future.sync(() => throw StateError('preview failed')),
             ),
           ],
         );

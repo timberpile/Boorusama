@@ -12,7 +12,7 @@ import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('router rebuild with extra codec works', (WidgetTester tester) async {
+  testWidgets('router rebuild with extra codec works', (tester) async {
     const initialString = 'some string';
     const empty = 'empty';
     final router = GoRouter(
@@ -22,12 +22,12 @@ void main() {
       routes: <RouteBase>[
         GoRoute(
           path: '/',
-          builder: (_, GoRouterState state) {
+          builder: (_, state) {
             return Text((state.extra as ComplexData?)?.data ?? empty);
           },
         ),
       ],
-      redirect: (BuildContext context, _) {
+      redirect: (context, _) {
         // Set up dependency.
         SimpleDependencyProvider.of(context);
         return null;
@@ -53,13 +53,13 @@ void main() {
 
   testWidgets(
     'Restores state correctly',
-    (WidgetTester tester) async {
+    (tester) async {
       const initialString = 'some string';
       const empty = 'empty';
       final routes = <RouteBase>[
         GoRoute(
           path: '/',
-          builder: (_, GoRouterState state) {
+          builder: (_, state) {
             return Text((state.extra as ComplexData?)?.data ?? empty);
           },
         ),

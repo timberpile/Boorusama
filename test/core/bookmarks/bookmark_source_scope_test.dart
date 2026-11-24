@@ -151,26 +151,26 @@ void main() {
     final initial = BookmarkLibraryState(
       bookmarks: records,
       groups: [
-        BookmarkGroup(id: poolGroupA, name: 'Local A', bookmarkIds: {1}),
+        BookmarkGroup(id: poolGroupA, name: 'Local A', bookmarkIds: const {1}),
         BookmarkGroup(
           id: poolGroupB,
           name: 'Received B',
-          bookmarkIds: {1, 2, 5, 6},
+          bookmarkIds: const {1, 2, 5, 6},
         ),
         BookmarkGroup(
           id: child,
           name: 'Child C',
           parentGroupId: poolGroupB,
-          bookmarkIds: {2, 3},
+          bookmarkIds: const {2, 3},
         ),
-        BookmarkGroup(id: other, name: 'Other D', bookmarkIds: {4}),
+        BookmarkGroup(id: other, name: 'Other D', bookmarkIds: const {4}),
       ],
       records: [
         ...records,
         native,
         LegacyGroupBookmark.fromMetadata(
           id: 6,
-          metadata: testPool(id: 10, host: 'pool.test', groups: {poolGroupB}),
+          metadata: testPool(host: 'pool.test', groups: {poolGroupB}),
         ),
       ],
       mirrors: BookmarkMirrorState(
@@ -252,13 +252,13 @@ void main() {
     // Unified native records use their portable exact site, also without a reader.
     library.replace(
       BookmarkLibraryState(
-        bookmarks: [],
+        bookmarks: const [],
         records: [native],
         groups: [
           BookmarkGroup(
             id: poolGroupB,
             name: 'Received native',
-            bookmarkIds: {5},
+            bookmarkIds: const {5},
           ),
         ],
         mirrors: initial.mirrors,

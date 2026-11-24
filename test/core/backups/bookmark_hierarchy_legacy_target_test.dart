@@ -36,7 +36,6 @@ void main() {
     () async {
       final plan = BookmarkImportPlan(
         records: const [],
-        alreadyExistedCount: 0,
         groups: const [
           BookmarkGroupImport(
             id: parent,

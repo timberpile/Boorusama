@@ -643,8 +643,9 @@ GelbooruV2Posts _parseRealbooruFavoritesSync(
     throw const FormatException('Unrecognized Realbooru Favorites page');
   }
   final page = int.tryParse(query['pid'] ?? '0');
-  if (page == null || page < 0)
+  if (page == null || page < 0) {
     throw const FormatException('Invalid Favorites cursor');
+  }
   var next = false;
   for (final anchor in document.querySelectorAll('#paginator a')) {
     final onclick = anchor.attributes['onclick'] ?? '';
@@ -664,8 +665,9 @@ GelbooruV2Posts _parseRealbooruFavoritesSync(
       throw const FormatException('Foreign Favorites pagination');
     }
     final offset = int.tryParse(params['pid'] ?? '0');
-    if (offset == null || offset < 0)
+    if (offset == null || offset < 0) {
       throw const FormatException('Invalid Favorites pagination');
+    }
     next |= offset > page;
   }
   final data = extractor.extractPostsData(html);
@@ -673,8 +675,9 @@ GelbooruV2Posts _parseRealbooruFavoritesSync(
   final posts = <PostV2Dto>[];
   for (final row in rows) {
     final anchors = row.querySelectorAll('a');
-    if (anchors.length != 1)
+    if (anchors.length != 1) {
       throw const FormatException('Malformed Favorites row');
+    }
     final target = uri.resolve(anchors.single.attributes['href'] ?? '');
     final params = target.queryParameters;
     final id = int.tryParse(params['id'] ?? '');
@@ -709,7 +712,8 @@ GelbooruV2Posts _parseRealbooruFavoritesSync(
       ),
     );
   }
-  if (posts.isEmpty && next)
+  if (posts.isEmpty && next) {
     throw const FormatException('Empty Favorites page has a next link');
+  }
   return GelbooruV2Posts(posts: posts, count: null);
 }

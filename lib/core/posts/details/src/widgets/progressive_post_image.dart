@@ -100,8 +100,8 @@ class ProgressivePostImage extends ConsumerWidget {
     final safeCandidates = <String>{
       safeLower.url,
       ...safeLower.fallbackUrls,
-      if (safeLower.fallbackUrl case final value?) value,
-      if (safeLower.placeholderUrl case final value?) value,
+      ?safeLower.fallbackUrl,
+      ?safeLower.placeholderUrl,
       ...safeIntermediate,
     }.where((url) => url.isNotEmpty).toList();
     final safeImageUrl = permitted(imageUrl)
@@ -428,8 +428,9 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
             final ratio = size.width / size.height;
             if (generation != _targetGeneration ||
                 _targetSucceeded ||
-                level <= _displayedLevel)
+                level <= _displayedLevel) {
               return false;
+            }
             widget.onImageSize?.call(size);
             _show(provider, ratio, url, level);
             return true;

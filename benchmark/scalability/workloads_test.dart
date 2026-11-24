@@ -14,6 +14,7 @@ import 'package:boorusama/core/search/following_topics/src/data/hive/following_t
 import 'package:boorusama/core/search/following_topics/src/types/topic_feed.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show debugPrintSynchronously;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/performance.dart';
 
@@ -42,7 +43,7 @@ void emit(
   Map<String, Object?> work,
   String limits,
 ) {
-  print(
+  debugPrintSynchronously(
     'SCALABILITY_RESULT ${jsonEncode({
       'schema': 1,
       'scenario': scenario,
@@ -108,7 +109,7 @@ void main() {
         selectedTags: const [],
         sortType: BookmarkSortType.newest,
       ).take(4).map((b) => b.id).toList();
-      List<PostBookmark> result = [];
+      var result = <PostBookmark>[];
       final samples = measureSync(() => result = select(state));
       expect(result.map((b) => b.id), expected);
       final counter = BookmarkReadCounter();
@@ -147,7 +148,7 @@ void main() {
             shuffleState: shuffle,
           );
       final expected = select(state).map((b) => b.id).toList();
-      List<PostBookmark> result = [];
+      var result = <PostBookmark>[];
       final samples = measureSync(() => result = select(state));
       expect(result.map((b) => b.id), expected);
       expect(result.length, members.length < 4 ? members.length : 4);
@@ -230,7 +231,7 @@ void main() {
           posts: snapshots,
         ).toJson();
         if (count) {
-          final list = ReadCountingList<Object?>(json['posts'] as List);
+          final list = ReadCountingList<Object?>(json['posts']! as List);
           json['posts'] = list;
           counters.add(list);
         }
@@ -330,16 +331,18 @@ void main() {
     );
     const accesses = 64;
     try {
-      for (var i = 0; i < size.files; i++)
+      for (var i = 0; i < size.files; i++) {
         await manager.saveFile('entry-$i', Uint8List(128));
+      }
       Future<void> batch() async {
         for (var i = 0; i < accesses; i++) {
           final hit = await manager.getCachedFileBytes(
             'entry-${i % size.files}',
           );
           if (hit?.length != 128) throw StateError('Lost fixture payload');
-          if (await manager.getCachedFileBytes('missing-$i') != null)
+          if (await manager.getCachedFileBytes('missing-$i') != null) {
             throw StateError('Unexpected hit');
+          }
         }
       }
 
@@ -349,7 +352,7 @@ void main() {
       performanceRecorder.start();
       await batch();
       performanceRecorder.stop();
-      final summary = performanceRecorder.snapshot()['summary'] as Map;
+      final summary = performanceRecorder.snapshot()['summary']! as Map;
       final counters = summary['counters'] as Map;
       final operations = (summary['operations'] as List).cast<Map>();
       num counter(String name) =>

@@ -46,7 +46,7 @@ class DownloadPostButton extends ConsumerStatefulWidget {
             (ref.read(currentContentAccessKeyProvider) == key &&
                 ref.read(contentAccessContextProvider(key))?.config?.auth ==
                     auth &&
-                ref
+                (ref
                         .read(
                           contentPostVisibilityProvider((
                             access: key,
@@ -54,8 +54,8 @@ class DownloadPostButton extends ConsumerStatefulWidget {
                           )),
                         )
                         .asData
-                        ?.value ==
-                    true));
+                        ?.value ??
+                    false)));
     final config = ref.watchConfigDownload;
     return ({source}) {
       if (!current()) return;
@@ -95,7 +95,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
     final downloadSources = ref.watch(
       downloadSourceProvider(ref.watchConfigAuth),
     );
-    final List<DownloadSource>? sources = downloadSources?.getDownloadSources(
+    final sources = downloadSources?.getDownloadSources(
       context,
       widget.post,
     );

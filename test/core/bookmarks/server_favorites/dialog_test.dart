@@ -39,6 +39,7 @@ import '../../../support/fakes/memory_repositories.dart';
 import '../../../application/support/fake_image_dio.dart';
 import '../../posts/details/progressive_image_test_utils.dart';
 import 'test_support.dart';
+import '../../../support/legacy_material_test_scope.dart';
 
 void main() {
   late FavoriteHarness h;
@@ -148,7 +149,7 @@ void main() {
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: TextScaler.linear(textScale)),
                 child: legacyBridge
-                    ? MaterialUiCompatibilityBridge(child: child!)
+                    ? LegacyMaterialTestScope(child: child!)
                     : child!,
               ),
               home:

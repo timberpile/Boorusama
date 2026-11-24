@@ -67,7 +67,7 @@ abstract class _GoRouteDataBase extends RouteData {
 
   /// Used to cache [_GoRouteDataBase] that corresponds to a given [GoRouterState]
   /// to minimize the number of times it has to be deserialized.
-  static final Expando<_GoRouteDataBase> stateObjectExpando = Expando<_GoRouteDataBase>(
+  static final stateObjectExpando = Expando<_GoRouteDataBase>(
     'GoRouteState to _GoRouteDataBase expando',
   );
 }
@@ -105,7 +105,7 @@ _GoRouteParameters _createGoRouteParameters<T extends _GoRouteDataBase>({
   bool? hasOverriddenOnExit,
 }) {
   T factoryImpl(GoRouterState state) {
-    final Object? extra = state.extra;
+    final extra = state.extra;
 
     // If the "extra" value is of type `T` then we know it's the source
     // instance, so it doesn't need to be recreated.
@@ -117,14 +117,11 @@ _GoRouteParameters _createGoRouteParameters<T extends _GoRouteDataBase>({
   }
 
   return _GoRouteParameters(
-    builder: (BuildContext context, GoRouterState state) =>
-        factoryImpl(state).build(context, state),
-    pageBuilder: (BuildContext context, GoRouterState state) =>
-        factoryImpl(state).buildPage(context, state),
-    redirect: (BuildContext context, GoRouterState state) =>
-        factoryImpl(state).redirect(context, state),
+    builder: (context, state) => factoryImpl(state).build(context, state),
+    pageBuilder: (context, state) => factoryImpl(state).buildPage(context, state),
+    redirect: (context, state) => factoryImpl(state).redirect(context, state),
     onExit: hasOverriddenOnExit == null || hasOverriddenOnExit
-        ? (BuildContext context, GoRouterState state) => factoryImpl(state).onExit(context, state)
+        ? (context, state) => factoryImpl(state).onExit(context, state)
         : null,
   );
 }
@@ -159,7 +156,7 @@ abstract class GoRouteData extends _GoRouteDataBase {
     List<RouteBase> routes = const <RouteBase>[],
     bool? hasOverriddenOnExit,
   }) {
-    final _GoRouteParameters params = _createGoRouteParameters<T>(
+    final params = _createGoRouteParameters<T>(
       factory: factory,
       expando: _GoRouteDataBase.stateObjectExpando,
       hasOverriddenOnExit: hasOverriddenOnExit,
@@ -228,7 +225,7 @@ abstract class RelativeGoRouteData extends _GoRouteDataBase {
     List<RouteBase> routes = const <RouteBase>[],
     bool? hasOverriddenOnExit,
   }) {
-    final _GoRouteParameters params = _createGoRouteParameters<T>(
+    final params = _createGoRouteParameters<T>(
       factory: factory,
       expando: _GoRouteDataBase.stateObjectExpando,
       hasOverriddenOnExit: hasOverriddenOnExit,
@@ -289,7 +286,7 @@ abstract class ShellRouteData extends RouteData {
 
   /// An optional redirect function for this route.
   ///
-  /// Subclasses must override one of [build], [buildPage], or
+  /// Subclasses must override one of `build`, `buildPage`, or
   /// [redirect].
   ///
   /// Corresponds to [GoRoute.redirect].
@@ -335,7 +332,7 @@ abstract class ShellRouteData extends RouteData {
 
   /// Used to cache [ShellRouteData] that corresponds to a given [GoRouterState]
   /// to minimize the number of times it has to be deserialized.
-  static final Expando<ShellRouteData> _stateObjectExpando = Expando<ShellRouteData>(
+  static final _stateObjectExpando = Expando<ShellRouteData>(
     'GoRouteState to ShellRouteData expando',
   );
 }
@@ -348,7 +345,7 @@ abstract class StatefulShellRouteData extends RouteData {
 
   /// An optional redirect function for this route.
   ///
-  /// Subclasses must override one of [build], [buildPage], or
+  /// Subclasses must override one of `build`, `buildPage`, or
   /// [redirect].
   ///
   /// Corresponds to [GoRoute.redirect].
@@ -420,8 +417,9 @@ abstract class StatefulShellRouteData extends RouteData {
 
   /// Used to cache [StatefulShellRouteData] that corresponds to a given [GoRouterState]
   /// to minimize the number of times it has to be deserialized.
-  static final Expando<StatefulShellRouteData> _stateObjectExpando =
-      Expando<StatefulShellRouteData>('GoRouteState to StatefulShellRouteData expando');
+  static final _stateObjectExpando = Expando<StatefulShellRouteData>(
+    'GoRouteState to StatefulShellRouteData expando',
+  );
 }
 
 /// Base class for supporting

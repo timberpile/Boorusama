@@ -332,7 +332,7 @@ void main() {
         postId: () => null,
       );
       final importedDates = {
-        opaqueOne.id: DateTime.utc(2026, 1, 1),
+        opaqueOne.id: DateTime.utc(2026),
         opaqueTwo.id: DateTime.utc(2026, 2, 2),
         unaddressable.id: DateTime.utc(2026, 3, 3),
       };
@@ -490,7 +490,7 @@ void main() {
     () async {
       final matchedPost = testPoolPost(7).copyWith(id: 50);
       final importedOpaque = opaqueRecord(51);
-      final copyDate = DateTime.utc(2026, 6, 1);
+      final copyDate = DateTime.utc(2026, 6);
       final mergeDate = DateTime.utc(2026, 6, 2);
       final importPlan = await plan(
         BookmarkBackupData.unified(
@@ -569,7 +569,7 @@ void main() {
             id: defaultBookmarkGroupId,
             name: 'Default',
             position: 23,
-            bookmarkIds: [50],
+            bookmarkIds: const [50],
             addedAt: {50: date},
           ),
         ],
@@ -694,7 +694,7 @@ void main() {
           BookmarkGroupBackup(
             id: _newGroupId,
             name: 'High file IDs',
-            bookmarkIds: [highFileId, 0],
+            bookmarkIds: const [highFileId, 0],
             addedAt: {highFileId: poolDate, 0: relatedDate},
           ),
         ],
@@ -842,7 +842,7 @@ void main() {
               action: replace
                   ? ImportAction.replace
                   : ImportAction.configureItems,
-              items: [
+              items: const [
                 ResolvedImportItem(
                   id: 'group:$_newGroupId',
                   action: ImportAction.copy,

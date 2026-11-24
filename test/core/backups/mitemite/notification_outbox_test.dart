@@ -48,9 +48,7 @@ void main() {
       SyncNoticeKind.followingOffers,
     });
     final snapshot = outbox.unseenOffers.keys.toSet();
-    for (final notice in outbox.pending) {
-      outbox.acknowledge(notice);
-    }
+    outbox.pending.forEach(outbox.acknowledge);
     expect(outbox.unseenOffers.keys.toSet(), snapshot);
     outbox.prune(at.add(const Duration(days: 4)));
     expect(outbox.unseenOffers, hasLength(2));

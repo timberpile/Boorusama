@@ -52,8 +52,9 @@ final class SyncFollowingMirrorEngine {
     Set<String>? directRoots,
   }) async {
     ensureCurrent?.call();
-    if (syncDigest(publisherKey) != ticket.fingerprint)
+    if (syncDigest(publisherKey) != ticket.fingerprint) {
       throw const FormatException('Publisher key does not match catalog');
+    }
     final initial = (await store.readMirrorSnapshot()).mirrors;
     final owned = initial.owners.values
         .where((owner) => owner.publisher == ticket.publisher)
@@ -80,12 +81,13 @@ final class SyncFollowingMirrorEngine {
           if (owner.publisher == ticket.publisher) owner.source,
       },
     );
-    if (units.length <= 1)
+    if (units.length <= 1) {
       return _receiveUnit(
         ticket: ticket,
         publisherKey: publisherKey,
         directRoots: directRoots,
       );
+    }
     final failures = <String, Object>{};
     for (final unit in units) {
       try {
@@ -100,8 +102,9 @@ final class SyncFollowingMirrorEngine {
         failures[root.firstOrNull ?? unit.first] = error;
       }
     }
-    if (failures.isNotEmpty)
+    if (failures.isNotEmpty) {
       throw SyncPartialReceiveFailure('following_topics', failures);
+    }
   }
 
   Future<void> _receiveUnit({
@@ -138,8 +141,9 @@ final class SyncFollowingMirrorEngine {
             source: source,
           ),
         ),
-      ))
+      )) {
         throw const SyncConflict();
+      }
     }
     final entries = {
       for (final e in catalog.entries)
@@ -151,8 +155,9 @@ final class SyncFollowingMirrorEngine {
             (sourceUnit == null || sourceUnit.contains(e.value.source)))
           e.value.source: e,
     };
-    if (unitRoots.any((id) => !entries.containsKey(id)))
+    if (unitRoots.any((id) => !entries.containsKey(id))) {
       throw const SyncConflict();
+    }
     final scope = BookmarkSyncScope(
       publisher: ticket.publisher,
       nodes: [
@@ -185,8 +190,9 @@ final class SyncFollowingMirrorEngine {
 
     for (final owner in owned.values) {
       if (!entries.containsKey(owner.value.source) &&
-          !throughWithdrawal(owner.value.source))
+          !throughWithdrawal(owner.value.source)) {
         throw const SyncConflict();
+      }
     }
     final checkpoints = Map<String, FollowingMirrorOwner>.of(
       initial.checkpoints,
@@ -223,21 +229,25 @@ final class SyncFollowingMirrorEngine {
       final revision = entry.revision!;
       final old =
           owned[source]?.value ?? checkpoints['${ticket.publisher}/$source'];
-      if (revision.schema != ValidatedSyncFollowingPackage.schema)
+      if (revision.schema != ValidatedSyncFollowingPackage.schema) {
         throw const SyncUpdateRequired();
+      }
       if (old != null) {
         _checkRevision(old, revision);
-        if (old.retired && revision.revision <= old.revision)
+        if (old.retired && revision.revision <= old.revision) {
           throw const SyncReplayRejected();
+        }
       }
       if (owned.containsKey(source) &&
           old!.revision == revision.revision &&
           old.payloadDigest == revision.sha256 &&
-          old.descriptorDigest == _descriptor(revision))
+          old.descriptorDigest == _descriptor(revision)) {
         continue;
+      }
       advertised += revision.length;
-      if (advertised > maxPreparedBytes)
+      if (advertised > maxPreparedBytes) {
         throw const FormatException('Sync batch exceeds preparation budget');
+      }
       final package = await preparation.prepareFollowing(
         catalog: ticket,
         collection: entry.id,
@@ -246,8 +256,9 @@ final class SyncFollowingMirrorEngine {
       );
       if (package == null) throw const SyncRevisionUnavailable();
       retained += package.retainedByteLength;
-      if (retained > maxPreparedBytes)
+      if (retained > maxPreparedBytes) {
         throw const FormatException('Sync batch exceeds preparation budget');
+      }
       packages[source] = package;
     }
     ensureCurrent?.call();
@@ -292,8 +303,9 @@ final class SyncFollowingMirrorEngine {
       final entry = entries[source]!;
       final parent = entry.parent;
       if (parent == null || !scope.covered.contains(parent)) continue;
-      if (kinds[parent] != FollowingMirrorKind.folder)
+      if (kinds[parent] != FollowingMirrorKind.folder) {
         throw const SyncConflict();
+      }
       (children[parent] ??= []).add(
         FollowingDefinitionChild(
           source: source,
@@ -336,8 +348,9 @@ final class SyncFollowingMirrorEngine {
           position: entry.position,
           createdAt: previous?.createdAt ?? now().toUtc(),
         );
-        if (syncFollowingLabel(topic.displayName) != entry.name)
+        if (syncFollowingLabel(topic.displayName) != entry.name) {
           throw const SyncConflict();
+        }
         topics.add(topic);
         placements[id] = FolderPlacement(
           itemId: id,
@@ -355,8 +368,9 @@ final class SyncFollowingMirrorEngine {
           feedEnabled: sourceFolder?.feedEnabled ?? previous!.feedEnabled,
           feedMaxPosts: sourceFolder?.feedMaxPosts ?? previous!.feedMaxPosts,
         );
-        if (syncFollowingLabel(folder.name) != entry.name)
+        if (syncFollowingLabel(folder.name) != entry.name) {
           throw const SyncConflict();
+        }
         folders[id] = folder;
       }
       final nextChildren = orderedFollowingDefinitionChildren(
@@ -389,8 +403,9 @@ final class SyncFollowingMirrorEngine {
     for (final e in owners.entries.where((e) => receivedIds.contains(e.key))) {
       final parentId = local[e.value.parentSource];
       if (parentId != null &&
-          owners[parentId]?.kind != FollowingMirrorKind.folder)
+          owners[parentId]?.kind != FollowingMirrorKind.folder) {
         throw const SyncConflict();
+      }
     }
     final organization = TopicOrganization(
       folders: folders.values,
@@ -421,8 +436,9 @@ final class SyncFollowingMirrorEngine {
                   .activity
                   .notificationKnown['${ticket.publisher}/${owner.source}']
                   ?.contains(owner.source) ??
-              false))
+              false)) {
         return false;
+      }
       var parent = owner.parentSource;
       final visited = <String>{};
       while (parent != null && visited.add(parent)) {
@@ -489,8 +505,9 @@ final class SyncFollowingMirrorEngine {
       ensureCurrent?.call();
       final current = await store.readMirrorSnapshot();
       if (current.mirrors != initial ||
-          current.structureDigest != before.structureDigest)
+          current.structureDigest != before.structureDigest) {
         throw const SyncConflict();
+      }
       if (const DeepCollectionEquality().equals(
             initial.toJson()..remove('epoch'),
             next.toJson()..remove('epoch'),
@@ -504,8 +521,9 @@ final class SyncFollowingMirrorEngine {
                 old.queryStructure == t.queryStructure &&
                 old.profileId == t.profileId &&
                 old.position == t.position;
-          }))
+          })) {
         return;
+      }
       await store.commitMirrorDefinitions(
         expected: initial,
         expectedStructureDigest: before.structureDigest,
@@ -538,8 +556,9 @@ final class SyncFollowingMirrorEngine {
   String _descriptor(SyncRevision revision) =>
       syncDigest(syncJsonBytes(revision.toJson()));
   void _checkRevision(FollowingMirrorOwner before, SyncRevision revision) {
-    if (revision.schema != ValidatedSyncFollowingPackage.schema)
+    if (revision.schema != ValidatedSyncFollowingPackage.schema) {
       throw const SyncUpdateRequired();
+    }
     if (revision.revision < before.revision ||
         (revision.revision == before.revision &&
             (revision.sha256 != before.payloadDigest ||
@@ -587,7 +606,7 @@ final class SyncFollowingMirrorEngine {
         if (f.parentId == null) f.position,
       for (final p in snapshot.organization.placements)
         if (p.folderId == null) p.position,
-    ].fold(0, (int n, p) => p >= n ? p + 1 : n);
+    ].fold(0, (n, p) => p >= n ? p + 1 : n);
     String localFolderName(TopicFolder folder) {
       if (folder.id != localId) return folder.name;
       return FolderTree(
@@ -669,7 +688,7 @@ final class SyncFollowingMirrorEngine {
           SyncEvent(
             kind: SyncEventKind.copied,
             at: now(),
-            source: ids[localId]!,
+            source: ids[localId],
             sourceKind: 'following_topics',
           ),
         ]),

@@ -19,24 +19,6 @@ final class PoolBookmarkCover extends Equatable
     this.memberOrderDigest,
     this.aspectRatios,
   }) : variants = Map.unmodifiable(variants);
-  final GroupCoverVisibility? visibility;
-  final int? postId;
-  final String? memberOrderDigest;
-  @override
-  final GroupCoverAspectRatios? aspectRatios;
-  @override
-  final String thumbnail;
-  @override
-  final String sample;
-  @override
-  final String original;
-  @override
-  final Map<String, String> variants;
-
-  static bool isStatic(String url) => RegExp(
-    r'\.(jpe?g|png|webp|avif)$',
-    caseSensitive: false,
-  ).hasMatch(Uri.tryParse(url)?.path ?? '');
 
   factory PoolBookmarkCover.fromPost(Post post) => PoolBookmarkCover(
     thumbnail: post.thumbnailImageUrl,
@@ -74,6 +56,43 @@ final class PoolBookmarkCover extends Equatable
         if (isStatic(entry.value)) entry.key: entry.value,
     },
   );
+  factory PoolBookmarkCover.fromJson(Map<String, dynamic> json) =>
+      PoolBookmarkCover(
+        thumbnail: json['thumbnail'] as String,
+        visibility: json['visibility'] == null
+            ? null
+            : GroupCoverVisibility.fromJson(
+                Map<String, dynamic>.from(json['visibility'] as Map),
+              ),
+        aspectRatios: json['aspectRatios'] == null
+            ? null
+            : GroupCoverAspectRatios.fromJson(
+                Map<String, dynamic>.from(json['aspectRatios'] as Map),
+              ),
+        postId: json['postId'] as int?,
+        memberOrderDigest: json['memberOrderDigest'] as String?,
+        sample: json['sample'] as String,
+        original: json['original'] as String,
+        variants: Map<String, String>.from(json['variants'] as Map),
+      );
+  final GroupCoverVisibility? visibility;
+  final int? postId;
+  final String? memberOrderDigest;
+  @override
+  final GroupCoverAspectRatios? aspectRatios;
+  @override
+  final String thumbnail;
+  @override
+  final String sample;
+  @override
+  final String original;
+  @override
+  final Map<String, String> variants;
+
+  static bool isStatic(String url) => RegExp(
+    r'\.(jpe?g|png|webp|avif)$',
+    caseSensitive: false,
+  ).hasMatch(Uri.tryParse(url)?.path ?? '');
 
   PoolBookmarkCover withMemberOrder(String? digest) => PoolBookmarkCover(
     thumbnail: thumbnail,
@@ -96,25 +115,6 @@ final class PoolBookmarkCover extends Equatable
     'memberOrderDigest': ?memberOrderDigest,
     'aspectRatios': ?aspectRatios?.toJson(),
   };
-  factory PoolBookmarkCover.fromJson(Map<String, dynamic> json) =>
-      PoolBookmarkCover(
-        thumbnail: json['thumbnail'] as String,
-        visibility: json['visibility'] == null
-            ? null
-            : GroupCoverVisibility.fromJson(
-                Map<String, dynamic>.from(json['visibility'] as Map),
-              ),
-        aspectRatios: json['aspectRatios'] == null
-            ? null
-            : GroupCoverAspectRatios.fromJson(
-                Map<String, dynamic>.from(json['aspectRatios'] as Map),
-              ),
-        postId: json['postId'] as int?,
-        memberOrderDigest: json['memberOrderDigest'] as String?,
-        sample: json['sample'] as String,
-        original: json['original'] as String,
-        variants: Map<String, String>.from(json['variants'] as Map),
-      );
   @override
   List<Object?> get props => [
     thumbnail,

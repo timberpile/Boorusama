@@ -195,7 +195,6 @@ void main() {
             FolderPlacement(
               itemId: topics[(p - 1) * 2 + 1].id,
               folderId: folders[p - 1].id,
-              position: 0,
             ),
           ],
         ],

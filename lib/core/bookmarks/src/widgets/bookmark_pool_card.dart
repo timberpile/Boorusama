@@ -235,8 +235,9 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       final summary = await ref.read(
         relatedBookmarkRefreshProvider((profile, family)).future,
       );
-      if (!mounted || !_currentAccess(profile))
+      if (!mounted || !_currentAccess(profile)) {
         throw StateError('Related profile changed');
+      }
       await ref
           .read(bookmarkProvider.notifier)
           .refreshPoolBookmark(
@@ -286,8 +287,9 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
         viewerSourceAccessProvider(binding),
         (_, next) {
           if (_operationAccess != null &&
-              next?.hasSameAuthorization(_operationAccess!) != true)
-            cancellation.cancel("Bookmark reader revoked");
+              next?.hasSameAuthorization(_operationAccess!) != true) {
+            cancellation.cancel('Bookmark reader revoked');
+          }
         },
       );
       final access = subscription.read();
@@ -295,8 +297,9 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       final capability = profile == null
           ? null
           : ref.read(poolBookmarkCapabilityProvider(profile));
-      if (profile == null || capability == null || access == null)
+      if (profile == null || capability == null || access == null) {
         throw StateError('Pool source unavailable');
+      }
       _operationAccess = access;
       await runWithApiRequestContext(
         ApiRequestContext(
@@ -307,13 +310,14 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
         () => action(profile, capability),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         Kurumi.showErrorToast(
           context,
           widget.pool.isRelated
               ? context.t.bookmark.related_unavailable
               : context.t.bookmark.pool_unavailable,
         );
+      }
     } finally {
       subscription?.close();
       _operationAccess = null;
@@ -343,11 +347,12 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       );
       if (mounted) notifier.showRemovalUndo(context, result);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         Kurumi.showErrorToast(
           context,
           context.t.bookmark.groups.operation_failed,
         );
+      }
     } finally {
       _busy = false;
     }
@@ -452,8 +457,9 @@ class _BookmarkPoolCoverImageState
     if (oldWidget.pool.localId != widget.pool.localId ||
         oldWidget.pool.identity != widget.pool.identity ||
         oldWidget.pool.sourceSite != widget.pool.sourceSite ||
-        oldWidget.pool.observedAt != widget.pool.observedAt)
+        oldWidget.pool.observedAt != widget.pool.observedAt) {
       _discoveryReader = null;
+    }
   }
 
   @override
@@ -483,8 +489,9 @@ class _BookmarkPoolCoverImageState
         visible &&
         pool.needsCoverFacts &&
         presentation == null &&
-        _discoveryReader == null)
+        _discoveryReader == null) {
       _discoveryReader = profile;
+    }
     final reader = _discoveryReader;
     // A covered route cannot start fresh work. An existing attempt keeps its
     // actor when profiles/policy change; revocation must not cycle accounts.
@@ -497,8 +504,9 @@ class _BookmarkPoolCoverImageState
             pool.groupIds.isNotEmpty
         ? ref.watch(missingPoolCoverProvider((reader, pool)))
         : null;
-    if (presentation == null && (backfill?.isLoading ?? false))
+    if (presentation == null && (backfill?.isLoading ?? false)) {
       return _present(const KurumiImagePlaceholder());
+    }
     if ((backfill?.hasError ?? false) && widget.showLabel) {
       return _present(
         Center(child: Text(context.t.search.errors.failed_to_load_data)),
@@ -511,7 +519,7 @@ class _BookmarkPoolCoverImageState
         profile != null &&
         displayed.coverUrl != null &&
         displayed.cover != null &&
-        blacklist?.hasValue == true &&
+        (blacklist?.hasValue ?? false) &&
         !blacklist!.isLoading &&
         !blacklist.hasError &&
         bookmarkCoverAllowed(displayed.cover!, profile, blacklist.requireValue);

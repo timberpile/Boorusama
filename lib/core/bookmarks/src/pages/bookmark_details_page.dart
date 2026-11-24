@@ -7,7 +7,6 @@ import '../../../backups/mitemite/providers.dart';
 import '../../../backups/mitemite/actions.dart';
 import '../../../backups/mitemite/reading_state.dart';
 import '../types/bookmark_view.dart';
-import '../services/bookmark_read_projection.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,10 +67,12 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
     if (library == null) return;
     final captured = widget.readingTargets?[entry.occurrenceId];
     if (widget.readingTargets != null &&
-        (captured == null || !captured.isCurrent(library)))
+        (captured == null || !captured.isCurrent(library))) {
       return;
-    if (captured == null && widget.sourceView.kind != BookmarkViewKind.group)
+    }
+    if (captured == null && widget.sourceView.kind != BookmarkViewKind.group) {
       return;
+    }
     final groupId = captured?.groupId ?? widget.sourceView.groupId!;
     if (!library.mirrors.isReceived(groupId)) return;
     final record = library.byId[entry.source?.bookmarkId];
@@ -194,10 +195,11 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
       started != null &&
       ref.read(contentAccessContextProvider(started))?.config?.auth ==
           config.auth;
-  if (!current())
+  if (!current()) {
     return const PostRecoveryFailure(
       PostPresentationFallbackReason.refreshFailed,
     );
+  }
   try {
     if (bookmark.post.requiresDetailLookup) {
       final post = await ref
@@ -214,10 +216,11 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
         .recover(bookmark, config);
     switch (result) {
       case BookmarkRecoverySuccess(:final post):
-        if (!current())
+        if (!current()) {
           return const PostRecoveryFailure(
             PostPresentationFallbackReason.refreshFailed,
           );
+        }
         // Received-only snapshots remain publisher-owned. Recovery may improve
         // this Viewer occurrence without persisting an ordinary mirror edit.
         if (ref
@@ -233,10 +236,11 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
         await ref
             .read(bookmarkProvider.notifier)
             .upgradeBookmarkSnapshot(bookmark, post, canUpgrade: current);
-        if (!current())
+        if (!current()) {
           return const PostRecoveryFailure(
             PostPresentationFallbackReason.refreshFailed,
           );
+        }
         return PostRecoverySuccess(post);
       case BookmarkRecoveryRemoved():
         return const PostRecoveryFailure(
@@ -308,13 +312,13 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         ));
     final visible =
         access == null ||
-        ref
+        (ref
                 .watch(
                   contentPostVisibilityProvider((access: access, post: post)),
                 )
                 .asData
-                ?.value ==
-            true;
+                ?.value ??
+            false);
     final config = failed || !visible ? null : resolvedConfig;
 
     return SliverToBoxAdapter(

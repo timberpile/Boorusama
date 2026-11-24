@@ -53,7 +53,7 @@ SearchRefreshFetchPlan planSearchRefreshFetch({
   // unfamiliar metatags and Boolean expressions on the bounded snapshot path.
   final terms = query.trim().split(RegExp(r'\s+'));
   final safeQuery = terms.every((term) {
-    if (RegExp(r'[(){}~]').hasMatch(term)) return false;
+    if (RegExp('[(){}~]').hasMatch(term)) return false;
     if (!term.contains(':') && !term.contains('=')) return true;
     return RegExp(r'^-?rating:[a-z]+$', caseSensitive: false).hasMatch(term) ||
         term.toLowerCase() == 'order:id_desc';

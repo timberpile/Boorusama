@@ -76,7 +76,9 @@ void main() {
               settings: initial.settings,
             ),
           ),
-          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          blacklistTagsProvider.overrideWith(
+            (_, _) => Future.sync(() => <String>{}),
+          ),
           httpHeadersProvider.overrideWith(
             (_, _) => const {
               'Authorization': 'source-secret',
@@ -165,7 +167,7 @@ void main() {
             ),
           ),
           booruConfigProvider.overrideWith(() => profiles),
-          blacklistTagsProvider.overrideWith((_, _) async => tags),
+          blacklistTagsProvider.overrideWith((_, _) => Future.sync(() => tags)),
           deviceStoragePermissionProvider.overrideWith(
             () => _PendingPermission(entered, permission),
           ),
@@ -178,7 +180,7 @@ void main() {
       await container.read(bookmarkProvider.future);
       final post = TestPost(
         id: 42,
-        tags: {'blocked_tag'},
+        tags: const {'blocked_tag'},
         origin: postOriginFromConfig(backend.config),
         originalImageUrl: '${backend.config.url}/original.jpg',
       );
@@ -249,7 +251,9 @@ void main() {
             ),
           ),
           booruConfigProvider.overrideWith(() => profiles),
-          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          blacklistTagsProvider.overrideWith(
+            (_, _) => Future.sync(() => <String>{}),
+          ),
           downloadFileUrlExtractorProvider.overrideWith((_, _) => extractor),
           bypassDdosHeadersProvider.overrideWith(
             (_, _) => Future.value(<String, String>{}),

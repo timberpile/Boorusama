@@ -63,7 +63,7 @@ class PixivFollowingArtistCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        if ((user.account?.isNotEmpty ?? false))
+                        if (user.account?.isNotEmpty ?? false)
                           Text(
                             user.account!,
                             maxLines: 1,

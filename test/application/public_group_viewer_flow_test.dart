@@ -19,7 +19,6 @@ import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/search/search/routes.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:kurumi/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/posts/links/boorusama_group_link.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
@@ -57,7 +56,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 
-import '../support/fakes/test_post.dart';
 import 'support/app_flow_driver.dart';
 import 'support/app_flow_finders.dart';
 import 'support/fake_booru_backend.dart';
@@ -355,14 +353,12 @@ void main() {
   ) async {
     final f = await _Fixture.mount(tester);
     await f.open(tester);
-    unawaited(
-      Navigator.of(tester.element(find.byType(PoolDetailContent))).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => CurrentBooruConfigScope(
-            config: f.publicConfig!,
-            child: const DanbooruSearchPage(
-              params: SearchParams(query: 'fixture'),
-            ),
+    Navigator.of(tester.element(find.byType(PoolDetailContent))).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CurrentBooruConfigScope(
+          config: f.publicConfig!,
+          child: const DanbooruSearchPage(
+            params: SearchParams(query: 'fixture'),
           ),
         ),
       ),
@@ -664,7 +660,7 @@ class _Fixture {
             observedAt: DateTime.utc(2026),
           );
     final library = BookmarkLibraryState(
-      bookmarks: [],
+      bookmarks: const [],
       groups: [
         BookmarkGroup(
           id: defaultBookmarkGroupId,

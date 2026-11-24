@@ -21,9 +21,9 @@ void main() {
   const siblingBranch = '44444444-4444-4444-8444-444444444444';
   const groupRecordChild = '55555555-5555-4555-8555-555555555555';
 
-  final early = DateTime.utc(2022, 1, 1);
-  final middle = DateTime.utc(2023, 1, 1);
-  final latest = DateTime.utc(2024, 1, 1);
+  final early = DateTime.utc(2022);
+  final middle = DateTime.utc(2023);
+  final latest = DateTime.utc(2024);
 
   late PostBookmark directPost;
   late PostBookmark descendantPost;

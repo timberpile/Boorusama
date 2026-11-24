@@ -26,7 +26,6 @@ class ViewerEntryNavigationHeader extends StatelessWidget {
     snap: true,
     backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
     scrolledUnderElevation: 0,
-    toolbarHeight: 56,
     title: title,
     leadingWidth: 56,
     leading: Center(

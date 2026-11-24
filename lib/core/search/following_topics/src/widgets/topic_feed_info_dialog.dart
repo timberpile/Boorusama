@@ -256,8 +256,9 @@ class TopicFeedInfoDialog extends ConsumerWidget {
                     for (final source in sources) {
                       if (source.lastErrorKind == null ||
                           unavailableIds.contains(source.id) ||
-                          deferred.containsKey(source.id))
+                          deferred.containsKey(source.id)) {
                         continue;
+                      }
                       if (!context.mounted) return;
                       await notifier.refresh(
                         source.id,
@@ -266,12 +267,12 @@ class TopicFeedInfoDialog extends ConsumerWidget {
                           final current = ref
                               .read(followingTopicsProvider)
                               .valueOrNull;
-                          return current?.feeds.any(
+                          return (current?.feeds.any(
                                     (f) =>
                                         f.id == feedId &&
                                         f.sourceIds.contains(source.id),
-                                  ) ==
-                                  true &&
+                                  ) ??
+                                  false) &&
                               (current?.organization.folders
                                       .firstWhereOrNull((f) => f.id == feedId)
                                       ?.feedEnabled ??

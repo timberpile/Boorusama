@@ -119,7 +119,7 @@ void main() {
                       viewport: const Size(320, 600),
                       details: const Size(320, 360),
                       progress: progress,
-                      child: MediaGroupPageIndicator(
+                      child: const MediaGroupPageIndicator(
                         memberKey: 'member',
                         page: 1,
                         total: 3,

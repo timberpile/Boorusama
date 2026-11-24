@@ -166,7 +166,7 @@ void main() {
           child: MaterialApp.router(
             routerConfig: router,
             builder: (_, child) =>
-                RepaintBoundary(key: const Key('capture'), child: child!),
+                RepaintBoundary(key: const Key('capture'), child: child),
           ),
         ),
       ),
@@ -186,7 +186,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           builder: (_, child) =>
-              RepaintBoundary(key: const Key('capture'), child: child!),
+              RepaintBoundary(key: const Key('capture'), child: child),
           home: Scaffold(
             appBar: AppBar(
               title: const Text('Search'),

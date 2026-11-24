@@ -55,8 +55,9 @@ final class SyncNotificationIntent extends Equatable {
     }
     if (payload == null ||
         payload.length > miteMiteMaxMetadataBytes ||
-        !payload.startsWith(payloadPrefix))
+        !payload.startsWith(payloadPrefix)) {
       return null;
+    }
     try {
       final value = jsonDecode(
         utf8.decode(
@@ -71,8 +72,9 @@ final class SyncNotificationIntent extends Equatable {
               'kind',
               'event',
             }.contains(key),
-          ))
+          )) {
         return null;
+      }
       final destination = SyncNotificationDestination.values.byName(
         syncString(value['destination']),
       );
@@ -86,8 +88,9 @@ final class SyncNotificationIntent extends Equatable {
                   destination != SyncNotificationDestination.subscriptions) ||
           publisher != null &&
               destination != SyncNotificationDestination.subscriptions ||
-          event != null && (event is! String || !isSyncDigest(event)))
+          event != null && (event is! String || !isSyncDigest(event))) {
         return null;
+      }
       return SyncNotificationIntent(
         destination: destination,
         publisher: publisher,
@@ -133,8 +136,9 @@ final class SyncNotificationTapQueue {
   bool get isEmpty => _pending.isEmpty;
   bool add(SyncNotificationIntent intent) {
     if (_pending.contains(intent) ||
-        intent.event != null && _handled.contains(intent.payload))
+        intent.event != null && _handled.contains(intent.payload)) {
       return false;
+    }
     _pending.add(intent);
     return true;
   }

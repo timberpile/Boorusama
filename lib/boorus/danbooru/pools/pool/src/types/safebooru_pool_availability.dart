@@ -29,28 +29,33 @@ PoolMemberEvidence safebooruMemberEvidence(
   Set<String>? blacklist,
 ) {
   if (dto.id == null || dto.id! <= 0) return PoolMemberEvidence.unknown;
-  if (const {'s', 'q', 'e'}.contains(dto.rating))
+  if (const {'s', 'q', 'e'}.contains(dto.rating)) {
     return PoolMemberEvidence.denied;
+  }
   final filter = config.filter;
-  if ((filter.deletedItemBehavior.isHidden && dto.isDeleted == true) ||
-      (filter.bannedPostVisibility.isHidden && dto.isBanned == true) ||
-      const {'swf', '.swf'}.contains(dto.fileExt?.toLowerCase()))
+  if ((filter.deletedItemBehavior.isHidden && (dto.isDeleted ?? false)) ||
+      (filter.bannedPostVisibility.isHidden && (dto.isBanned ?? false)) ||
+      const {'swf', '.swf'}.contains(dto.fileExt?.toLowerCase())) {
     return PoolMemberEvidence.denied;
+  }
   if (dto.tagString != null &&
       blacklist != null &&
-      filterTags([postDtoToPost(dto, null)], blacklist).isEmpty)
+      filterTags([postDtoToPost(dto, null)], blacklist).isEmpty) {
     return PoolMemberEvidence.denied;
+  }
   if (dto.rating != 'g' ||
       dto.fileExt == null ||
       dto.tagString == null ||
       blacklist == null ||
       (filter.deletedItemBehavior.isHidden && dto.isDeleted == null) ||
-      (filter.bannedPostVisibility.isHidden && dto.isBanned == null))
+      (filter.bannedPostVisibility.isHidden && dto.isBanned == null)) {
     return PoolMemberEvidence.unknown;
+  }
   if (filter.ratingFilter == BooruConfigRatingFilter.custom &&
       (filter.granularRatingFilters?.ratings.any((r) => r.name == 'general') ??
-          false))
+          false)) {
     return PoolMemberEvidence.denied;
+  }
   return PoolMemberEvidence.accessible;
 }
 
@@ -100,8 +105,9 @@ PoolAssessment assessSafebooruPool(
         RegExp(
           r'\.(jpg|jpeg|png|webp|avif)$',
           caseSensitive: false,
-        ).hasMatch(uri.path))
+        ).hasMatch(uri.path)) {
       covers.add(candidate);
+    }
   }
   return PoolAssessment(
     availability: accessible > 0

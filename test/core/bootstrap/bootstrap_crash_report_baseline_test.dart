@@ -1,5 +1,4 @@
 // Baseline-compatible regression: no proposed constructor/API is referenced.
-import 'dart:async';
 
 import 'package:boorusama/core/bootstrap/boorusama_bootstrap.dart';
 import 'package:boorusama/core/bootstrap/boorusama_runtime.dart';

@@ -81,10 +81,12 @@ void main() {
           'pool-reference-service-',
         );
         Hive.init(testDirectory.path);
-        if (!Hive.isAdapterRegistered(4))
+        if (!Hive.isAdapterRegistered(4)) {
           Hive.registerAdapter(BookmarkHiveObjectAdapter());
-        if (!Hive.isAdapterRegistered(5))
+        }
+        if (!Hive.isAdapterRegistered(5)) {
           Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+        }
         postsBox = await Hive.openBox<BookmarkHiveObject>('service-posts');
         storage = await BookmarkTestStorage.open(postsBox);
         posts = storage.repository(postsBox);
@@ -136,7 +138,7 @@ void main() {
           poolLocalIds: {reference().localId},
         );
         expect(result.removedCount, 1);
-        expect((await allPosts()), [post]);
+        expect(await allPosts(), [post]);
         expect((await groups.getGroup(poolGroupA))!.bookmarkIds, {post.id});
         expect(await groups.readPoolBookmarks(), isEmpty);
         await service.undoRemoval(result);
@@ -155,7 +157,7 @@ void main() {
         );
         expect(result.removedCount, 2);
         expect(result.deletedCount, 1);
-        expect((await allPosts()), isEmpty);
+        expect(await allPosts(), isEmpty);
         expect(await groups.readPoolBookmarks(), isEmpty);
         await service.undoRemoval(result);
         expect((await allPosts()).single.identity, post.identity);
@@ -245,7 +247,7 @@ void main() {
           thumbnail: 'https://cover.test/low.jpg',
           sample: 'https://cover.test/sample.jpg',
           original: 'https://cover.test/original.png',
-          variants: {'720x720': 'https://cover.test/high.jpg'},
+          variants: const {'720x720': 'https://cover.test/high.jpg'},
         );
         final data = buildBookmarkBackupData(
           bookmarks: [],
@@ -253,7 +255,7 @@ void main() {
           pools: [
             reference(groups: {poolGroupA, poolGroupB}).copyWith(cover: cover),
           ],
-          scope: BookmarkExportScope.selected(groupIds: {poolGroupA}),
+          scope: BookmarkExportScope.selected(groupIds: const {poolGroupA}),
         );
         final codec = BookmarkBackupCodec();
         ExportDataPayload payload(List<dynamic> records) => ExportDataPayload(
@@ -283,10 +285,10 @@ void main() {
       test('copy import remaps reference memberships without duplicating its source identity', () async {
         await groups.writePoolBookmarks([reference()]);
         final data = BookmarkBackupData(
-          bookmarks: [],
+          bookmarks: const [],
           pools: [reference()],
-          groups: [
-            const BookmarkGroupBackup(
+          groups: const [
+            BookmarkGroupBackup(
               id: poolGroupA,
               name: 'Incoming',
               bookmarkIds: [],
@@ -320,10 +322,10 @@ void main() {
           await groups.writePoolBookmarks([reference()]);
           final incoming = reference(host: 'other.example');
           final data = BookmarkBackupData(
-            bookmarks: [],
+            bookmarks: const [],
             pools: [incoming],
-            groups: [
-              const BookmarkGroupBackup(
+            groups: const [
+              BookmarkGroupBackup(
                 id: poolGroupA,
                 name: 'Incoming',
                 bookmarkIds: [],
@@ -356,10 +358,10 @@ void main() {
           await expectLater(
             importer().replace(
               BookmarkBackupData(
-                bookmarks: [],
+                bookmarks: const [],
                 pools: [reference(id: 99)],
-                groups: [
-                  const BookmarkGroupBackup(
+                groups: const [
+                  BookmarkGroupBackup(
                     id: poolGroupA,
                     name: 'Incoming',
                     bookmarkIds: [],
@@ -386,8 +388,9 @@ void main() {
           );
           addTearDown(() => directory.delete(recursive: true));
           Hive.init(directory.path);
-          if (!Hive.isAdapterRegistered(5))
+          if (!Hive.isAdapterRegistered(5)) {
             Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+          }
           Future<BookmarkGroupRepositoryHive> open() async =>
               BookmarkGroupRepositoryHive(
                 await Hive.openBox<BookmarkGroupHiveObject>('pool-groups'),

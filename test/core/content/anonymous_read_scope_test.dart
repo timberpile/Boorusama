@@ -192,7 +192,7 @@ void main() {
     final forged = BooruConfig.fromJson({
       ...normal.toJson(),
       'id': profileId,
-      'anonymousReadScope': {
+      'anonymousReadScope': const {
         'site': 'https://danbooru.donmai.us',
         'authEpoch': 1,
       },

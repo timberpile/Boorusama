@@ -69,7 +69,7 @@ void main() {
       tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey)).onTap!.call();
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));
-      dismissAllToast(showAnim: false);
+      dismissAllToast();
       expect(notifier.calls, 0);
       expect(tester.takeException(), isNull);
     },
@@ -114,7 +114,7 @@ void main() {
     expect(notifier.calls, 1);
     notifier.release.complete();
     await tester.pumpAndSettle();
-    dismissAllToast(showAnim: false);
+    dismissAllToast();
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -172,7 +172,7 @@ void main() {
         0,
         reason: 'failure must not report successful completion',
       );
-      dismissAllToast(showAnim: false);
+      dismissAllToast();
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

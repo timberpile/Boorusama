@@ -20,7 +20,7 @@ final bookmarkGroupViewPreferencesProvider =
 
 class BookmarkGroupViewPreferences
     extends Notifier<Map<String, BookmarkGroupViewMode>> {
-  Future<void> _writeQueue = Future<void>.value();
+  var _writeQueue = Future<void>.value();
   var _disposed = false;
   Map<String, BookmarkGroupViewMode> _durable = const {};
   final _pendingModes =
@@ -34,10 +34,9 @@ class BookmarkGroupViewPreferences
   Map<String, BookmarkGroupViewMode> build() {
     _disposed = false;
     ref.onDispose(() => _disposed = true);
-    _durable = Map.unmodifiable(
+    return _durable = Map.unmodifiable(
       _decode(ref.read(miscDataStoreProvider).get(_storageKey)),
     );
-    return _durable;
   }
 
   BookmarkGroupViewMode modeFor(String id) =>
@@ -47,8 +46,9 @@ class BookmarkGroupViewPreferences
     if (_disposed) return;
     final key = _canonicalId(id);
     if (state[key] == mode ||
-        (state[key] == null && mode == BookmarkGroupViewMode.structure))
+        (state[key] == null && mode == BookmarkGroupViewMode.structure)) {
       return;
+    }
     final edit = (token: Object(), id: key, mode: mode);
     _pendingModes.add(edit);
     state = _project();
@@ -119,7 +119,7 @@ class BookmarkGroupViewPreferences
     // A failed write is returned to its caller, but must not poison later work.
     _writeQueue = result.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     return result;
   }

@@ -31,10 +31,10 @@ class FollowingDefinitionEntry extends ConsumerStatefulWidget {
 class _FollowingDefinitionEntryState
     extends ConsumerState<FollowingDefinitionEntry> {
   Map<String, String>? _captured;
-  Map<String, BooruConfig?>? _capturedConfigs;
-  bool _scheduled = false;
-  bool _committed = false;
-  bool _inFlight = false;
+  late Map<String, BooruConfig?> _capturedConfigs;
+  var _scheduled = false;
+  var _committed = false;
+  var _inFlight = false;
   @override
   Widget build(BuildContext context) {
     if (widget.ready && _captured == null) {
@@ -58,8 +58,9 @@ class _FollowingDefinitionEntryState
         _scheduled = false;
         if (!mounted ||
             !(ModalRoute.of(context)?.isCurrent ?? true) ||
-            !NavigationActivity.of(context))
+            !NavigationActivity.of(context)) {
           return;
+        }
         unawaited(_acknowledge());
       });
     }
@@ -74,19 +75,22 @@ class _FollowingDefinitionEntryState
           !isCurrentSyncService(context, service) ||
           !widget.ready ||
           !(ModalRoute.of(context)?.isCurrent ?? true) ||
-          !NavigationActivity.of(context))
+          !NavigationActivity.of(context)) {
         return;
+      }
       if (WidgetsBinding.instance.lifecycleState != null &&
-          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed)
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         return;
+      }
       final eligible = <String, String>{};
       for (final entry in _captured!.entries) {
-        final captured = _capturedConfigs![entry.key];
+        final captured = _capturedConfigs[entry.key];
         final current = ref.read(followingTopicConfigProvider(entry.key));
         if (captured != null &&
             current?.auth == captured.auth &&
-            captured.anonymousReadScope?.isCurrent != false)
+            (captured.anonymousReadScope?.isCurrent ?? true)) {
           eligible[entry.key] = entry.value;
+        }
       }
       await service.acknowledgeFollowingDefinitions(eligible);
       _committed = true;

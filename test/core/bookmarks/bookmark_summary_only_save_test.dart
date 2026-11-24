@@ -54,10 +54,12 @@ void main() {
         onRepositoryRead();
         throw StateError('Summary-only drafts must not fetch Posts');
       }),
-      blacklistTagsProvider.overrideWith((ref, filter) async {
-        onBlacklistRead();
-        throw StateError('Summary-only drafts must not load blacklists');
-      }),
+      blacklistTagsProvider.overrideWith(
+        (ref, filter) => Future.sync(() {
+          onBlacklistRead();
+          throw StateError('Summary-only drafts must not load blacklists');
+        }),
+      ),
     ],
   );
 

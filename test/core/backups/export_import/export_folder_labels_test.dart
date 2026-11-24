@@ -15,8 +15,8 @@ class _Library extends BookmarkLibraryNotifier {
   @override
   Future<BookmarkLibraryState> build() async => data('Child');
   BookmarkLibraryState data(String name) => BookmarkLibraryState(
-    bookmarks: [],
-    groups: [],
+    bookmarks: const [],
+    groups: const [],
     folders: [
       const CollectionFolder(id: 'parent', name: 'Parent'),
       CollectionFolder(id: 'child', name: name, parentId: 'parent'),
@@ -38,7 +38,7 @@ void main() {
       (_, _) {},
     );
     addTearDown(keep.close);
-    final selection = ExportNodeSelection.explicit('bookmarks', {
+    const selection = ExportNodeSelection.explicit('bookmarks', {
       'group-folder:child',
     });
     final before = harness.container.read(exportSelectionPresentationProvider);
@@ -71,7 +71,7 @@ void main() {
         tester,
         Scaffold(
           body: ExportSelectionTree(
-            descriptors: [descriptor],
+            descriptors: const [descriptor],
             selections: const {},
             onToggleSource: (_) {},
             onToggleNode: (_, _) {},

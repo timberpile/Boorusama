@@ -44,7 +44,7 @@ void main() {
     BookmarkGroup(
       id: defaultBookmarkGroupId,
       name: 'Default',
-      bookmarkIds: {2},
+      bookmarkIds: const {2},
     ),
     BookmarkGroup(
       id: firstGroupId,

@@ -49,13 +49,13 @@ void main() {
                             BookmarkGroup(
                               id: folderGroupId,
                               name: 'Folder',
-                              bookmarkIds: {},
+                              bookmarkIds: const {},
                             ),
                           for (var i = 0; i < count; i++)
                             BookmarkGroup(
                               id: groupId(i),
                               name: 'Group $i',
-                              bookmarkIds: {},
+                              bookmarkIds: const {},
                               parentGroupId: nested ? folderGroupId : null,
                             ),
                         ],

@@ -26,8 +26,9 @@ void main() {
           phone: desktop ? null : TestPhone.portrait,
           viewportSize: desktop ? const Size(1280, 800) : null,
         );
-        if (!desktop)
+        if (!desktop) {
           await AppFlowDriver(tester: tester, harness: harness).openSearch();
+        }
         final field = find
             .descendant(
               of: find.byType(desktop ? DesktopSearchbar : SearchAppBar),

@@ -395,14 +395,12 @@ BookmarkLibraryState _selectionLibraryState(BooruConfig config) {
         id: _parentId,
         name: 'Alpha',
         bookmarkIds: const {101, 102},
-        position: 0,
       ),
       BookmarkGroup(
         id: _childId,
         name: 'Beta',
         bookmarkIds: const {102},
         parentGroupId: _parentId,
-        position: 0,
       ),
     ],
   );

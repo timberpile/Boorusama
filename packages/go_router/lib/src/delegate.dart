@@ -8,11 +8,13 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../go_router.dart' show GoRouter;
 import 'builder.dart';
 import 'configuration.dart';
 import 'match.dart';
 import 'misc/errors.dart';
 import 'route.dart';
+import 'router.dart' show GoRouter;
 import 'state.dart';
 
 /// GoRouter implementation of [RouterDelegate].
@@ -54,16 +56,16 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
 
   @override
   Future<bool> popRoute() async {
-    final Iterable<NavigatorState> states = _findCurrentNavigators();
+    final states = _findCurrentNavigators();
     for (final state in states) {
-      final bool didPop = await state.maybePop(); // Call maybePop() directly
+      final didPop = await state.maybePop(); // Call maybePop() directly
       if (didPop) {
         return true; // Return true if maybePop handled the pop
       }
     }
 
     // Fallback to onExit if maybePop did not handle the pop
-    final GoRoute lastRoute = currentConfiguration.last.route;
+    final lastRoute = currentConfiguration.last.route;
     if (lastRoute.onExit != null && navigatorKey.currentContext != null) {
       return !(await lastRoute.onExit!(
         navigatorKey.currentContext!,
@@ -86,7 +88,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
     if (currentConfiguration.matches.isEmpty) {
       return false;
     }
-    RouteMatchBase walker = currentConfiguration.matches.last;
+    var walker = currentConfiguration.matches.last;
     while (walker is ShellRouteMatch) {
       if (walker.navigatorKey.currentState?.canPop() ?? false) {
         return true;
@@ -98,8 +100,8 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
 
   /// Pops the top-most route.
   void pop<T extends Object?>([T? result]) {
-    final Iterable<NavigatorState> states = _findCurrentNavigators().where(
-      (NavigatorState element) => element.canPop(),
+    final states = _findCurrentNavigators().where(
+      (element) => element.canPop(),
     );
     if (states.isEmpty) {
       throw GoError('There is nothing to pop');
@@ -120,9 +122,9 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       states.add(navigatorKey.currentState!);
     }
 
-    RouteMatchBase walker = currentConfiguration.matches.last;
+    var walker = currentConfiguration.matches.last;
     while (walker is ShellRouteMatch) {
-      final NavigatorState potentialCandidate = walker.navigatorKey.currentState!;
+      final potentialCandidate = walker.navigatorKey.currentState!;
 
       final ModalRoute<dynamic>? modalRoute = ModalRoute.of(potentialCandidate.context);
       if (modalRoute == null || !modalRoute.isCurrent) {
@@ -137,8 +139,8 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
 
   bool _handlePopPageWithRouteMatch(Route<Object?> route, Object? result, RouteMatchBase match) {
     if (route.willHandlePopInternally) {
-      final bool popped = route.didPop(result);
-      assert(!popped);
+      final popped = route.didPop(result);
+      assert(!popped, 'A route that handles the pop internally must stay in the navigator.');
       return popped;
     }
 
@@ -147,7 +149,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       leafMatch = leafMatch.matches.last;
     }
 
-    final RouteBase routeBase = leafMatch.route;
+    final routeBase = leafMatch.route;
     if (routeBase is! GoRoute || routeBase.onExit == null) {
       route.didPop(result);
       _completeRouteMatch(result, match);
@@ -158,7 +160,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
     // a microtask in case the onExit callback want to launch dialog or other
     // navigator operations.
     scheduleMicrotask(() async {
-      final bool onExitResult = await routeBase.onExit!(
+      final onExitResult = await routeBase.onExit!(
         navigatorKey.currentContext!,
         leafMatch.buildState(
           _configuration,
@@ -229,20 +231,23 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       return SynchronousFuture<void>(null);
     }
 
-    assert(configuration.isNotEmpty || configuration.isError);
+    assert(
+      configuration.isNotEmpty || configuration.isError,
+      'The configuration must have a route match or a routing error.',
+    );
 
-    final BuildContext? navigatorContext = navigatorKey.currentContext;
+    final navigatorContext = navigatorKey.currentContext;
     // If navigator is not built or disposed, the GoRoute.onExit is irrelevant.
     if (navigatorContext != null) {
       final currentGoRouteMatches = <RouteMatch>[];
-      currentConfiguration.visitRouteMatches((RouteMatchBase match) {
+      currentConfiguration.visitRouteMatches((match) {
         if (match is RouteMatch) {
           currentGoRouteMatches.add(match);
         }
         return true;
       });
       final newGoRouteMatches = <RouteMatch>[];
-      configuration.visitRouteMatches((RouteMatchBase match) {
+      configuration.visitRouteMatches((match) {
         if (match is RouteMatch) {
           newGoRouteMatches.add(match);
         }
@@ -258,14 +263,12 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       }
 
       if (indexOfFirstDiff < currentGoRouteMatches.length) {
-        final List<RouteMatch> exitingMatches = currentGoRouteMatches
-            .sublist(indexOfFirstDiff)
-            .toList();
+        final exitingMatches = currentGoRouteMatches.sublist(indexOfFirstDiff).toList();
         return _callOnExitStartsAt(
           exitingMatches.length - 1,
           context: navigatorContext,
           matches: exitingMatches,
-        ).then<void>((bool exit) {
+        ).then<void>((exit) {
           if (!exit) {
             return SynchronousFuture<void>(null);
           }
@@ -289,8 +292,8 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
     if (index < 0) {
       return SynchronousFuture<bool>(true);
     }
-    final RouteMatch match = matches[index];
-    final GoRoute goRoute = match.route;
+    final match = matches[index];
+    final goRoute = match.route;
     if (goRoute.onExit == null) {
       return _callOnExitStartsAt(index - 1, context: context, matches: matches);
     }
@@ -302,7 +305,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       return SynchronousFuture<bool>(false);
     }
 
-    final FutureOr<bool> exitFuture = goRoute.onExit!(
+    final exitFuture = goRoute.onExit!(
       context,
       match.buildState(
         _configuration,

@@ -23,8 +23,9 @@ class BulkDownloadPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (DestinationScope.maybeOf(context)?.id.profileId == null &&
-        DestinationScope.maybeOf(context) != null)
+        DestinationScope.maybeOf(context) != null) {
       return const BulkDownloadPageInternal();
+    }
     final config = ref.watchConfigAuth;
 
     return config.booruType == BooruType.zerochan

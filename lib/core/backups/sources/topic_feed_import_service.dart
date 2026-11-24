@@ -195,8 +195,9 @@ class TopicFeedImportService {
                   mirrors.isReceived(action.targetId ?? '') ||
                   mirrors.isReceived(action.destinationId ?? ''),
             ) ??
-            false))
+            false)) {
       throw const FollowingMirrorReadOnly();
+    }
     final unmatched = preview(
       data,
       profiles: profiles,

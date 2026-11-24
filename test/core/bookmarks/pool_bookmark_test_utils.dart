@@ -35,7 +35,7 @@ PoolBookmark testPool({
   poolId: id,
   category: category,
   title: 'Series $id',
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   observedAt: DateTime.utc(2026, 1, 2),
   groupIds: groups,
   tags: tags,

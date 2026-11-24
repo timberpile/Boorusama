@@ -83,10 +83,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('sync_mirror_repo_');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     await open();
   });
   tearDown(() async {
@@ -126,7 +128,7 @@ void main() {
       next: BookmarkMirrorState(
         epoch: before.epoch + 1,
         owners: {local: owner},
-        subscriptions: {
+        subscriptions: const {
           publisher: {source},
         },
       ),
@@ -201,7 +203,7 @@ void main() {
             id: source,
             name: 'Mixed child',
             parentGroupId: local,
-            bookmarkIds: {},
+            bookmarkIds: const {},
           ),
         ],
       ),
@@ -226,7 +228,7 @@ void main() {
     await groups.replaceMemberships(localGroup.id, mirror.bookmarkIds);
     await repository.upsert(saved.copyWith(observedAt: DateTime.utc(2026, 12)));
     expect(
-      (await repository.read(saved.id) as ContentGroupBookmark).observedAt,
+      ((await repository.read(saved.id))! as ContentGroupBookmark).observedAt,
       DateTime.utc(2026, 12),
     );
   });
@@ -289,7 +291,7 @@ void main() {
           BookmarkGroup(
             id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             name: 'Fresh',
-            bookmarkIds: {},
+            bookmarkIds: const {},
           ),
         ],
         localCopy: true,

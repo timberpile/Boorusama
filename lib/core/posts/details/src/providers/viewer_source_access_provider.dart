@@ -45,9 +45,6 @@ ViewerSourceBinding? bindViewerOrigin(
   final resolution = const PostOriginResolver().resolve(
     origin,
     profiles,
-    // Capture the same fresh actor as the listing; the resulting binding stays
-    // strict if that profile is removed or its credentials change afterwards.
-    allowProfileHintFallback: true,
   );
   return switch (resolution) {
     ResolvedPostOrigin(:final config) => ViewerSourceBinding(

@@ -127,8 +127,8 @@ void main() {
 
 final class _Store implements MiscDataStore {
   final values = <String, String>{};
-  int writes = 0;
-  bool fail = false;
+  var writes = 0;
+  var fail = false;
   Future<void> Function()? hold;
   @override
   String? get(String key) => values[key];

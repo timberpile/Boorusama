@@ -37,9 +37,9 @@ final class StoredBookmarkCodec {
     // Only canonical UUIDs are portable profile hints. Legacy constructors can
     // retain arbitrary local values, but those values are not exportable hints.
     final origin = switch (bookmark) {
-      PostBookmark() => (wire['snapshot'] as Map)['origin'] as Map,
+      PostBookmark() => (wire['snapshot']! as Map)['origin'] as Map,
       LegacyGroupBookmark() =>
-        ((wire['legacy'] as Map)['metadata'] as Map)['origin'] as Map,
+        ((wire['legacy']! as Map)['metadata'] as Map)['origin'] as Map,
       _ => null,
     };
     final hint = origin?['profileIdHint'];

@@ -71,7 +71,7 @@ void main() {
       '../other',
       '/devices',
       'devices/../../other',
-      'devices\\other',
+      r'devices\other',
     ]) {
       await expectLater(storage.list(path), throwsFormatException);
     }

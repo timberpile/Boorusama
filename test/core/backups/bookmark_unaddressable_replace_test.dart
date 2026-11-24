@@ -149,7 +149,7 @@ void main() {
       BookmarkGroup(
         id: _other,
         name: 'Other',
-        bookmarkIds: {10},
+        bookmarkIds: const {10},
         addedAt: {10: _date.add(const Duration(days: 1))},
       ),
     ];

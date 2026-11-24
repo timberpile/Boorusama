@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('new and missing-value settings use independent 4 dp defaults', () {
-    final defaults = Settings.defaultSettings;
+    const defaults = Settings.defaultSettings;
     expect(defaults.listing.imageGridPadding, 4);
     expect(defaults.listing.imageGridSpacing, 4);
     final json = defaults.toJson()..remove('imageGridPadding');

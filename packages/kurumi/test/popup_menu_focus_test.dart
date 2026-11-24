@@ -71,13 +71,13 @@ void main() {
                       semanticLabel: 'More',
                       tooltip: 'More',
                       icon: const Icon(Icons.more_vert),
-                      child: custom ? const Text('Open') : null,
                       items: [
                         KurumiPopupMenuItem(
                           title: const Text('Action'),
                           onTap: () {},
                         ),
                       ],
+                      child: custom ? const Text('Open') : null,
                     ),
                   ],
                 ),

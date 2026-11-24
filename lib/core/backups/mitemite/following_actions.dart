@@ -100,8 +100,9 @@ Future<void> publishFollowingDefinition(
 ) => runSyncAction(context, () async {
   final service = await ref.read(miteMiteServiceProvider.future);
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
-  if (!service.configured && !await chooseSyncFolder(context, ref, service))
+  if (!service.configured && !await chooseSyncFolder(context, ref, service)) {
     return;
+  }
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   final state = await ref.read(followingTopicsProvider.future);
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
@@ -135,8 +136,9 @@ List<Widget> followingSyncMenu(
   final t = context.t.mitemite;
   final owner = state.mirrors.owners[id];
   if (owner == null) {
-    if (!state.organization.folders.any((folder) => folder.id == id))
+    if (!state.organization.folders.any((folder) => folder.id == id)) {
       return const [];
+    }
     final direct = ref.read(publishedFollowingRootsProvider).contains(id);
     return [
       KurumiPopupMenuItem(
@@ -174,13 +176,14 @@ List<Widget> followingSyncMenu(
         icon: const Icon(Icons.link_off),
         onTap: () => runSyncAction(context, () async {
           final service = await ref.read(miteMiteServiceProvider.future);
-          if (context.mounted)
+          if (context.mounted) {
             await unsubscribeFollowingDefinition(
               context,
               service,
               owner.publisher,
               owner.source,
             );
+          }
         }),
       ),
   ];

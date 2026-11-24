@@ -98,10 +98,10 @@ void main() {
     await withClock(Clock(() => now), () async {
       final queue = PoolCoverBackfillQueue();
       var calls = 0;
-      Future<void> failing() async {
+      Future<void> failing() => Future<void>.sync(() {
         calls++;
         throw StateError('offline');
-      }
+      });
 
       await expectLater(queue.run('pool', failing), throwsStateError);
       await expectLater(queue.run('pool', failing), throwsStateError);
@@ -127,9 +127,12 @@ void main() {
         await gate.future;
       });
       expect(
-        queue.run<void>('a', () async {
-          fail('duplicate');
-        }),
+        queue.run<void>(
+          'a',
+          () => Future.sync(() {
+            fail('duplicate');
+          }),
+        ),
         same(first),
       );
       final second = queue.run('b', () async {
@@ -191,7 +194,7 @@ void main() {
             () => SettingsNotifier(Settings.defaultSettings),
           ),
           bookmarkProvider.overrideWith(() => _Saved(testPool())),
-          blacklistTagsProvider.overrideWith((_, _) async => {}),
+          blacklistTagsProvider.overrideWith((_, _) => Future.sync(() => {})),
           originAwarePostRepoProvider.overrideWith((_, _) {
             calls++;
             throw StateError('must not fetch');
@@ -274,7 +277,8 @@ void main() {
             () => profiles,
           ),
           blacklistTagsProvider.overrideWith(
-            (_, _) async => scenario == 'blocked' ? {'blocked'} : {},
+            (_, _) =>
+                Future.sync(() => scenario == 'blocked' ? {'blocked'} : {}),
           ),
           originAwarePostRepoProvider.overrideWith(
             (_, _) => PostRepositoryBuilder<Post>(
@@ -287,8 +291,9 @@ void main() {
                 }
                 expect(limit, lessThanOrEqualTo(40));
                 if (scenario == 'offline' ||
-                    (scenario == 'transient' && calls == 1))
+                    (scenario == 'transient' && calls == 1)) {
                   throw StateError('offline');
+                }
                 if (scenario == 'empty') return PostResult<Post>.empty();
                 return PostResult<Post>(
                   posts: [

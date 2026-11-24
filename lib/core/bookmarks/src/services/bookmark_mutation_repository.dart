@@ -50,12 +50,8 @@ class BookmarkMutationRepository
       invalidate();
       return;
     }
-    for (final id in change.removedIds) {
-      _recordRemovalById(id);
-    }
-    for (final record in change.records) {
-      _record(record);
-    }
+    change.removedIds.forEach(_recordRemovalById);
+    change.records.forEach(_record);
     _revision = change.revision;
   }
 
@@ -97,7 +93,7 @@ class BookmarkMutationRepository
   Future<BookmarkMirrorState> readMirrorState() async {
     final store = _store;
     return store is BookmarkMirrorReader
-        ? await (store as BookmarkMirrorReader).readMirrorState()
+        ? await (store! as BookmarkMirrorReader).readMirrorState()
         : const BookmarkMirrorState.empty();
   }
 
@@ -225,8 +221,7 @@ class BookmarkMutationRepository
       );
     }
     return {
-      for (final identity in identities)
-        if (_lookup(identity) case final bookmark?) identity: bookmark,
+      for (final identity in identities) identity: ?_lookup(identity),
     };
   }
 
@@ -287,9 +282,7 @@ class BookmarkMutationRepository
         postLinkGenerator: postLinkGenerator,
       ),
     );
-    for (final bookmark in saved) {
-      _record(bookmark);
-    }
+    saved.forEach(_record);
     return saved;
   }
 
@@ -300,9 +293,7 @@ class BookmarkMutationRepository
     final saved = await _write(
       () => delegate.addBookmarkWithBookmarks(bookmarks),
     );
-    for (final bookmark in saved) {
-      _record(bookmark);
-    }
+    saved.forEach(_record);
     return saved;
   }
 
@@ -323,8 +314,6 @@ class BookmarkMutationRepository
     final selected = bookmarks.toList();
     if (selected.isEmpty) return;
     await _write(() => delegate.removeBookmarks(selected));
-    for (final bookmark in selected) {
-      _recordRemoval(bookmark);
-    }
+    selected.forEach(_recordRemoval);
   }
 }

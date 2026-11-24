@@ -16,8 +16,9 @@ bool hasLocalSyncChanges(
   if (!const SetEquality<String>().equals(
     before.localGroupIds,
     after.localGroupIds,
-  ))
+  )) {
     return true;
+  }
   for (final id in before.localGroupIds) {
     if (!_sameGroup(before.groupsById[id]!, after.groupsById[id]!)) return true;
   }

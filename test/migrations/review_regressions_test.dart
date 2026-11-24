@@ -58,10 +58,11 @@ class _FailCleanupOnce extends DownloadRepositorySqlite {
   _FailCleanupOnce(super.db);
   var attempts = 0;
   @override
-  Future<DownloadSessionStats> updateStatisticsAndCleanup(String id) async {
-    if (++attempts == 1) throw StateError('injected cleanup failure');
-    return super.updateStatisticsAndCleanup(id);
-  }
+  Future<DownloadSessionStats> updateStatisticsAndCleanup(String id) =>
+      Future.sync(() {
+        if (++attempts == 1) throw StateError('injected cleanup failure');
+        return super.updateStatisticsAndCleanup(id);
+      });
 }
 
 class _ConcurrentFileSystem extends IoFileSystem {
@@ -93,8 +94,10 @@ void main() {
           Settings.defaultSettings.listing,
         ),
         shimmie2ClientProvider(auth).overrideWithValue(_Shimmie()),
-        useGraphQLClientProvider(auth).overrideWith((_) async => false),
-        shimmie2CanFavoriteProvider(auth).overrideWith((_) async => true),
+        useGraphQLClientProvider(auth)
+            .overrideWith((_) => Future.sync(() => false)),
+        shimmie2CanFavoriteProvider(auth)
+            .overrideWith((_) => Future.sync(() => true)),
         favoriteRepoProvider(auth).overrideWithValue(
           FavoriteRepositoryBuilder<Post>(
             add: (_) async => AddFavoriteStatus.success,

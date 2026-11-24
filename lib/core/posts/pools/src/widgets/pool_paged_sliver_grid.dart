@@ -52,14 +52,15 @@ class _PoolPagedSliverGridViewState<T>
   late final controller = PagingController<int, T>(
     getNextPageKey: (state) => widget.fetchRawPage == null
         ? (state.lastPageIsEmpty ? null : state.nextIntPageKey)
-        : (state.keys?.isNotEmpty == true ? _next[state.keys!.last] : 1),
+        : (state.keys?.isNotEmpty ?? false ? _next[state.keys!.last] : 1),
     fetchPage: (pageKey) async {
       final fetch = widget.fetchRawPage;
       if (fetch == null) return widget.fetchPage(ref, pageKey);
       final generation = _generation;
       final page = await fetch(ref, pageKey);
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         _next[pageKey] = page.nextRawPage;
+      }
       return page.items;
     },
   );

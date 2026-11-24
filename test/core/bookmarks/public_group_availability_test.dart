@@ -1,6 +1,5 @@
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_profile_availability.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/content/types.dart';
@@ -65,8 +64,8 @@ void main() {
       _record(3, 'http://danbooru.donmai.us', 'pool:10'),
     ]);
     final legacy = BookmarkLibraryState(
-      bookmarks: [],
-      groups: [],
+      bookmarks: const [],
+      groups: const [],
       pools: [testPool()],
     );
     final a = BookmarkProfileAvailability(
@@ -167,7 +166,11 @@ ContentGroupBookmark _record(int id, String site, String key) {
 }
 
 BookmarkLibraryState _library(List<ContentGroupBookmark> records) =>
-    BookmarkLibraryState(bookmarks: [], groups: [], records: records);
+    BookmarkLibraryState(
+      bookmarks: const [],
+      groups: const [],
+      records: records,
+    );
 BooruConfig _profile(String id, String url) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
   'id': id,

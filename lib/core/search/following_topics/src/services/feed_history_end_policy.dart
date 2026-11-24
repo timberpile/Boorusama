@@ -13,9 +13,10 @@ bool confirmsFeedHistoryEnd(
   if (page < 1 ||
       limit < 1 ||
       result.posts.length > limit ||
-      result.hasMore == true ||
-      (result.maxPage != null && page >= result.maxPage!))
+      (result.hasMore ?? false) ||
+      (result.maxPage != null && page >= result.maxPage!)) {
     return false;
+  }
   final uri = Uri.tryParse(siteUrl);
   final official =
       uri != null &&

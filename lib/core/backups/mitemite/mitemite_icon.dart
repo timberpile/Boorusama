@@ -14,7 +14,6 @@ class MiteMiteIcon extends StatelessWidget {
       'assets/icon/mitemite.svg',
       width: size,
       height: size,
-      fit: BoxFit.contain,
       colorFilter: ColorFilter.mode(
         color ??
             IconTheme.of(context).color ??

@@ -16,8 +16,9 @@ class PixivFollowingPage {
     required int offset,
   }) {
     final raw = json['user_previews'];
-    if (raw is! List)
+    if (raw is! List) {
       throw const FormatException('Missing Pixiv following list');
+    }
     final artists = <PixivFollowingArtist>[];
     for (final value in raw) {
       if (value is! Map<String, dynamic> ||
@@ -87,8 +88,9 @@ extension PixivFollowingUsersClient on PixivClient {
     CancelToken? cancelToken,
   }) async {
     if (userId <= 0) throw ArgumentError.value(userId, 'userId');
-    if (offset < 0 || offset > 2147483647)
+    if (offset < 0 || offset > 2147483647) {
       throw ArgumentError.value(offset, 'offset');
+    }
     if (restrict == PixivFollowRestrict.all) {
       throw ArgumentError('All is not verified for Pixiv following users');
     }

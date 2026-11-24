@@ -370,8 +370,9 @@ final class ImportPlannedChangeProjector {
       localGroups,
       localData.folders,
     );
-    if (resolution.action == ImportAction.skip)
+    if (resolution.action == ImportAction.skip) {
       return PlannedChangeSummary(preserved: localEntities.length);
+    }
     final mapped = mapBookmarkImportProfiles(
       incoming: selectedProfileRecords(incoming, resolution),
       local: localData.records,
@@ -1043,7 +1044,8 @@ List<ImportChangePreviewRow> _previewRows(
   final rows = <ImportChangePreviewRow>[];
   var metadataChanges = 0;
   for (final key in {...local.keys, ...projected.keys}.cast<_EntityKey>()) {
-    final before = local[key], after = projected[key];
+    final before = local[key];
+    final after = projected[key];
     if (_sameProjectedEntity(before, after)) continue;
     final kind = before == null
         ? ImportChangeKind.added
@@ -1053,16 +1055,16 @@ List<ImportChangePreviewRow> _previewRows(
     final value = after ?? before;
     switch (value) {
       case final _BookmarkGroupValue group:
-        final old = before as _BookmarkGroupValue?,
-            next = after as _BookmarkGroupValue?;
+        final old = before as _BookmarkGroupValue?;
+        final next = after as _BookmarkGroupValue?;
         final oldMembers = <Object>{
-              ...?old?.bookmarkIds,
-              for (final id in old?.poolIds ?? <Object>{}) ('pool', id),
-            },
-            nextMembers = <Object>{
-              ...?next?.bookmarkIds,
-              for (final id in next?.poolIds ?? <Object>{}) ('pool', id),
-            };
+          ...?old?.bookmarkIds,
+          for (final id in old?.poolIds ?? <Object>{}) ('pool', id),
+        };
+        final nextMembers = <Object>{
+          ...?next?.bookmarkIds,
+          for (final id in next?.poolIds ?? <Object>{}) ('pool', id),
+        };
         rows.add(
           ImportChangePreviewRow(
             category: 'bookmarks',
@@ -1090,7 +1092,6 @@ List<ImportChangePreviewRow> _previewRows(
             kind: kind,
             label: safeImportDisplayValue('name', folder.name),
             isContainer: true,
-            entityChanged: true,
           ),
         );
       case final CollectionBookmark _:
@@ -1103,8 +1104,9 @@ List<ImportChangePreviewRow> _previewRows(
           if (!const DeepCollectionEquality().equals(
             metadata(before),
             metadata(after),
-          ))
+          )) {
             metadataChanges++;
+          }
         }
       case final _BookmarkValue _:
         if (before != null && after != null) metadataChanges++;
@@ -1191,10 +1193,11 @@ List<ImportChangePreviewRow> _previewRows(
       };
     }
 
-    final old = ungrouped(local), next = ungrouped(projected);
-    final added = next.difference(old).length,
-        removed = old.difference(next).length;
-    if (added + removed > 0)
+    final old = ungrouped(local);
+    final next = ungrouped(projected);
+    final added = next.difference(old).length;
+    final removed = old.difference(next).length;
+    if (added + removed > 0) {
       rows.add(
         ImportChangePreviewRow(
           category: 'bookmarks',
@@ -1206,8 +1209,9 @@ List<ImportChangePreviewRow> _previewRows(
           entityChanged: false,
         ),
       );
+    }
   }
-  if (metadataChanges > 0)
+  if (metadataChanges > 0) {
     rows.add(
       ImportChangePreviewRow(
         category: 'bookmark_metadata',
@@ -1218,6 +1222,7 @@ List<ImportChangePreviewRow> _previewRows(
         countOverride: ImportChangeCounts(changed: metadataChanges),
       ),
     );
+  }
   return List.unmodifiable(rows);
 }
 
@@ -1448,8 +1453,9 @@ List<ImportChangeDetail> _profileFieldChanges(
     final data = profile.toJson()
       ..remove('id')
       ..remove('name');
-    if (data['blacklistedTags'] case final Map value)
+    if (data['blacklistedTags'] case final Map value) {
       data['blacklistedTags'] = Map.of(value)..remove('blacklistedTags');
+    }
     return data;
   }
 
@@ -1459,7 +1465,8 @@ List<ImportChangeDetail> _profileFieldChanges(
           .map((value) => value.trim())
           .where((value) => value.isNotEmpty)
           .toSet();
-  final old = rules(before), next = rules(after);
+  final old = rules(before);
+  final next = rules(after);
   return [
     ...importFieldChanges(json(before), json(after)),
     for (final rule in next.difference(old))

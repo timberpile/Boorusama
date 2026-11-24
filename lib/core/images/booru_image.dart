@@ -118,8 +118,8 @@ class BooruImage extends ConsumerWidget {
     if (publicSource != null && !permitted(imageUrl)) {
       final safeCandidates = <String>{
         ...fallbackUrls,
-        if (fallbackUrl case final value?) value,
-        if (placeholderUrl case final value?) value,
+        ?fallbackUrl,
+        ?placeholderUrl,
       }.where(permitted).toList();
       if (safeCandidates.isEmpty) {
         return ErrorPlaceholder(

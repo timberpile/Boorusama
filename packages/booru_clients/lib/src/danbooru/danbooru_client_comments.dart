@@ -30,15 +30,17 @@ mixin DanbooruClientComments {
     final ids = <int>[];
     var count = 0;
     for (final row in rows) {
-      if (row is! Map || row['id'] is! int || (row['id'] as int) <= 0)
+      if (row is! Map || row['id'] is! int || (row['id'] as int) <= 0) {
         return null;
+      }
       final id = row['id'] as int;
       if (ids.isNotEmpty && id >= ids.last) return null;
       ids.add(id);
-      if (row['is_deleted'] == false)
+      if (row['is_deleted'] == false) {
         count++;
-      else if (row['is_deleted'] != true)
+      } else if (row['is_deleted'] != true) {
         return null;
+      }
     }
     final continuation = await dio.get(
       '/comments.json',

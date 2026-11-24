@@ -69,7 +69,7 @@ class TimelineOptionSelector<T> extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (prefixLabel case final prefix?) ...[
-            Text('${prefix}:', maxLines: 1),
+            Text('$prefix:', maxLines: 1),
             const SizedBox(width: 6),
           ],
           if (optionLeading != null || optionIcon != null) ...[

@@ -101,8 +101,9 @@ final miteMiteServiceProvider = FutureProvider<MiteMiteService>((
       final repository = await ref.read(
         followingTopicRepositoryProvider.future,
       );
-      if (repository is! FollowingMirrorStore)
+      if (repository is! FollowingMirrorStore) {
         throw StateError('Following mirror storage required');
+      }
       return repository as FollowingMirrorStore;
     },
     profiles: () => [
@@ -120,15 +121,16 @@ final miteMiteServiceProvider = FutureProvider<MiteMiteService>((
     ),
     storageFor: (location) async {
       if (android) return AndroidMiteMiteStorage(location);
-      if (!await Directory(location).exists()) {
+      if (!await fs.directoryExists(location)) {
         throw StateError('Shared directory unavailable');
       }
       return DirectoryMiteMiteStorage(location);
     },
     anonymousPolicy: () => ref.read(anonymousSourcePolicyProvider),
     onDomainsApplied: (domains) async {
-      if (domains.contains(SyncDomain.bookmarks))
+      if (domains.contains(SyncDomain.bookmarks)) {
         await ref.read(bookmarkProvider.notifier).refresh();
+      }
       if (domains.contains(SyncDomain.following) &&
           ref.exists(followingTopicsProvider)) {
         await ref.read(followingTopicsProvider.notifier).reloadFromStorage();
@@ -171,8 +173,9 @@ class MiteMiteChanges extends Notifier<int> {
 final publishedBookmarkRootsProvider = Provider<Set<String>>(
   (ref) {
     if (!ref.watch(miteMiteActivationProvider) &&
-        !ref.exists(miteMiteServiceProvider))
+        !ref.exists(miteMiteServiceProvider)) {
       return const {};
+    }
     final service = ref.watch(currentMiteMiteServiceProvider);
     return ref.watch(
       miteMiteChangesProvider.select(
@@ -300,10 +303,10 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   StreamSubscription<FileSystemEvent>? _watcher;
   String? _watchedLocation;
   MiteMiteService? _service;
-  bool _foreground = true;
+  var _foreground = true;
   MiteMiteService? _syncingService;
-  bool _requested = false;
-  bool _dirtySource = false;
+  var _requested = false;
+  var _dirtySource = false;
 
   // Widget rebuilds lag provider disposal. Scheduled callbacks must recheck the
   // source generation even while the previous instance is still attached here.
@@ -353,21 +356,23 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     _watchDirectory();
     if (_requested &&
         !identical(_syncingService, _currentService) &&
-        !(_currentService?.busy ?? true))
+        !(_currentService?.busy ?? true)) {
       _debounce(SyncTrigger.watcher);
+    }
   }
 
   void _debounce([SyncTrigger trigger = SyncTrigger.localChange]) {
     _requested = true;
     if (trigger == SyncTrigger.localChange) _dirtySource = true;
     _dirty?.cancel();
-    if (_foreground)
+    if (_foreground) {
       _dirty = Timer(
         const Duration(milliseconds: 500),
         () => unawaited(
           _sync(_dirtySource ? SyncTrigger.localChange : SyncTrigger.watcher),
         ),
       );
+    }
   }
 
   Future<void> _sync([SyncTrigger trigger = SyncTrigger.poll]) async {
@@ -400,8 +405,9 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
       if (mounted &&
           identical(service, _currentService) &&
           _foreground &&
-          _requested)
+          _requested) {
         _debounce(SyncTrigger.watcher);
+      }
     }
   }
 
@@ -432,12 +438,14 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
             (event) {
               if (mounted &&
                   identical(service, _currentService) &&
-                  !event.path.startsWith(ownPrefix))
+                  !event.path.startsWith(ownPrefix)) {
                 _debounce(SyncTrigger.watcher);
+              }
             },
             onError: (Object _) {
-              if (mounted && identical(service, _currentService))
+              if (mounted && identical(service, _currentService)) {
                 _stopWatcher();
+              }
             },
             cancelOnError: true,
           );
@@ -474,8 +482,9 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
         final after = next.valueOrNull;
         if (before != null &&
             after != null &&
-            hasLocalFollowingSyncChanges(before, after))
+            hasLocalFollowingSyncChanges(before, after)) {
           _localChanged();
+        }
       });
       ref.listen(booruConfigProvider, (previous, next) {
         if (previous != next) _localChanged();
@@ -487,8 +496,9 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
         if (service == null ||
             before == null ||
             after == null ||
-            !hasLocalSyncChanges(before, after))
+            !hasLocalSyncChanges(before, after)) {
           return;
+        }
         // Do not drop a real local mutation just because receive/publication is
         // busy. Persist intent and re-run after the current operation finishes.
         unawaited(() async {

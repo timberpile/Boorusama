@@ -135,8 +135,9 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
 
                     if (!ref
                         .read(booruConfigProvider)
-                        .any((c) => c.id == owner.id && c.auth == config))
+                        .any((c) => c.id == owner.id && c.auth == config)) {
                       return;
+                    }
                     final encodedUri = Uri.encodeFull(uri.toString());
                     final url = '${booruUrl}uploads/new?url=$encodedUri';
                     launchExternalUrlString(

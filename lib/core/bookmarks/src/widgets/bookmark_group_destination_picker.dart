@@ -6,7 +6,7 @@ import '../types/bookmark_group.dart';
 import '../types/bookmark_group_tree.dart';
 import 'bookmark_folder_picker_contents.dart';
 
-/// A selected destination wraps [parentGroupId] so Home (`null`) is distinct
+/// A selected destination wraps `parentGroupId` so Home (`null`) is distinct
 /// from dismissing the picker (`null` result).
 typedef BookmarkGroupDestination = ({String? parentGroupId});
 
@@ -42,7 +42,7 @@ class _BookmarkGroupDestinationPicker extends StatefulWidget {
 
 class _BookmarkGroupDestinationPickerState
     extends State<_BookmarkGroupDestinationPicker> {
-  late final BookmarkGroupTree _tree = BookmarkGroupTree(widget.groups);
+  late final _tree = BookmarkGroupTree(widget.groups);
   late final List<BookmarkGroup> _roots = _tree.selectionRoots(
     widget.movingGroupIds,
   );

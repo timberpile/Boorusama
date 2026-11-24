@@ -12,8 +12,8 @@ class _Repository extends FavoriteRepository<Post> {
   Future<AddFavoriteStatus> Function(int) add = (_) async =>
       AddFavoriteStatus.success;
   Future<bool> Function(int) remove = (_) async => true;
-  int adds = 0;
-  int removals = 0;
+  var adds = 0;
+  var removals = 0;
 
   @override
   bool canFavorite() => true;
@@ -49,9 +49,10 @@ void main() {
     failures = [];
     repository = ConfirmedFavoriteRepository(
       delegate: delegate,
-      prepareProjection: (id, favorited) async => () async {
-        applied.add((id, favorited));
-      },
+      prepareProjection: (id, favorited) async =>
+          () => Future.sync(() {
+            applied.add((id, favorited));
+          }),
       onProjectionError: failures.add,
     );
   });
@@ -105,7 +106,7 @@ void main() {
     repository = ConfirmedFavoriteRepository(
       delegate: delegate,
       prepareProjection: (_, _) async =>
-          () async => throw error,
+          () => Future.sync(() => throw error),
       onProjectionError: failures.add,
     );
     expect(await repository.removeFromFavorites(1), isTrue);
@@ -143,7 +144,7 @@ void main() {
       delegate: delegate,
       prepareProjection: (_, _) async {
         final captured = target;
-        return () async => targets.add(captured);
+        return () => Future.sync(() => targets.add(captured));
       },
       onProjectionError: failures.add,
     );

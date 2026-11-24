@@ -4,7 +4,6 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.
 import 'package:boorusama/core/bookmarks/src/services/bookmark_series_projection.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_identity.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
@@ -42,7 +41,7 @@ void main() {
         };
         final unaddressable = PostBookmark.fromSnapshot(
           id: 7002,
-          createdAt: DateTime.utc(2021, 1, 1),
+          createdAt: DateTime.utc(2021),
           updatedAt: DateTime.utc(2021, 1, 2),
           snapshot: legacySnapshot,
           post: retainedPost,
@@ -60,8 +59,8 @@ void main() {
             poolId: 7003,
             category: BookmarkedPoolCategory.series,
             title: 'Retained Collection',
-            createdAt: DateTime.utc(2020, 1, 1),
-            observedAt: DateTime.utc(2024, 1, 1),
+            createdAt: DateTime.utc(2020),
+            observedAt: DateTime.utc(2024),
             groupIds: const {},
             tags: const {'retained-collection'},
             coverage: PoolTagCoverage.partial,
@@ -72,7 +71,7 @@ void main() {
           id: rootId,
           name: 'Root',
           bookmarkIds: {known.id},
-          addedAt: {known.id: DateTime.utc(2023, 1, 1)},
+          addedAt: {known.id: DateTime.utc(2023)},
         );
         final child = BookmarkGroup(
           id: childId,
@@ -80,8 +79,8 @@ void main() {
           parentGroupId: rootId,
           bookmarkIds: {unaddressable.id, retainedCollection.id},
           addedAt: {
-            unaddressable.id: DateTime.utc(2022, 1, 1),
-            retainedCollection.id: DateTime.utc(2021, 1, 1),
+            unaddressable.id: DateTime.utc(2022),
+            retainedCollection.id: DateTime.utc(2021),
           },
         );
         final state = BookmarkLibraryState(

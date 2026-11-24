@@ -169,7 +169,7 @@ void main() {
         expect(
           await tester.runAsync(() async {
             await tester.tap(find.byType(FavoritePostButton));
-            return await adding!;
+            return adding!;
           }),
           AddFavoriteStatus.success,
         );
@@ -196,7 +196,7 @@ void main() {
         expect(
           await tester.runAsync(() async {
             await tester.tap(find.byType(FavoritePostButton));
-            return await removing!;
+            return removing!;
           }),
           isTrue,
         );

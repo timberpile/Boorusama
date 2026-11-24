@@ -61,6 +61,49 @@ class BookmarkTagIndex {
         for (final entry in entries) entry.tag: entry,
       });
 
+  factory BookmarkTagIndex.fromBookmarks(
+    Iterable<PostBookmark> bookmarks, {
+    String Function(PostBookmark bookmark)? siteUrl,
+  }) {
+    final counts = <String, int>{};
+    final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
+    for (final bookmark in bookmarks) {
+      final source = BookmarkTagSource(
+        url: siteUrl?.call(bookmark) ?? bookmark.sourceUrl,
+        booruType: bookmark.post.origin.booruType,
+      );
+      final categorized =
+          {
+            'artist': bookmark.post.artistTags ?? const <String>{},
+            'character': bookmark.post.characterTags ?? const <String>{},
+            'copyright': bookmark.post.copyrightTags ?? const <String>{},
+          }.map(
+            (category, tags) => MapEntry(
+              category,
+              tags.map(canonicalBookmarkTag).toSet(),
+            ),
+          );
+      for (final tag in bookmark.tags.map(canonicalBookmarkTag).toSet()) {
+        if (tag.isEmpty) continue;
+        counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
+        final categories = sources
+            .putIfAbsent(tag, () => {})
+            .putIfAbsent(source, () => {});
+        for (final entry in categorized.entries) {
+          if (entry.value.contains(tag)) categories.add(entry.key);
+        }
+      }
+    }
+    return BookmarkTagIndex([
+      for (final entry in counts.entries)
+        BookmarkTagEntry(
+          tag: entry.key,
+          count: entry.value,
+          sources: sources[entry.key]!,
+        ),
+    ]);
+  }
+
   // Both collections are finalized private build buffers. No mutable owner is
   // retained after publication, and previous results never observe later edits.
   BookmarkTagIndex._owned(
@@ -148,61 +191,20 @@ class BookmarkTagIndex {
     changed.sort(compare);
     final unchanged = entries.where((e) => !counts.containsKey(e.tag)).toList();
     final merged = <BookmarkTagEntry>[];
-    var i = 0, j = 0;
+    var i = 0;
+    var j = 0;
     while (i < unchanged.length && j < changed.length) {
-      if (compare(unchanged[i], changed[j]) <= 0)
+      if (compare(unchanged[i], changed[j]) <= 0) {
         merged.add(unchanged[i++]);
-      else
+      } else {
         merged.add(changed[j++]);
+      }
     }
     merged.addAll(unchanged.skip(i));
     merged.addAll(changed.skip(j));
     return BookmarkTagIndex._owned(merged, {
       for (final entry in merged) entry.tag: entry,
     });
-  }
-
-  factory BookmarkTagIndex.fromBookmarks(
-    Iterable<PostBookmark> bookmarks, {
-    String Function(PostBookmark bookmark)? siteUrl,
-  }) {
-    final counts = <String, int>{};
-    final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
-    for (final bookmark in bookmarks) {
-      final source = BookmarkTagSource(
-        url: siteUrl?.call(bookmark) ?? bookmark.sourceUrl,
-        booruType: bookmark.post.origin.booruType,
-      );
-      final categorized =
-          {
-            'artist': bookmark.post.artistTags ?? const <String>{},
-            'character': bookmark.post.characterTags ?? const <String>{},
-            'copyright': bookmark.post.copyrightTags ?? const <String>{},
-          }.map(
-            (category, tags) => MapEntry(
-              category,
-              tags.map(canonicalBookmarkTag).toSet(),
-            ),
-          );
-      for (final tag in bookmark.tags.map(canonicalBookmarkTag).toSet()) {
-        if (tag.isEmpty) continue;
-        counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
-        final categories = sources
-            .putIfAbsent(tag, () => {})
-            .putIfAbsent(source, () => {});
-        for (final entry in categorized.entries) {
-          if (entry.value.contains(tag)) categories.add(entry.key);
-        }
-      }
-    }
-    return BookmarkTagIndex([
-      for (final entry in counts.entries)
-        BookmarkTagEntry(
-          tag: entry.key,
-          count: entry.value,
-          sources: sources[entry.key]!,
-        ),
-    ]);
   }
 
   final List<BookmarkTagEntry> entries;

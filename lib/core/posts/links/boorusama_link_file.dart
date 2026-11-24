@@ -88,6 +88,22 @@ final class BoorusamaLinkFile {
     return BoorusamaLinkFile._(artist.uri, '$stem.bslink');
   }
 
+  factory BoorusamaLinkFile.decode(List<int> bytes) {
+    if (bytes.isEmpty || bytes.length > maxBytes) {
+      throw const FormatException('Invalid link document size');
+    }
+    final data = jsonDecode(utf8.decode(bytes));
+    if (data is! Map<String, dynamic> ||
+        data.length != 3 ||
+        data['format'] != 'boorusama-link' ||
+        data['version'] is! int ||
+        data['version'] != 1 ||
+        data['uri'] is! String) {
+      throw const FormatException('Invalid link document');
+    }
+    return BoorusamaLinkFile.fromUri(data['uri'] as String);
+  }
+
   static String _profileFileName(String? name, String engine, String target) {
     final normalized = RegExp(r'[\p{L}\p{N}][\p{L}\p{M}\p{N}]*', unicode: true)
         .allMatches((name ?? '').toLowerCase())
@@ -128,22 +144,6 @@ final class BoorusamaLinkFile {
     ),
   );
 
-  static BoorusamaLinkFile decode(List<int> bytes) {
-    if (bytes.isEmpty || bytes.length > maxBytes) {
-      throw const FormatException('Invalid link document size');
-    }
-    final data = jsonDecode(utf8.decode(bytes));
-    if (data is! Map<String, dynamic> ||
-        data.length != 3 ||
-        data['format'] != 'boorusama-link' ||
-        data['version'] is! int ||
-        data['version'] != 1 ||
-        data['uri'] is! String) {
-      throw const FormatException('Invalid link document');
-    }
-    return BoorusamaLinkFile.fromUri(data['uri'] as String);
-  }
-
   /// Read at most the limit plus one byte, including when a provider lies about
   /// size or the user selected a renamed document. Never trust the extension.
   static Future<BoorusamaLinkFile> read(String path, AppFileSystem fs) async {
@@ -154,6 +154,6 @@ final class BoorusamaLinkFile {
         throw const FormatException('Link document is too large');
       }
     }
-    return decode(bytes.takeBytes());
+    return BoorusamaLinkFile.decode(bytes.takeBytes());
   }
 }

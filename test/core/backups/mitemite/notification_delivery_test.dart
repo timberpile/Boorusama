@@ -45,7 +45,7 @@ void main() {
       events: events,
       enabled: () => true,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) async => true,
+      requestPermission: ({requestIfDenied = true}) async => true,
       show: (_) {
         entered.complete();
         return release.future;
@@ -64,7 +64,7 @@ void main() {
       events: events,
       enabled: () => true,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) async => true,
+      requestPermission: ({requestIfDenied = true}) async => true,
       show: (notice) async {
         sent.add(notice);
         return true;
@@ -91,7 +91,7 @@ void main() {
       events: events,
       enabled: () => enabled,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) {
+      requestPermission: ({requestIfDenied = true}) {
         entered.complete();
         return permission.future;
       },
@@ -111,7 +111,7 @@ void main() {
       events: events,
       enabled: () => enabled,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) async => true,
+      requestPermission: ({requestIfDenied = true}) async => true,
       show: (_) async => false,
     );
     expect(events.pendingNotifications, hasLength(1));
@@ -119,7 +119,7 @@ void main() {
       events: events,
       enabled: () => enabled,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) async => true,
+      requestPermission: ({requestIfDenied = true}) async => true,
       show: (_) async {
         shows++;
         return true;
@@ -135,12 +135,12 @@ void main() {
       events: events,
       enabled: () => true,
       current: () => true,
-      requestPermission: ({bool requestIfDenied = true}) async {
+      requestPermission: ({requestIfDenied = true}) => Future.sync(() {
         fail('Expired intent must not ask permission');
-      },
-      show: (_) async {
+      }),
+      show: (_) => Future.sync(() {
         fail('Expired intent must not show');
-      },
+      }),
     );
     await events.consume('bookmarks', posts(1));
     expect(events.pendingNotifications, isEmpty);

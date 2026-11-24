@@ -91,9 +91,12 @@ class GroupReadingController
   String? _restoredPoolOrder;
   late GroupViewerEntry _entry;
   MediaGroupCheckpoint? _checkpoint;
+  var _disposed = false;
 
   @override
   GroupReadingState build(GroupViewerEntry entry) {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
     _entry = entry;
     final reference = entry.contentReference;
     final presentation = ref
@@ -208,8 +211,9 @@ class GroupReadingController
         .asData
         ?.value
         .members;
-    if (members != null && members.isNotEmpty)
+    if (members != null && members.isNotEmpty) {
       state.checkpoint.select(members.first);
+    }
   }
 
   void _publish() {
@@ -259,13 +263,10 @@ class GroupReadingController
         SchedulerPhase.persistentCallbacks) {
       final checkpoint = _checkpoint;
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (_attempt == null && identical(_checkpoint, checkpoint)) {
-          // The remaining route subscription may already have been released.
-          try {
-            _publish();
-          } on StateError {
-            return;
-          }
+        if (!_disposed &&
+            _attempt == null &&
+            identical(_checkpoint, checkpoint)) {
+          _publish();
         }
       });
     } else {
@@ -332,7 +333,7 @@ class GroupReadingController
       }
       final now = container.read(viewerSourceAccessProvider(binding));
       final currentReading = state;
-      return now?.hasSameAuthorization(access) == true &&
+      return (now?.hasSameAuthorization(access) ?? false) &&
           identical(
             container
                 .read(contentGroupSourceStateProvider(access.key))
@@ -354,8 +355,9 @@ class GroupReadingController
     if (!identical(attempt, pending)) {
       void monitor<T>(ProviderListenable<T> provider) {
         final subscription = ref.container.listen(provider, (_, _) {
-          if (identical(_attempt, attempt) && !attempt.isCurrent())
+          if (identical(_attempt, attempt) && !attempt.isCurrent()) {
             cancelOrder();
+          }
         });
         attempt.cleanup.add(subscription.close);
       }
@@ -369,7 +371,7 @@ class GroupReadingController
         blacklistTagsProvider(access.config!.filter),
         (previous, next) {
           if (identical(_attempt, attempt) &&
-              previous?.hasValue == true &&
+              (previous?.hasValue ?? false) &&
               previous?.valueOrNull != next.valueOrNull) {
             cancelOrder();
           }
@@ -397,13 +399,15 @@ class GroupReadingController
         }
       }
       if (!attempt.isCurrent()) return GroupOrderResult.unchanged;
-      if (timeline != null && !timeline.isReady)
+      if (timeline != null && !timeline.isReady) {
         throw StateError('Group grid changed');
+      }
       if (members != null && checkpoint.adoptMediaOrder == null) {
         throw StateError('Group media presenter changed');
       }
-      if (!await _waitForIdle(attempt, checkpoint, timeline))
+      if (!await _waitForIdle(attempt, checkpoint, timeline)) {
         return GroupOrderResult.unchanged;
+      }
       attempt.phase = GroupSortPhase.persisting;
       _publish();
       if (related) {
@@ -416,20 +420,22 @@ class GroupReadingController
               .commitRelatedOrder(
                 id,
                 RelatedPostsOrder.values.byName(order),
-                reader: access.config!,
+                reader: access.config,
                 expectedRecord: record,
                 callerCurrent: attempt.isCurrent,
                 callerCancellation: attempt.cancellation,
               );
           if (result == RelatedOrderCommitResult.stale) {
-            if (attempt.isCurrent())
+            if (attempt.isCurrent()) {
               throw StateError('Related bookmark changed');
+            }
             return GroupOrderResult.unchanged;
           }
         }
       }
-      if (!await _waitForIdle(attempt, checkpoint, timeline))
+      if (!await _waitForIdle(attempt, checkpoint, timeline)) {
         return GroupOrderResult.unchanged;
+      }
       if (timeline != null) {
         if (!timeline.isReady) throw StateError('Group grid changed');
         timeline.adopt();
@@ -490,7 +496,7 @@ class GroupReadingController
         (_) => throw RequestCancelledError(),
       ),
     ]);
-    var reads = cached?.firstPageLoaded == true ? 0 : 1;
+    var reads = cached?.firstPageLoaded ?? false ? 0 : 1;
     var snapshot = await loadSnapshot();
     while (attempt.isCurrent()) {
       if (snapshot.members.firstOrNull case final first?) {
@@ -514,8 +520,9 @@ class GroupReadingController
       if (!attempt.isCurrent()) throw RequestCancelledError();
       snapshot = await loadSnapshot();
       if (snapshot.nextPageError case final error?) throw error;
-      if (snapshot.pageEnds.length <= before)
+      if (snapshot.pageEnds.length <= before) {
         throw StateError('Group page did not advance');
+      }
     }
     throw RequestCancelledError();
   }

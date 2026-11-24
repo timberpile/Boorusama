@@ -22,7 +22,7 @@ class MeasuredFloatingHeader extends StatefulWidget {
 class _MeasuredFloatingHeaderState extends State<MeasuredFloatingHeader>
     with SingleTickerProviderStateMixin {
   ScrollPosition? _position;
-  bool _scheduled = false;
+  var _scheduled = false;
 
   @override
   void didChangeDependencies() {
@@ -116,7 +116,7 @@ class _RenderMeasuredFloatingHeader
       );
 
   double _extent = 0;
-  bool hasLayout = false;
+  var hasLayout = false;
 
   @override
   double get minExtent => _extent;

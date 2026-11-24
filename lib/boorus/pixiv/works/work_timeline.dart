@@ -62,7 +62,7 @@ class _PixivWorkTimelineState extends ConsumerState<PixivWorkTimeline> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if ((details?.summary.title ?? widget.entry.summary.title)
+                if (details?.summary.title ?? widget.entry.summary.title
                     case final title?)
                   Text(title, style: Theme.of(context).textTheme.titleLarge),
                 for (final creator in details?.creators ?? [])
@@ -155,7 +155,8 @@ class _PixivWorkTimelineState extends ConsumerState<PixivWorkTimeline> {
             child: Center(
               child: TextButton(
                 onPressed:
-                    state.members?.loadingMore == true || state.loadKey == null
+                    (state.members?.loadingMore ?? false) ||
+                        state.loadKey == null
                     ? null
                     : () => ref
                           .read(groupMembersProvider(state.loadKey!).notifier)

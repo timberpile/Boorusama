@@ -105,8 +105,8 @@ void main() {
               observedAt: DateTime.utc(2026),
             ),
           ],
-          groups: [
-            const BookmarkGroupBackup(
+          groups: const [
+            BookmarkGroupBackup(
               id: groupId,
               name: 'Incoming',
               bookmarkIds: [99],
@@ -160,7 +160,7 @@ void main() {
         postId: () => 40,
         sourceUrl: 'https://example.com',
         originalUrl: 'https://example.com/40.jpg',
-        createdAt: DateTime.utc(2026, 1, 1),
+        createdAt: DateTime.utc(2026),
       );
       final service = BookmarkImportService(
         bookmarkRepository: bookmarks,
@@ -389,8 +389,8 @@ void main() {
     const newId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     final plan = const BookmarkImportPlanner().plan(
       data: BookmarkBackupData(
-        bookmarks: [],
-        groups: [
+        bookmarks: const [],
+        groups: const [
           BookmarkGroupBackup(id: newId, name: 'Artists', bookmarkIds: []),
         ],
       ),
@@ -482,8 +482,8 @@ void main() {
       final plan = const BookmarkImportPlanner()
           .plan(
             data: BookmarkBackupData(
-              bookmarks: [],
-              groups: [
+              bookmarks: const [],
+              groups: const [
                 BookmarkGroupBackup(
                   id: groupId,
                   name: 'Empty',
@@ -521,8 +521,8 @@ void main() {
       await groups.addBookmarks(groupId, {stored.id});
       final planned = const BookmarkImportPlanner().plan(
         data: BookmarkBackupData(
-          bookmarks: [],
-          groups: [
+          bookmarks: const [],
+          groups: const [
             BookmarkGroupBackup(id: groupId, name: 'Artists', bookmarkIds: []),
           ],
         ),
@@ -557,9 +557,8 @@ void main() {
   test('a bookmark read failure leaves every group unchanged', () async {
     await groups.createGroup('Existing', id: groupId);
     final plan = BookmarkImportPlan(
-      records: [],
-      alreadyExistedCount: 0,
-      groups: [
+      records: const [],
+      groups: const [
         BookmarkGroupImport(
           id: groupId,
           name: 'Imported',
@@ -602,7 +601,6 @@ void main() {
     ];
     final plan = BookmarkImportPlan(
       records: imported,
-      alreadyExistedCount: 0,
       groups: const [],
     );
 
@@ -628,7 +626,7 @@ Future<List<PostBookmark>> _load(BookmarkHiveRepository repository) =>
     );
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
-  _FailingReadBookmarkRepository(super.box, BookmarkTestStorage storage)
+  _FailingReadBookmarkRepository(super.posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
@@ -642,7 +640,7 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
-  _PartiallyThrowingBookmarkRepository(super.box, BookmarkTestStorage storage)
+  _PartiallyThrowingBookmarkRepository(super.posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
@@ -659,7 +657,7 @@ class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _ThrowingRemovalBookmarkRepository extends BookmarkHiveRepository {
-  _ThrowingRemovalBookmarkRepository(super.box, BookmarkTestStorage storage)
+  _ThrowingRemovalBookmarkRepository(super.posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,

@@ -336,8 +336,9 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
 
 Map<int, DateTime> _groupDates(Object? raw, Set<int> members) {
   if (raw == null) return const {};
-  if (raw is! Map)
+  if (raw is! Map) {
     throw const InvalidBackupFormatException('Invalid membership dates');
+  }
   final result = <int, DateTime>{};
   for (final entry in raw.entries) {
     final id = entry.key is String ? int.tryParse(entry.key as String) : null;

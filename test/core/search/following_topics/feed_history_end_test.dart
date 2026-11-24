@@ -85,10 +85,10 @@ void main() {
             hasMore: false,
           ),
           confirmExhaustion: (_, _, _) => true,
-          onExhausted: (_, _) async {
+          onExhausted: (_, _) => Future.sync(() {
             writes++;
             throw StateError('Storage unavailable');
-          },
+          }),
         );
         final result = await session.load(2);
         expect(result.posts.map((p) => p.id), undated ? isEmpty : [8]);
@@ -188,7 +188,7 @@ void main() {
     'sources finish independently while errors remain recoverable',
     () async {
       final repository = memorySubscriptionRepository();
-      final a = await _source(repository, 'a');
+      final a = await _source(repository);
       final b = await _source(repository, 'b');
       await repository.recordHistoryEnd(
         a,

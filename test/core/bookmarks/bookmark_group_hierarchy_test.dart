@@ -22,8 +22,8 @@ void main() {
       final tree = BookmarkGroupTree([
         makeGroup('root-b'),
         makeGroup('z', parent: 'root-a', position: 1),
-        makeGroup('b', parent: 'root-a', position: 0),
-        makeGroup('a', parent: 'root-a', position: 0),
+        makeGroup('b', parent: 'root-a'),
+        makeGroup('a', parent: 'root-a'),
         makeGroup('root-a'),
       ]);
 

@@ -116,7 +116,6 @@ void main() {
       await showTile(
         tester,
         kind: PoolGridItemKind.related,
-        total: 29,
         displayedCount: 5,
       );
       expect(find.text('29'), findsOneWidget);
@@ -129,7 +128,7 @@ void main() {
       tester,
     ) async {
       await showTile(tester, kind: kind);
-      final icon = find.byKey(ValueKey('pool-kind-' + kind.name));
+      final icon = find.byKey(ValueKey('pool-kind-${kind.name}'));
       expect(icon, findsOneWidget);
       if (kind == PoolGridItemKind.related) {
         expect(tester.widget<Icon>(icon).icon, Symbols.photo_library);

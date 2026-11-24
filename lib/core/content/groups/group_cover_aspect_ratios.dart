@@ -7,6 +7,13 @@ final class GroupCoverAspectRatios extends Equatable {
       sample = _valid(sample),
       original = _valid(original);
 
+  factory GroupCoverAspectRatios.fromJson(Map<String, dynamic> json) =>
+      GroupCoverAspectRatios(
+        thumbnail: _number(json['thumbnail']),
+        sample: _number(json['sample']),
+        original: _number(json['original']),
+      );
+
   final double? thumbnail;
   final double? sample;
   final double? original;
@@ -19,13 +26,6 @@ final class GroupCoverAspectRatios extends Equatable {
     'sample': ?sample,
     'original': ?original,
   };
-
-  factory GroupCoverAspectRatios.fromJson(Map<String, dynamic> json) =>
-      GroupCoverAspectRatios(
-        thumbnail: _number(json['thumbnail']),
-        sample: _number(json['sample']),
-        original: _number(json['original']),
-      );
 
   static double? _number(Object? value) =>
       value is num ? value.toDouble() : null;

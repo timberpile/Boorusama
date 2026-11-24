@@ -126,8 +126,9 @@ class PixivSelectedWorksBookmarkButton extends ConsumerWidget {
     if (groups.isEmpty) return false;
     final checkedAccess = Set<Object>.identity();
     for (final data in groups) {
-      if (checkedAccess.add(data.access) && !_current(container, data))
+      if (checkedAccess.add(data.access) && !_current(container, data)) {
         return false;
+      }
       try {
         PixivWorkBookmarkTarget(access: data.access, summary: data.summary);
       } on FormatException {
@@ -190,11 +191,12 @@ class PixivSelectedWorksBookmarkButton extends ConsumerWidget {
                       beforeCommit: validate,
                     );
               } catch (_) {
-                if (context.mounted)
+                if (context.mounted) {
                   Kurumi.showErrorToast(
                     context,
                     context.t.bookmark.groups.operation_failed,
                   );
+                }
               }
             },
     );
@@ -458,8 +460,9 @@ class _PixivScopedBookmarkButtonState
   void didUpdateWidget(PixivScopedBookmarkButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.data.summary.reference != widget.data.summary.reference ||
-        !oldWidget.data.access.hasSameAuthorization(widget.data.access))
+        !oldWidget.data.access.hasSameAuthorization(widget.data.access)) {
       _workOwner = null;
+    }
   }
 
   @override

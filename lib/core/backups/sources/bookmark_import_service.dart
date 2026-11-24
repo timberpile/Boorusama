@@ -64,7 +64,7 @@ class BookmarkImportService {
     BookmarkImportPlan plan, {
     bool replace = false,
     Set<int> removeIds = const {},
-  }) async {
+  }) => Future.sync(() {
     final store = _unified!;
     return store.runReadWriteScope(() async {
       final prepared = BookmarkImportPreparation.prepare(
@@ -93,7 +93,7 @@ class BookmarkImportService {
         groupCount: plan.groups.length,
       );
     });
-  }
+  });
 
   void _requireLegacyFixtureRecords(Iterable<Bookmark> records) {
     if (records.any(
@@ -169,8 +169,9 @@ class BookmarkImportService {
           await groupRepository.deleteGroup(g.id);
         }
       }
-      if (oldBookmarks.isNotEmpty)
+      if (oldBookmarks.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(oldBookmarks);
+      }
       final saved = await bookmarkRepository.addBookmarkWithBookmarks(
         data.bookmarks,
       );
@@ -218,11 +219,12 @@ class BookmarkImportService {
         oldGroupIds: oldGroups.map((g) => g.id).toSet(),
         oldBookmarks: oldBookmarks,
       );
-      if (errors.isNotEmpty)
+      if (errors.isNotEmpty) {
         throw BookmarkImportRollbackException(
           importError: error,
           rollbackErrors: errors,
         );
+      }
       Error.throwWithStackTrace(error, stack);
     }
   }
@@ -306,12 +308,13 @@ class BookmarkImportService {
     final oldDates = {for (final b in oldBookmarks) b.id: b.createdAt.toUtc()};
     Map<int, DateTime> preservedDates(BookmarkGroup group) => {
       for (final id in group.bookmarkIds)
-        if ((group.addedAt[id] ?? oldDates[id]) case final date?) id: date,
+        id: ?(group.addedAt[id] ?? oldDates[id]),
     };
     try {
       for (final b in oldBookmarks) {
-        if (removeIds.contains(b.id))
+        if (removeIds.contains(b.id)) {
           await bookmarkRepository.removeBookmark(b);
+        }
       }
       final copies = plan.groups
           .where((g) => !g.isDefault && g.resolvedAction == ImportAction.copy)
@@ -366,7 +369,7 @@ class BookmarkImportService {
             .toSet();
         final incomingDates = {
           for (final entry in imported.addedAt.entries)
-            if (localIds[entry.key] case final id?) id: entry.value,
+            ?localIds[entry.key]: entry.value,
         };
         if (imported.isDefault) {
           if (await groupRepository.getGroup(defaultBookmarkGroupId) == null) {
@@ -520,8 +523,7 @@ class BookmarkImportService {
       for (final pool in _legacyPools(plan.pools)) {
         final incomingDates = {
           for (final group in pool.groupIds)
-            if (poolGroupTargets[group] case final target?)
-              target: pool.addedAt[group] ?? pool.createdAt,
+            ?poolGroupTargets[group]: pool.addedAt[group] ?? pool.createdAt,
         };
         final memberships = incomingDates.keys.toSet();
         if (memberships.isEmpty) continue;

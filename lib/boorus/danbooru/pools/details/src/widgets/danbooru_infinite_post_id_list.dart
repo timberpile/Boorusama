@@ -92,7 +92,7 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
             refreshAtStart: !controller.hasLoadedPage,
             header: PostGridConfigurationHeader<Post>(
               additionalControls: [
-                if (orderControl case final control?) control,
+                ?orderControl,
               ],
             ),
             scrollController: scrollController,
@@ -114,8 +114,9 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
                         controller.selectionKeysBuilder
                             ?.call(controller.items.toList())
                             .elementAtOrNull(index),
-                      ))
+                      )) {
                         return;
+                      }
                       goToPostDetailsPageFromController(
                         ref: ref,
                         initialIndex: index,

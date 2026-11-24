@@ -217,7 +217,7 @@ void main() {
 /// Pause after the real service has prepared IDs and organization, immediately
 /// before entering the production repository's durable commit path.
 class _GatedRepository extends BookmarkHiveRepository {
-  _GatedRepository(super._posts, BookmarkTestStorage storage)
+  _GatedRepository(super.posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,

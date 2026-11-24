@@ -282,8 +282,8 @@ List<PostActionDefinition> postActionDefinitions(
         id: PostActionId.share,
         label: context.t.post.action.share,
         icon: Icons.share,
-        execute: () => run(() async {
-          ref
+        execute: () => run(
+          () => ref
               .read(shareProvider)
               .sharePost(
                 post,
@@ -295,8 +295,8 @@ List<PostActionDefinition> postActionDefinitions(
                   downloadFilenameBuilderProvider(config.auth),
                 ),
                 imageCacheManager: ref.read(defaultImageCacheManagerProvider),
-              );
-        }),
+              ),
+        ),
       ),
       if (!(login?.hasStrictSFW ?? true))
         PostActionDefinition(

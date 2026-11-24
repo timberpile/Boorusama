@@ -41,7 +41,7 @@ class _FileSystem implements AppFileSystem {
   final memory = MemoryAppFileSystem();
   Completer<void>? gate;
   final started = Completer<void>();
-  bool fail = false;
+  var fail = false;
   @override
   Future<String?> getTemporaryPath() async {
     if (!started.isCompleted) started.complete();

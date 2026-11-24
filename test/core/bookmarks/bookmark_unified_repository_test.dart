@@ -38,9 +38,9 @@ void main() {
     final pending = metadata.containsKey('pendingMutation');
     final phase = switch (true) {
       _ when list.any((box) => identical(box, groups)) => 'payload',
-      _ when pending && metadata.get('record:${interruptedId}') == null =>
+      _ when pending && metadata.get('record:$interruptedId') == null =>
         'journal',
-      _ when pending && metadata.get('record:${interruptedId}') != null =>
+      _ when pending && metadata.get('record:$interruptedId') != null =>
         'index',
       _ when !pending && interruptedId != null => 'cleanup',
       _ => null,

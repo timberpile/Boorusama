@@ -53,6 +53,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 import '../search/following_topics/topic_test_utils.dart';
+import '../../support/legacy_material_test_scope.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -1276,7 +1277,7 @@ Future<BuildContext> _pumpReboot(
             if (builds++ > 0) onRestart?.call();
             return MaterialApp(
               builder: (context, child) =>
-                  MaterialUiCompatibilityBridge(child: child!),
+                  LegacyMaterialTestScope(child: child!),
               home: Builder(
                 builder: (context) {
                   if (builds == 1) initialContext = context;

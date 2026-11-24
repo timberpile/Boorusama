@@ -111,8 +111,9 @@ class _ReviewImport extends ConsumerWidget {
       ...state.profileNames,
     };
     final nameCounts = <String, int>{};
-    for (final name in names.values)
+    for (final name in names.values) {
       nameCounts.update(name, (n) => n + 1, ifAbsent: () => 1);
+    }
     final profileNames = {
       for (final (index, entry) in names.entries.indexed)
         entry.key: nameCounts[entry.value]! > 1

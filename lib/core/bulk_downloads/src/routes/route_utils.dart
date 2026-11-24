@@ -13,7 +13,7 @@ Future<void> goToBulkDownloadPage(
   BuildContext context,
   List<String>? tags, {
   required WidgetRef ref,
-}) async {
+}) => Future<void>.sync(() {
   if (tags != null) {
     return goToNewBulkDownloadTaskPage(
       ref,
@@ -23,7 +23,7 @@ Future<void> goToBulkDownloadPage(
   } else {
     return goToBulkDownloadManagerPage(ref);
   }
-}
+});
 
 Future<void> goToBulkDownloadManagerPage(
   WidgetRef ref, {

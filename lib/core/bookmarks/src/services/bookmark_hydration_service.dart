@@ -102,7 +102,7 @@ class BookmarkRecoveryService {
     final bookmark = await latestBookmark?.call(post);
     if (bookmark == null || !current()) return null;
     if (!bookmark.post.requiresDetailLookup) {
-      return await canUseResolved?.call(bookmark.post, config) != false &&
+      return (await canUseResolved?.call(bookmark.post, config) ?? true) &&
               current()
           ? bookmark.post
           : null;
@@ -110,12 +110,13 @@ class BookmarkRecoveryService {
     final result = await recover(bookmark, config);
     if (result is! BookmarkRecoverySuccess || !current()) return null;
     final resolved = result.post.copyWith(origin: bookmark.post.origin);
-    if (await canUseResolved?.call(resolved, config) == false || !current())
+    if (await canUseResolved?.call(resolved, config) == false || !current()) {
       return null;
+    }
     final latest = await latestBookmark?.call(post);
     if (latest == null || !current()) return null;
     if (!latest.post.requiresDetailLookup) {
-      return await canUseResolved?.call(latest.post, config) != false &&
+      return (await canUseResolved?.call(latest.post, config) ?? true) &&
               current()
           ? latest.post
           : null;
@@ -292,8 +293,9 @@ class BookmarkHydrationService {
     Post post,
     BooruPostDataCodec codec,
   ) async {
-    if (commitRecovered case final commit?)
+    if (commitRecovered case final commit?) {
       return commit(bookmark, post, codec);
+    }
     await library.upgradeBookmarkSnapshot(
       bookmark: bookmark,
       post: post,

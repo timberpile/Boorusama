@@ -50,7 +50,7 @@ class _Bookmarks extends BookmarkLibraryNotifier {
 }
 
 BookmarkLibraryState _library(BooruConfig config, {required bool hinted}) {
-  final date = DateTime.utc(2026, 1, 1);
+  final date = DateTime.utc(2026);
   final legacy = PostBookmark(
     id: 101,
     booruId: config.booruId,

@@ -25,7 +25,6 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/image/raw_image.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -295,13 +294,13 @@ class _OfflineAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? stream,
     Future<void>? cancel,
-  ) async {
+  ) => Future.sync(() {
     requests.add(options.uri.toString());
     throw DioException(
       requestOptions: options,
       type: DioExceptionType.connectionError,
     );
-  }
+  });
 
   @override
   void close({bool force = false}) {}

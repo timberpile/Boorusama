@@ -147,7 +147,9 @@ void main() {
           harness.wrap(
             ProviderScope(
               overrides: [
-                postCountProvider.overrideWith((ref, args) async => 0),
+                postCountProvider.overrideWith(
+                  (ref, args) => Future.sync(() => 0),
+                ),
                 networkStateProvider.overrideWithValue(
                   NetworkDisconnectedState(),
                 ),
@@ -169,10 +171,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        router.push<void>('${following.location}/folder');
+        unawaited(router.push<void>('${following.location}/folder'));
         await tester.pumpAndSettle();
         final folder = tester.element(find.text('Original folder'));
-        router.push<void>('${following.location}/search');
+        unawaited(router.push<void>('${following.location}/search'));
         await _until(
           tester,
           () => find.byType(FollowTopicButton).evaluate().isNotEmpty,
@@ -393,10 +395,11 @@ class _SearchBuilder extends BaseBooruBuilder {
             fetcher: (page, tags) {
               owners.add(config);
               fetches.add('${config.url}|${tags.rawTagsString}|$page');
-              if (config.id == originalId)
+              if (config.id == originalId) {
                 return TaskEither(
                   () async => Either.of(await oldResponse.future),
                 );
+              }
               return TaskEither.of(const PostResult(posts: <Post>[], total: 0));
             },
             landingViewBuilder: (_) => const SizedBox.expand(),

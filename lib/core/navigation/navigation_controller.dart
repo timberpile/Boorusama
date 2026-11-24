@@ -150,7 +150,7 @@ class NavigationController extends Notifier<NavigationPreferences> {
   Future<bool> openFavorites(
     List<String> eligible, {
     String? explicitProfileId,
-  }) async {
+  }) => Future.sync(() {
     final entry = resolveFavoritesEntry(
       explicitProfileId: explicitProfileId,
       rememberedProfileId: state.lastFavoritesProfileId,
@@ -161,7 +161,7 @@ class NavigationController extends Notifier<NavigationPreferences> {
         : selectDestination(
             const DestinationId.app(AppDestination.favoritesRecovery),
           );
-  }
+  });
 
   Future<void> toggleProfile(String id) async {
     state = state.toggleProfile(id);

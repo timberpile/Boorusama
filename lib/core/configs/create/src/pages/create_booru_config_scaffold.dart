@@ -450,6 +450,7 @@ class BooruConfigPopScope extends ConsumerWidget {
                   id: editId,
                   newConfig: configData,
                 );
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
               },
               onDiscard: () {

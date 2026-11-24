@@ -11,11 +11,11 @@ import '../../backups/mitemite/notification_intent.dart';
 import '../../backups/mitemite/protocol.dart';
 
 class DownloadNotifications {
-  static const _miteMiteSummaryId = 0x14400000;
-  static const _miteMiteSummaryTag = 'mitemite.summary.v1';
   DownloadNotifications.uninitialized({required this.platform})
     : _flutterLocalNotificationsPlugin = null,
       _tapController = StreamController<String>.broadcast();
+  static const _miteMiteSummaryId = 0x14400000;
+  static const _miteMiteSummaryTag = 'mitemite.summary.v1';
 
   final AppPlatform platform;
   FlutterLocalNotificationsPlugin? _flutterLocalNotificationsPlugin;
@@ -103,9 +103,9 @@ class DownloadNotifications {
 
   static bool _isMiteMiteEvent(ActiveNotification notice) =>
       notice.id != null &&
-      (notice.tag?.startsWith('mitemite.discovery.') == true ||
-          notice.tag?.startsWith('mitemite.offers.') == true ||
-          notice.tag?.startsWith('mitemite.following_offers.') == true ||
+      ((notice.tag?.startsWith('mitemite.discovery.') ?? false) ||
+          (notice.tag?.startsWith('mitemite.offers.') ?? false) ||
+          (notice.tag?.startsWith('mitemite.following_offers.') ?? false) ||
           notice.tag == 'mitemite.topics.v1' ||
           notice.tag == 'mitemite.posts.v1');
 
@@ -203,8 +203,9 @@ class DownloadNotifications {
           (channel) =>
               channel.id == channelId && channel.importance == Importance.none,
         ) ??
-        false)
+        false) {
       return false;
+    }
     String group(SyncNotificationDestination destination) =>
         'mitemite.mitemite.v2.${destination.name}';
     final active = await plugin.getActiveNotifications();
@@ -322,8 +323,9 @@ class DownloadNotifications {
       body: body,
       channelName: channelName,
       channelDescription: channelDescription,
-    ))
+    )) {
       throw StateError('Native MiteMite notification is blocked');
+    }
   }
 
   void configureNativeDownloads({required bool enabled}) {

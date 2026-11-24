@@ -169,7 +169,7 @@ void main() {
 
 int _total(String counter) {
   final counters =
-      (performanceRecorder.snapshot()['summary'] as Map)['counters'] as Map;
+      (performanceRecorder.snapshot()['summary']! as Map)['counters'] as Map;
   final sample = counters[counter] as Map?;
   return sample?['total'] as int? ?? 0;
 }

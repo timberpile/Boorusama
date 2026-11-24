@@ -159,8 +159,6 @@ void main() {
         tester,
         const SimplePostStatsTile(
           score: 0,
-          totalComments: null,
-          favCount: null,
         ),
       );
       expect(find.textContaining('Points', findRichText: true), findsOneWidget);

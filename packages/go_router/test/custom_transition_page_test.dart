@@ -8,11 +8,11 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   testWidgets('CustomTransitionPage builds its child using transitionsBuilder', (
-    WidgetTester tester,
+    tester,
   ) async {
     const child = HomeScreen();
     final transition = CustomTransitionPage<void>(
-      transitionsBuilder: expectAsync4((_, _, _, Widget child) => child),
+      transitionsBuilder: expectAsync4((_, _, _, child) => child),
       child: child,
     );
     final router = GoRouter(
@@ -23,29 +23,27 @@ void main() {
     expect(find.byWidget(child), findsOneWidget);
   });
 
-  testWidgets('NoTransitionPage does not apply any transition', (WidgetTester tester) async {
+  testWidgets('NoTransitionPage does not apply any transition', (tester) async {
     final showHomeValueNotifier = ValueNotifier<bool>(false);
     addTearDown(showHomeValueNotifier.dispose);
     await tester.pumpWidget(
       MaterialApp(
         home: ValueListenableBuilder<bool>(
           valueListenable: showHomeValueNotifier,
-          builder: (_, bool showHome, _) {
+          builder: (_, showHome, _) {
             return Navigator(
               pages: <Page<void>>[
                 const NoTransitionPage<void>(child: LoginScreen()),
                 if (showHome) const NoTransitionPage<void>(child: HomeScreen()),
               ],
-              onPopPage: (Route<dynamic> route, dynamic result) {
-                return route.didPop(result);
-              },
+              onDidRemovePage: (_) {},
             );
           },
         ),
       ),
     );
 
-    final Finder homeScreenFinder = find.byType(HomeScreen);
+    final homeScreenFinder = find.byType(HomeScreen);
 
     expect(homeScreenFinder, findsNothing);
 
@@ -67,7 +65,7 @@ void main() {
   });
 
   testWidgets('NoTransitionPage does not apply any reverse transition', (
-    WidgetTester tester,
+    tester,
   ) async {
     final showHomeValueNotifier = ValueNotifier<bool>(true);
     addTearDown(showHomeValueNotifier.dispose);
@@ -75,22 +73,20 @@ void main() {
       MaterialApp(
         home: ValueListenableBuilder<bool>(
           valueListenable: showHomeValueNotifier,
-          builder: (_, bool showHome, _) {
+          builder: (_, showHome, _) {
             return Navigator(
               pages: <Page<void>>[
                 const NoTransitionPage<void>(child: LoginScreen()),
                 if (showHome) const NoTransitionPage<void>(child: HomeScreen()),
               ],
-              onPopPage: (Route<dynamic> route, dynamic result) {
-                return route.didPop(result);
-              },
+              onDidRemovePage: (_) {},
             );
           },
         ),
       ),
     );
 
-    final Finder homeScreenFinder = find.byType(HomeScreen);
+    final homeScreenFinder = find.byType(HomeScreen);
 
     showHomeValueNotifier.value = false;
 
@@ -99,7 +95,7 @@ void main() {
     expect(homeScreenFinder, findsNothing);
   });
 
-  testWidgets('Dismiss a screen by tapping a modal barrier', (WidgetTester tester) async {
+  testWidgets('Dismiss a screen by tapping a modal barrier', (tester) async {
     const homeKey = ValueKey<String>('home');
     const dismissibleModalKey = ValueKey<String>('dismissibleModal');
 
@@ -111,10 +107,10 @@ void main() {
         ),
         GoRoute(
           path: '/dismissible-modal',
-          pageBuilder: (_, GoRouterState state) => CustomTransitionPage<void>(
+          pageBuilder: (_, state) => CustomTransitionPage<void>(
             key: state.pageKey,
             barrierDismissible: true,
-            transitionsBuilder: (_, _, _, Widget child) => child,
+            transitionsBuilder: (_, _, _, child) => child,
             child: const DismissibleModal(key: dismissibleModalKey),
           ),
         ),
@@ -132,7 +128,7 @@ void main() {
   });
 
   testWidgets('transitionDuration and reverseTransitionDuration is different', (
-    WidgetTester tester,
+    tester,
   ) async {
     const homeKey = ValueKey<String>('home');
     const loginKey = ValueKey<String>('login');
@@ -147,11 +143,11 @@ void main() {
         ),
         GoRoute(
           path: '/login',
-          pageBuilder: (_, GoRouterState state) => CustomTransitionPage<void>(
+          pageBuilder: (_, state) => CustomTransitionPage<void>(
             key: state.pageKey,
             transitionDuration: transitionDuration,
             reverseTransitionDuration: reverseTransitionDuration,
-            transitionsBuilder: (_, Animation<double> animation, _, Widget child) =>
+            transitionsBuilder: (_, animation, _, child) =>
                 FadeTransition(opacity: animation, child: child),
             child: const LoginScreen(key: loginKey),
           ),
@@ -163,11 +159,11 @@ void main() {
     expect(find.byKey(homeKey), findsOneWidget);
 
     router.push('/login');
-    final int pushingPumped = await tester.pumpAndSettle();
+    final pushingPumped = await tester.pumpAndSettle();
     expect(find.byKey(loginKey), findsOneWidget);
 
     router.pop();
-    final int poppingPumped = await tester.pumpAndSettle();
+    final poppingPumped = await tester.pumpAndSettle();
     expect(find.byKey(homeKey), findsOneWidget);
 
     expect(pushingPumped != poppingPumped, true);

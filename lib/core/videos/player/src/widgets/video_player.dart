@@ -245,8 +245,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           cancellation.cancel('Guarded video failed');
           final failedPlayer = _player;
           _player = null;
-          if (failedPlayer != null)
+          if (failedPlayer != null) {
             unawaited(_disposePlayerSafely(failedPlayer));
+          }
           setState(() {
             _error = context.t.post.action.share_media_unavailable;
             _isPreparingSource = false;

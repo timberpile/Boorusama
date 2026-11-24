@@ -285,8 +285,9 @@ bool bookmarkCoverAllowed(
       facts.tagCoverage != MetadataCoverage.complete ||
       facts.deleted ||
       facts.banned ||
-      !PoolBookmarkCover.isStatic(cover.thumbnail))
+      !PoolBookmarkCover.isStatic(cover.thumbnail)) {
     return false;
+  }
   final rating = Rating.parse(facts.rating);
   return poolCoverAllowsRating(config, rating) &&
       groupCoverPassesBlacklist(facts, blacklist, postId: cover.postId);
@@ -392,14 +393,14 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
               next.pools.any(
                 (p) => p.localId == pool.localId && p.identity == pool.identity,
               ) &&
-              ref
+              (ref
                       .read(contentAccessContextProvider(access.key))
-                      ?.hasSameAuthorization(access) ==
-                  true &&
-              ref
+                      ?.hasSameAuthorization(access) ??
+                  false) &&
+              (ref
                       .read(bookmarkReadAccessProvider(target))
-                      ?.hasSameAuthorization(access) ==
-                  true;
+                      ?.hasSameAuthorization(access) ??
+                  false);
         }
 
         final presentationOnly = poolCoverHasReceivedMembership(library, saved);
@@ -408,11 +409,12 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
         if (presentationOnly) {
           choices = ref.read(bookmarkPresentationCoversProvider);
           final selected = choices!.selected(choiceKey);
-          if (selected != null)
+          if (selected != null) {
             return saved.copyWith(
               cover: selected,
               coverUrl: selected.thumbnail,
             );
+          }
         }
         final record = library.byId[saved.bookmarkId];
         final order = switch (record) {
@@ -467,10 +469,11 @@ Future<void> scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) async {
     saved,
     ref.read(bookmarkReadProfilesProvider),
   );
-  if (selected != null)
+  if (selected != null) {
     await ref.read(blacklistTagsProvider(selected.filter).future);
-  else
+  } else {
     await ref.read(globalBlacklistedTagsProvider.future);
+  }
   final access = ref.read(
     bookmarkReadAccessProvider(
       BookmarkReaderRequest(

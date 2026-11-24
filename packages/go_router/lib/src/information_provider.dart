@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../go_router.dart' show GoRouteInformationParser, GoRouter;
 import 'match.dart';
 import 'path_utils.dart';
 
@@ -45,8 +46,14 @@ class RouteInformationState<T> {
   /// Creates an InternalRouteInformationState.
   @visibleForTesting
   RouteInformationState({this.extra, this.completer, this.baseRouteMatchList, required this.type})
-    : assert((type == NavigatingType.go || type == NavigatingType.restore) == (completer == null)),
-      assert((type != NavigatingType.go) == (baseRouteMatchList != null));
+    : assert(
+        (type == NavigatingType.go || type == NavigatingType.restore) == (completer == null),
+        'Only imperative navigation uses a completion future.',
+      ),
+      assert(
+        (type != NavigatingType.go) == (baseRouteMatchList != null),
+        'Navigation other than go must include its base route list.',
+      );
 
   /// The extra object used when navigating with [GoRouter].
   final Object? extra;
@@ -103,7 +110,7 @@ class GoRouteInformationProvider extends RouteInformationProvider
   final bool _routerNeglect;
 
   static WidgetsBinding get _binding => WidgetsBinding.instance;
-  static final RouteInformation _kEmptyRouteInformation = RouteInformation(uri: Uri.parse(''));
+  static final _kEmptyRouteInformation = RouteInformation(uri: Uri.parse(''));
 
   @override
   void routerReportsNewRouteInformation(
@@ -112,7 +119,7 @@ class GoRouteInformationProvider extends RouteInformationProvider
   }) {
     // GoRouteInformationParser should always report encoded route match list
     // in the state.
-    assert(routeInformation.state != null);
+    assert(routeInformation.state != null, 'New route information must include navigation state.');
     final bool replace;
     switch (type) {
       case RouteInformationReportingType.none:
@@ -147,14 +154,14 @@ class GoRouteInformationProvider extends RouteInformationProvider
   }
 
   void _setValue(String location, Object state) {
-    Uri uri = Uri.parse(location);
+    var uri = Uri.parse(location);
 
     // Check for relative location
     if (location.startsWith('./')) {
       uri = concatenateUris(_value.uri, uri);
     }
 
-    final bool shouldNotify = _valueHasChanged(newLocationUri: uri, newState: state);
+    final shouldNotify = _valueHasChanged(newLocationUri: uri, newState: state);
     _value = RouteInformation(uri: uri, state: state);
     if (shouldNotify) {
       notifyListeners();
@@ -277,7 +284,10 @@ class GoRouteInformationProvider extends RouteInformationProvider
 
   @override
   Future<bool> didPushRouteInformation(RouteInformation routeInformation) {
-    assert(hasListeners);
+    assert(
+      hasListeners,
+      'Remove a route information listener only while listeners are registered.',
+    );
     _platformReportsNewRouteInformation(routeInformation);
     return SynchronousFuture<bool>(true);
   }

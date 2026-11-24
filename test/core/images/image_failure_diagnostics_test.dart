@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -17,7 +15,7 @@ void main() {
       addTearDown(() => dio.close(force: true));
       final messages = <String>[];
       final originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
+      debugPrint = (message, {wrapWidth}) {
         if (message != null) messages.add(message);
       };
       const url = 'https://i.pximg.net/denied.jpg';

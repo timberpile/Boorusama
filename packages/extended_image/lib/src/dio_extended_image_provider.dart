@@ -211,17 +211,19 @@ class DioExtendedNetworkImageProvider
               onReceiveProgress: chunkEvents == null
                   ? null
                   : (received, total) {
-                      if (!chunkEvents.isClosed && total >= 0)
+                      if (!chunkEvents.isClosed && total >= 0) {
                         chunkEvents.add(
                           ImageChunkEvent(
                             cumulativeBytesLoaded: received,
                             expectedTotalBytes: total,
                           ),
                         );
+                      }
                     },
             );
-            if (bytes.isNotEmpty && !sharedToken.isCancelled)
+            if (bytes.isNotEmpty && !sharedToken.isCancelled) {
               await write.save(bytes);
+            }
             return bytes;
           } finally {
             await write.abort();

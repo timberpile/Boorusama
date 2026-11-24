@@ -10,8 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:material_ui/material_ui.dart'
-    show MaterialUiCompatibilityBridge;
+
+import '../../support/legacy_material_test_scope.dart';
 
 class _Library extends BookmarkLibraryNotifier {
   _Library(this.library);
@@ -57,35 +57,35 @@ void main() {
             BookmarkGroup(
               id: _ancestorId,
               name: 'Ancestor',
-              bookmarkIds: {},
+              bookmarkIds: const {},
             ),
             BookmarkGroup(
               id: _nestedId,
               name: 'Nested',
               parentGroupId: _ancestorId,
-              bookmarkIds: {},
+              bookmarkIds: const {},
             ),
             BookmarkGroup(
               id: _emptyId,
               name: 'Empty',
               parentGroupId: _ancestorId,
-              bookmarkIds: {},
+              bookmarkIds: const {},
             ),
             BookmarkGroup(
               id: _unrelatedId,
               name: 'Unrelated',
-              bookmarkIds: {},
+              bookmarkIds: const {},
             ),
             BookmarkGroup(
               id: _applicableId,
               name: 'Partial group',
-              bookmarkIds: {1},
+              bookmarkIds: const {1},
               parentGroupId: _nestedId,
             ),
             BookmarkGroup(
               id: _unusedId,
               name: 'Unused group',
-              bookmarkIds: {},
+              bookmarkIds: const {},
               parentGroupId: _unrelatedId,
             ),
           ],
@@ -95,7 +95,7 @@ void main() {
             overrides: [bookmarkProvider.overrideWith(() => _Library(library))],
             child: BooruLocalization(
               child: MaterialApp(
-                builder: (context, child) => MaterialUiCompatibilityBridge(
+                builder: (context, child) => LegacyMaterialTestScope(
                   child: KurumiTheme(
                     data: KurumiThemeData.fromMaterial(Theme.of(context)),
                     child: child!,

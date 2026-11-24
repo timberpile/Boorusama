@@ -29,7 +29,6 @@ import '../../../selection/collection_selection_bar.dart';
 import '../../../selection/ordered_selection_canvas.dart';
 import '../../../selection/ordered_selection_controller.dart';
 import '../../../selection/selection_input.dart';
-import '../../../widgets/multi_select_button.dart';
 import '../../../widgets/widgets.dart';
 import '../providers/bookmark_group_view_preferences.dart';
 import '../providers/bookmark_provider.dart';
@@ -68,7 +67,7 @@ class _BookmarkGroupBrowserPageState
       widget.groupId == null && widget.folderId != null;
   List<String> _lastPath = const [];
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
-  bool _normalizing = false;
+  var _normalizing = false;
   final _search = TextEditingController();
   final _selection = OrderedSelectionController<CollectionSelectionKey>();
   final _scrolls = <Object, AutoScrollController>{};
@@ -134,10 +133,11 @@ class _BookmarkGroupBrowserPageState
 
   @override
   Widget build(BuildContext context) {
-    final visible = TickerMode.of(context);
-    final AsyncValue<BookmarkLibraryState> library = visible
+    final visible = TickerMode.valuesOf(context).enabled;
+    final library = visible
         ? ref.watch(bookmarkProvider)
-        : (_visibleLibrary ?? ref.read(bookmarkProvider));
+        : (_visibleLibrary ??
+              ref.read<AsyncValue<BookmarkLibraryState>>(bookmarkProvider));
     if (visible || _visibleLibrary == null) _visibleLibrary = library;
     final state = library.valueOrNull;
     final id = _currentId(state);
@@ -482,18 +482,20 @@ class _BookmarkGroupBrowserPageState
           padding: EdgeInsets.zero,
           itemCount: ancestors.length + 2,
           itemBuilder: (context, index) {
-            if (index == 0)
+            if (index == 0) {
               return KurumiPopupMenuItem(
                 title: Text(context.t.sideMenu.home),
                 icon: const Icon(Icons.home_outlined),
                 onTap: () => _open(null),
               );
-            if (index == ancestors.length + 1)
+            }
+            if (index == ancestors.length + 1) {
               return KurumiPopupMenuItem(
                 title: Text(title),
                 trailing: const Icon(Icons.check),
                 onTap: null,
               );
+            }
             final ancestor = ancestors[index - 1];
             return KurumiPopupMenuItem(
               title: Text(_groupLabel(state, ancestor)),
@@ -690,11 +692,12 @@ class _BookmarkGroupBrowserPageState
           final service = await ref.read(miteMiteServiceProvider.future);
           if (!mounted || !isCurrentSyncService(context, service)) return;
           await service.localCopy(group.id);
-          if (mounted)
+          if (mounted) {
             Kurumi.showSuccessToast(
               context,
               context.t.mitemite.local_copy_created,
             );
+          }
         }),
       ),
       if (state.mirrors.subscriptions[owner.publisher]?.contains(
@@ -767,13 +770,14 @@ class _BookmarkGroupBrowserPageState
                     final service = await ref.read(
                       miteMiteServiceProvider.future,
                     );
-                    if (mounted)
+                    if (context.mounted) {
                       await editSyncDeviceAlias(
                         context,
                         service: service,
                         publisher: publisher,
                         alias: state.mirrors.aliases[publisher],
                       );
+                    }
                   }),
                 ),
               ],
@@ -785,7 +789,7 @@ class _BookmarkGroupBrowserPageState
         for (final source
             in state.mirrors.subscriptions[publisher] ?? const <String>{})
           if (state.mirrors.localIdFor(publisher, source) case final id?)
-            if (state.groupsById[id] case final group?) group,
+            ?state.groupsById[id],
       ], const {}),
     ],
   ];
@@ -866,7 +870,8 @@ class _BookmarkGroupBrowserPageState
         folderIds: const {},
         groupIds: ids,
       );
-      while (mounted) {
+      while (true) {
+        if (!mounted) return;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => KurumiDialog(
@@ -922,19 +927,21 @@ class _BookmarkGroupBrowserPageState
           await notifier.deleteSelection(preview);
           if (!mounted) return;
           _selection.disable();
-          if (notifier.lastHierarchyDeletion case final receipt?)
+          if (notifier.lastHierarchyDeletion case final receipt?) {
             notifier.showHierarchyUndo(context, receipt);
+          }
           return;
         } on BookmarkCollectionChangedException catch (error) {
           preview = error.preview;
         }
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         Kurumi.showErrorToast(
           context,
           context.t.bookmark.groups.operation_failed,
         );
+      }
     }
   }
 
@@ -943,11 +950,12 @@ class _BookmarkGroupBrowserPageState
       await action();
       if (mounted) _selection.disable();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         Kurumi.showErrorToast(
           context,
           context.t.bookmark.groups.operation_failed,
         );
+      }
     }
   }
 }

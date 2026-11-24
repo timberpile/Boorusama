@@ -64,7 +64,7 @@ class _PostListConfigurationHeaderState
   Widget _popup(BuildContext context) {
     final media = MediaQuery.of(context);
     final availableHeight = math.max(
-      0.0,
+      0,
       media.size.height - media.padding.vertical - media.viewInsets.bottom - 24,
     );
     return ConstrainedBox(

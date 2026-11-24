@@ -19,7 +19,7 @@ class BookmarkImportPlanner {
   }) {
     final currentIdentities = {
       for (final bookmark in currentBookmarks)
-        if (bookmarkContentIdentity(bookmark) case final identity?) identity,
+        ?bookmarkContentIdentity(bookmark),
     };
     final importedBookmarks = {for (final b in data.records) b.id: b};
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
@@ -37,7 +37,6 @@ class BookmarkImportPlanner {
     ], data.folders);
     return BookmarkImportPlan(
       records: data.records,
-      folders: const [],
       alreadyExistedCount: data.records
           .where(
             (b) => switch (bookmarkContentIdentity(b)) {

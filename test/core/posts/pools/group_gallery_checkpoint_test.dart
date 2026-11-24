@@ -22,7 +22,7 @@ void main() {
           ),
           blacklistedTagsFetcher: () async => {},
           mountedChecker: () => true,
-          duplicateTracker: PostDuplicateTracker(mode: DuplicateCheckMode.id),
+          duplicateTracker: PostDuplicateTracker(),
           onError: (_) {},
           pageMode: PageMode.paginated,
         );
@@ -44,7 +44,7 @@ void main() {
                     perPage: 2,
                     child: ListView(
                       controller: scroll,
-                      children: [const SizedBox(height: 1000)],
+                      children: const [SizedBox(height: 1000)],
                     ),
                   ),
                 ),
@@ -64,7 +64,7 @@ void main() {
           },
           blacklistedTagsFetcher: () async => {},
           mountedChecker: () => true,
-          duplicateTracker: PostDuplicateTracker(mode: DuplicateCheckMode.id),
+          duplicateTracker: PostDuplicateTracker(),
           onError: (_) {},
           pageMode: PageMode.paginated,
         );

@@ -72,7 +72,7 @@ Future<void> openBoorusamaLinkFile(
         .currentContext;
     unawaited(
       ref.read(routerProvider).push<void>(document.uri.toString()).catchError(
-        (Object _, StackTrace __) async {
+        (Object _, StackTrace _) async {
           if (feedbackContext != null && feedbackContext.mounted) {
             await showInvalidLinkFile(feedbackContext);
           }

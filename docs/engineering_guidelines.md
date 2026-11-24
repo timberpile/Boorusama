@@ -9,8 +9,9 @@ verification; issue and integration guidance is loaded only when needed.
 - Always use `fvm` for `flutter` and `dart` commands. Run tests with
   `fvm flutter test`.
 - Run `./gen.sh` to generate i18n, language configs, and booru client configs
-  when those inputs change. In a fresh worktree, first run `fvm dart pub get`
-  from `packages/boorusama_cli` before the first generation. Consult
+  when outputs are missing or inputs have changed since the last generation,
+  including after switching revisions. In a fresh worktree, first run
+  `fvm dart pub get` from `packages/boorusama_cli`. Consult
   [build troubleshooting](build_troubleshooting.md) for the repeated native
   build warning.
 - Use an Android emulator only when device/UI integration is necessary. Follow
@@ -25,6 +26,13 @@ During implementation, run relevant tests, format changed Dart files with
 `fvm dart format`, and analyze affected code when useful. Expand the checks when
 a change crosses a meaningful boundary; prefer the broader check if scope is
 uncertain.
+
+After implementation and review, make sure generated Dart matches the current
+checkout, then run `fvm flutter analyze --no-pub` from the repository root
+for changes that affect Dart or its analysis. Resolve all
+errors, warnings, and informational findings. Recheck behavior affected by any
+fixes, then rerun the full analysis and confirm `No issues found!` on the final
+state. The table below determines which tests to run.
 
 | Change | Required local checks |
 | --- | --- |

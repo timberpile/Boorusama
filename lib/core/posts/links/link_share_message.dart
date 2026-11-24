@@ -29,7 +29,7 @@ String postLinkShareMessage(
     {
       'id': id,
       'profile': profile.isEmpty ? link.site.host : profile,
-      if (artist != null) 'artist': artist,
+      'artist': ?artist,
     },
   );
 }

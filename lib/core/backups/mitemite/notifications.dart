@@ -33,11 +33,11 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
     with WidgetsBindingObserver {
   final _delivery = SyncNotificationDelivery();
   final _tapBlocked = ValueNotifier(false);
-  bool _scheduled = false;
+  var _scheduled = false;
   final _taps = SyncNotificationTapQueue();
   NavigationController? _navigation;
   final _routeSignals = <ValueNotifier<Route<dynamic>?>>[];
-  bool _opening = false;
+  var _opening = false;
 
   @override
   void initState() {
@@ -47,8 +47,9 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
     _navigation!.bindingChanges.addListener(_bindingChanged);
     _bindingChanged();
     if (ref.read(miteMiteActivationProvider) &&
-        ref.read(appPlatformProvider) == AppPlatform.android)
+        ref.read(appPlatformProvider) == AppPlatform.android) {
       _tapBlocked.value = true;
+    }
   }
 
   @override
@@ -81,8 +82,9 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
       for (final id in binding.destinations) {
         _routeSignals.add(binding.observerFor(id)!.topRoute);
       }
-      if (binding.rootObserver case final observer?)
+      if (binding.rootObserver case final observer?) {
         _routeSignals.add(observer.topRoute);
+      }
       for (final signal in _routeSignals) {
         signal.addListener(_schedule);
       }
@@ -120,17 +122,15 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
             .navigatorKey
             .currentState;
         if (navigator == null) return;
-        unawaited(
-          navigator.push(
-            MaterialPageRoute<void>(
-              builder: (_) => MiteMitePage(
-                section:
-                    intent.destination ==
-                        SyncNotificationDestination.subscriptions
-                    ? 'receive'
-                    : 'devices',
-                focusPublisher: intent.publisher,
-              ),
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => MiteMitePage(
+              section:
+                  intent.destination ==
+                      SyncNotificationDestination.subscriptions
+                  ? 'receive'
+                  : 'devices',
+              focusPublisher: intent.publisher,
             ),
           ),
         );
@@ -154,8 +154,9 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
       if (!mounted ||
           !_foreground ||
           !ref.read(miteMiteActivationProvider) ||
-          ref.read(appPlatformProvider) != AppPlatform.android)
+          ref.read(appPlatformProvider) != AppPlatform.android) {
         return;
+      }
       final notifications = ref.read(downloadNotificationsProvider);
       try {
         await notifications.initialize();
@@ -175,8 +176,9 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
         if (service == null ||
             service.busy ||
             service.isReconciling ||
-            service.events.pendingNotifications.isEmpty)
+            service.events.pendingNotifications.isEmpty) {
           return;
+        }
         final navigation = ref.read(appNavigationProvider);
         final anchor =
             navigation.feedbackKey.currentContext ??
@@ -232,8 +234,9 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
       });
       ref.listen(downloadNotificationTapProvider, (_, value) {
         if (SyncNotificationIntent.tryParse(value.valueOrNull)
-            case final intent?)
+            case final intent?) {
           _acceptTap(intent);
+        }
       });
       _schedule();
     }

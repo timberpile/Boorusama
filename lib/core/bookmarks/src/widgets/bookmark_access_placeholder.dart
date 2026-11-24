@@ -48,7 +48,7 @@ class BookmarkAccessPlaceholder extends ConsumerWidget {
     );
     final policy = config != null
         ? ref.watch(contentEffectivePolicyProvider(config.id))
-        : ref.watch(globalBlacklistedTagsProvider).whenData((_) => "public");
+        : ref.watch(globalBlacklistedTagsProvider).whenData((_) => 'public');
     final loading = policy.isLoading;
     return AspectRatio(
       aspectRatio: aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1,

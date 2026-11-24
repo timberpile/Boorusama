@@ -58,7 +58,7 @@ void main() {
 class _Preferences implements MiscDataStore {
   _Preferences(this.value);
   String? value;
-  int writes = 0;
+  var writes = 0;
   @override
   String? get(String key) => key == 'mitemite.v1.settings' ? value : null;
   @override

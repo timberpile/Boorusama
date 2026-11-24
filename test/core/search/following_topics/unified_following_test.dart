@@ -127,17 +127,16 @@ void main() {
             id: 'parent',
             name: 'Parent',
             feedEnabled: true,
-            searchIds: ['a'],
+            searchIds: const ['a'],
           ),
           TopicFolder(
             id: 'child',
             parentId: 'parent',
             name: 'Child',
             feedEnabled: true,
-            searchIds: ['b'],
+            searchIds: const ['b'],
           ),
         ],
-        homeSearchIds: [],
       ),
     );
     await repository.ensureFolderFeed('parent');
@@ -218,7 +217,7 @@ void main() {
       final topics = await repository.getAll();
       await TopicFeedImportService(
         repository: repository,
-      ).replace(TopicFeedBackupData(feeds: []), profiles: []);
+      ).replace(TopicFeedBackupData(feeds: const []), profiles: []);
       expect(await repository.getFeeds(), before);
       await expectLater(
         repository.saveFeed(
@@ -272,7 +271,7 @@ void main() {
               TopicFeedBackupRecord(
                 id: legacyId,
                 name: 'Replacement',
-                queries: ['different'],
+                queries: const ['different'],
                 position: 0,
                 profile: BackupProfileReference(
                   id: profile.id,

@@ -41,7 +41,7 @@ List<TopicQueryDisplayToken> topicQueryDisplayTokens(String query) {
         }
         if (escaped) {
           escaped = false;
-        } else if (character == '\\') {
+        } else if (character == r'\') {
           escaped = true;
         } else if (quote != null) {
           if (character == quote) quote = null;

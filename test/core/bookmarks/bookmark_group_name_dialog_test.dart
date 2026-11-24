@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 void main() {
   for (final action in ['Save', 'Cancel', 'Back', 'Outside', 'Submit']) {
     testWidgets('closing with $action safely completes the dialog transition', (
@@ -15,8 +17,7 @@ void main() {
       await tester.pumpWidget(
         BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) =>
-                MaterialUiCompatibilityBridge(child: child!),
+            builder: (context, child) => LegacyMaterialTestScope(child: child!),
             home: Builder(
               builder: (context) => TextButton(
                 onPressed: () async {
@@ -60,8 +61,7 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) =>
-              MaterialUiCompatibilityBridge(child: child!),
+          builder: (context, child) => LegacyMaterialTestScope(child: child!),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => showBookmarkGroupNameDialog(

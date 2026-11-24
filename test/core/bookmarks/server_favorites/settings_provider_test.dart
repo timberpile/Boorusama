@@ -8,8 +8,8 @@ import 'package:boorusama/core/cache/misc_data_store.dart';
 
 class _Store implements MiscDataStore {
   String? value;
-  bool fail = false;
-  int writes = 0;
+  var fail = false;
+  var writes = 0;
 
   @override
   String? get(String key) => value;
@@ -23,14 +23,14 @@ class _Store implements MiscDataStore {
 }
 
 class _Library extends BookmarkLibraryNotifier {
-  bool fail = false;
-  int reads = 0;
+  var fail = false;
+  var reads = 0;
 
   final snapshot = BookmarkLibraryState(
     bookmarks: const [],
     groups: [
-      BookmarkGroup(id: 'empty', name: 'Empty', bookmarkIds: {}),
-      BookmarkGroup(id: 'populated', name: 'Populated', bookmarkIds: {1}),
+      BookmarkGroup(id: 'empty', name: 'Empty', bookmarkIds: const {}),
+      BookmarkGroup(id: 'populated', name: 'Populated', bookmarkIds: const {1}),
     ],
   );
 

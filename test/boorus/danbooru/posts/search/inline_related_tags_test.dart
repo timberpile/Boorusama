@@ -60,10 +60,12 @@ void main() {
           colorSchemeProvider.overrideWithValue(ThemeData().colorScheme),
           tagColorProvider.overrideWith((ref, key) => null),
           danbooruRelatedTagProvider.overrideWith(
-            (ref, query) async => DanbooruRelatedTag(
-              query: query,
-              tags: [item('one_piece'), item('cat')],
-              wikiPageTags: const [],
+            (ref, query) => Future.sync(
+              () => DanbooruRelatedTag(
+                query: query,
+                tags: [item('one_piece'), item('cat')],
+                wikiPageTags: const [],
+              ),
             ),
           ),
         ],

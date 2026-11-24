@@ -307,8 +307,9 @@ class _SettingsAdaptiveShellState
       if (!mounted) return;
       final closed =
           await (widget.onCloseHost?.call() ?? applicationNavigator.maybePop());
-      if (mounted && (!closed || widget.onCloseHost != null))
+      if (mounted && (!closed || widget.onCloseHost != null)) {
         setState(() => _closing = false);
+      }
     });
   }
 

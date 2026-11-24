@@ -52,8 +52,9 @@ final class SyncNoticeItem {
 }
 
 String _fingerprint(String value) {
-  if (!isSyncDigest(value))
+  if (!isSyncDigest(value)) {
     throw const FormatException('Invalid notification fingerprint');
+  }
   return value;
 }
 
@@ -75,7 +76,7 @@ final class SyncNotice {
     final first = this.items.first;
     switch (kind) {
       case SyncNoticeKind.device:
-        if (bucket != 'device:' + first.publisherKey ||
+        if (bucket != 'device:${first.publisherKey}' ||
             this.items.length != 1 ||
             first.source != null ||
             first.sourceKind != null ||
@@ -158,22 +159,6 @@ final class SyncNotice {
 /// Disabled/denied/channel-blocked delivery retains up to 24 hours of intent.
 /// Snapshot tokens prevent an async acknowledgement from erasing a later merge.
 final class SyncNotificationOutbox {
-  SyncNotificationOutbox.empty();
-  static const freshness = Duration(hours: 24);
-  static const maximumItems = miteMiteMaxEntries * 256;
-  int _sequence = 0;
-  bool permissionRequested = false;
-  final _pending = <String, SyncNotice>{};
-  final _offers = <String, ({int sequence, Set<String> known})>{};
-  final _unseenOffers = <String, SyncNoticeItem>{};
-
-  Map<String, SyncNoticeItem> get unseenOffers =>
-      Map.unmodifiable(_unseenOffers);
-
-  void acknowledgeOffers(Set<String> captured) {
-    _unseenOffers.removeWhere((key, _) => captured.contains(key));
-  }
-
   factory SyncNotificationOutbox.fromJson(Object? raw) {
     if (raw == null) return SyncNotificationOutbox.empty();
     if (raw is! Map ||
@@ -206,8 +191,9 @@ final class SyncNotificationOutbox {
     }
     for (final entry in (raw['offers'] as Map).entries) {
       final parts = (entry.key as String).split('/');
-      if (parts.length != 2)
+      if (parts.length != 2) {
         throw const FormatException('Invalid offer checkpoint');
+      }
       syncUuid(parts.first);
       _fingerprint(parts.last);
       final value = entry.value as Map;
@@ -249,6 +235,21 @@ final class SyncNotificationOutbox {
     result._checkBounds();
     return result;
   }
+  SyncNotificationOutbox.empty();
+  static const freshness = Duration(hours: 24);
+  static const maximumItems = miteMiteMaxEntries * 256;
+  var _sequence = 0;
+  var permissionRequested = false;
+  final _pending = <String, SyncNotice>{};
+  final _offers = <String, ({int sequence, Set<String> known})>{};
+  final _unseenOffers = <String, SyncNoticeItem>{};
+
+  Map<String, SyncNoticeItem> get unseenOffers =>
+      Map.unmodifiable(_unseenOffers);
+
+  void acknowledgeOffers(Set<String> captured) {
+    _unseenOffers.removeWhere((key, _) => captured.contains(key));
+  }
 
   List<SyncNotice> get pending => List.unmodifiable(_pending.values);
 
@@ -267,7 +268,7 @@ final class SyncNotificationOutbox {
     required Iterable<SyncCollectionId> roots,
     bool replace = false,
   }) {
-    final key = syncUuid(publisher) + '/' + _fingerprint(fingerprint);
+    final key = '${syncUuid(publisher)}/${_fingerprint(fingerprint)}';
     if (_offers.containsKey(key) && !replace) return;
     if (replace) {
       _offers.removeWhere((old, _) => old.startsWith('$publisher/'));
@@ -281,12 +282,14 @@ final class SyncNotificationOutbox {
     }
     final known = <String>{};
     for (final root in roots) {
-      if (root.publisher != publisher)
+      if (root.publisher != publisher) {
         throw const FormatException('Foreign notification offer baseline');
+      }
       known.add(canonicalSyncJson([root.kind, root.source]));
     }
-    if (known.length > miteMiteMaxEntries)
+    if (known.length > miteMiteMaxEntries) {
       throw const FormatException('Too many notification offer baselines');
+    }
     _offers[key] = (sequence: _offerSequence(sequence), known: known);
     _checkBounds();
   }
@@ -301,18 +304,21 @@ final class SyncNotificationOutbox {
     required DateTime at,
   }) {
     syncPositiveInteger(sequence);
-    final key = syncUuid(publisher) + '/' + _fingerprint(fingerprint);
+    final key = '${syncUuid(publisher)}/${_fingerprint(fingerprint)}';
     final before = _offers[key];
-    if (before != null && sequence < before.sequence)
+    if (before != null && sequence < before.sequence) {
       throw const SyncReplayRejected();
+    }
     final current = <String, SyncCollectionId>{};
     for (final root in roots) {
-      if (root.publisher != publisher)
+      if (root.publisher != publisher) {
         throw const FormatException('Foreign notification offer');
+      }
       current[canonicalSyncJson([root.kind, root.source])] = root;
     }
-    if (current.length > miteMiteMaxEntries)
+    if (current.length > miteMiteMaxEntries) {
       throw const FormatException('Too many notification offers');
+    }
     final added = before == null
         ? <SyncNoticeItem>[]
         : [

@@ -323,7 +323,6 @@ void main() {
       final folder = TopicFolder(
         id: _second,
         name: 'New destination',
-        searchIds: [],
       );
       await tester.runAsync(() async {
         await harness.seed([

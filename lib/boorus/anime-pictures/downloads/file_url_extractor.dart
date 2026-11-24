@@ -1,5 +1,6 @@
+import 'dart:async';
+
 // Package imports:
-import 'dart:collection';
 
 import 'package:booru_clients/anime_pictures.dart';
 
@@ -20,7 +21,7 @@ class AnimePicturesDownloadFileUrlExtractor
   bool canResolveExactOriginal(Post post) => true;
 
   final _pending = <int, Future<DownloadUrlData?>>{};
-  final _mediaPostIds = LinkedHashMap<String, int>();
+  final _mediaPostIds = <String, int>{};
 
   /// The existing cache owns credentials only in memory, scoped to this client.
   /// Matching the complete resolved URL prevents sending its cookie elsewhere.
@@ -58,11 +59,12 @@ class AnimePicturesDownloadFileUrlExtractor
         );
         cache.set(postId.toString(), resolved);
         _mediaPostIds[Uri.parse(data.url).toString()] = postId;
-        while (_mediaPostIds.length > cache.maxCapacity)
+        while (_mediaPostIds.length > cache.maxCapacity) {
           _mediaPostIds.remove(_mediaPostIds.keys.first);
+        }
         return resolved;
       } finally {
-        _pending.remove(postId);
+        unawaited(_pending.remove(postId));
       }
     });
   }

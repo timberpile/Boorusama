@@ -34,8 +34,9 @@ String _digest(Object? value) {
 }
 
 Map<String, dynamic> _map(Object? value) {
-  if (value is! Map)
+  if (value is! Map) {
     throw const FormatException('Invalid Bookmark mirror metadata');
+  }
   return Map<String, dynamic>.from(value);
 }
 
@@ -83,8 +84,9 @@ final class BookmarkMirrorOwner extends Equatable {
     if (descriptorDigest != null) _digest(descriptorDigest);
     _number(revision);
     _number(position);
-    if (revision == 0 || parentSource == source)
+    if (revision == 0 || parentSource == source) {
       throw const FormatException('Invalid Bookmark mirror owner');
+    }
   }
   factory BookmarkMirrorOwner.fromJson(Object? value) {
     final map = _map(value);
@@ -159,15 +161,6 @@ final class BookmarkMirrorOwner extends Equatable {
 /// Ownership, explicit roots and receiver state commit in the SAME journal as
 /// source-owned memberships. A separate preference write cannot authorize edits.
 final class BookmarkMirrorState extends Equatable {
-  const BookmarkMirrorState.empty()
-    : activity = const SyncActivityLog.empty(),
-      epoch = 0,
-      owners = const {},
-      checkpoints = const {},
-      subscriptions = const {},
-      publisherNames = const {},
-      aliases = const {},
-      forgotten = const {};
   BookmarkMirrorState({
     required this.epoch,
     this.activity = const SyncActivityLog.empty(),
@@ -216,10 +209,20 @@ final class BookmarkMirrorState extends Equatable {
       }
     }
   }
+  const BookmarkMirrorState.empty()
+    : activity = const SyncActivityLog.empty(),
+      epoch = 0,
+      owners = const {},
+      checkpoints = const {},
+      subscriptions = const {},
+      publisherNames = const {},
+      aliases = const {},
+      forgotten = const {};
   factory BookmarkMirrorState.fromJson(Object? value) {
     final map = _map(value);
-    if (map['version'] != 1)
+    if (map['version'] != 1) {
       throw const FormatException('Unsupported Bookmark mirror schema');
+    }
     return BookmarkMirrorState(
       activity: map['activity'] == null
           ? const SyncActivityLog.empty()
@@ -234,8 +237,9 @@ final class BookmarkMirrorState extends Equatable {
         (key, value) => MapEntry(key, BookmarkMirrorOwner.fromJson(value)),
       ),
       subscriptions: _map(map['subscriptions']).map((key, value) {
-        if (value is! List)
+        if (value is! List) {
           throw const FormatException('Invalid mirror subscription roots');
+        }
         return MapEntry(key, value.map(_uuid).toSet());
       }),
       publisherNames: _map(map['publisherNames']).cast<String, String>(),

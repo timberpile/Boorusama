@@ -21,8 +21,8 @@ void main() {
       return router;
     }
 
-    testWidgets('Passes GoRouter parameters through context call.', (WidgetTester tester) async {
-      final GoRouter router = await createGoRouter(tester);
+    testWidgets('Passes GoRouter parameters through context call.', (tester) async {
+      final router = await createGoRouter(tester);
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
       expect(

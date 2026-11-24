@@ -72,12 +72,6 @@ class BooruConfig extends Equatable {
     this.anonymousReadScope,
   });
 
-  /// Transient import diagnostics; not part of persisted profile identity.
-  final List<String> optionWarnings;
-
-  /// Runtime-only public read permission; never decoded or serialized as a profile.
-  final AnonymousReadScope? anonymousReadScope;
-
   factory BooruConfig.fromJson(Map<String, dynamic> json) {
     return BooruConfig(
       optionWarnings: profileOptionWarnings(json),
@@ -143,6 +137,12 @@ class BooruConfig extends Equatable {
       profileIcon: ProfileIconConfigs.tryParse(json['profileIcon']),
     );
   }
+
+  /// Transient import diagnostics; not part of persisted profile identity.
+  final List<String> optionWarnings;
+
+  /// Runtime-only public read permission; never decoded or serialized as a profile.
+  final AnonymousReadScope? anonymousReadScope;
 
   static const empty = BooruConfig(
     id: '',

@@ -66,8 +66,9 @@ extension BookmarkHierarchyOperations on BookmarkLibraryService {
             !const SetEquality<String>().equals(
               requestedClosure,
               preview.groupIds,
-            )))
+            ))) {
       throw BookmarkCollectionChangedException(preview);
+    }
     final removedIds = preview.groupIds;
     final promoted = <BookmarkGroup>[];
     final removed = before.groups

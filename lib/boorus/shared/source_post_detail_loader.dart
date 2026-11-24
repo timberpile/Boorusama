@@ -79,10 +79,11 @@ class _SourcePostDetailLoaderState
       _scheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scheduled = false;
-        if (mounted)
+        if (mounted) {
           unawaited(
             _resolve(widget.post, config),
           );
+        }
       });
     }
     return widget.child;
@@ -101,22 +102,26 @@ class _SourcePostDetailLoaderState
           resolved.id != post.id ||
           !identical(widget.post, post) ||
           !ref.read(booruConfigProvider).contains(config) ||
-          ref.read(currentReadOnlyBooruConfigProvider) != config)
+          ref.read(currentReadOnlyBooruConfigProvider) != config) {
         return;
+      }
       final details = PostDetails.maybeOf<Post>(context);
       final index = details?.posts.indexWhere(
         (candidate) => identical(candidate, post),
       );
-      if (details != null && index != null && index >= 0)
+      if (details != null && index != null && index >= 0) {
         details.controller.replacePost(index, resolved);
+      }
     } catch (_) {
       // Keep usable listing media and unknown facts when offline or restricted.
     } finally {
       _loading = false;
       if (mounted &&
           (!identical(widget.post, _requested) ||
-              ref.read(currentReadOnlyBooruConfigProvider) != _requestedConfig))
+              ref.read(currentReadOnlyBooruConfigProvider) !=
+                  _requestedConfig)) {
         setState(() {});
+      }
     }
   }
 }

@@ -167,7 +167,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         SharePayloadId.postId => group.pixivArtwork?.id,
         _ => null,
       };
-      return current?.hasSameAuthorization(group.access) == true &&
+      return (current?.hasSameAuthorization(group.access) ?? false) &&
           current!.accepts(group.link.reference) &&
           expected != null &&
           payload.value == expected;
@@ -179,13 +179,13 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     final post = widget.post;
     return context != null &&
         (post == null ||
-            ref
+            (ref
                     .read(
                       contentPostVisibilityProvider((access: key, post: post)),
                     )
                     .asData
-                    ?.value ==
-                true) &&
+                    ?.value ??
+                false)) &&
         context.config?.auth == widget.auth &&
         (widget.auth.anonymousReadScope?.isCurrent ?? true);
   }
@@ -301,7 +301,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     final capturedGroup = widget.group;
     final group =
         capturedGroup != null &&
-            access.context?.hasSameAuthorization(capturedGroup.access) == true
+            (access.context?.hasSameAuthorization(capturedGroup.access) ??
+                false)
         ? capturedGroup
         : null;
     final imageUrl = post == null
@@ -689,8 +690,9 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     required bool share,
     bool asGif = false,
   }) async {
-    if (_active != null || !payload.available || !_accessCurrent(payload))
+    if (_active != null || !payload.available || !_accessCurrent(payload)) {
       return;
+    }
     final isLinkFile = payload.isLinkFile;
     if (isLinkFile && !share) return;
     final post = widget.post;
@@ -750,8 +752,9 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         checkShareCancellation(token);
         _checkAccess(payload);
         if (!mounted) return;
-        if (!_permittedMedia(request.url))
+        if (!_permittedMedia(request.url)) {
           throw const ShareMediaException(ShareMediaFailure.unavailable);
+        }
         _beginClipboardHandoff();
         await AppClipboard.copy(request.url);
       } else if (post != null && payload.isMedia) {
@@ -797,7 +800,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         if (!_permittedMedia(media.url)) {
           throw const ShareMediaException(ShareMediaFailure.unavailable);
         }
-        Map<String, String> bypassHeaders = const {};
+        var bypassHeaders = const <String, String>{};
         if (!public) {
           try {
             bypassHeaders = await awaitShareOrCancellation(
@@ -807,11 +810,13 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           } on ShareMediaException {
             rethrow;
           } on DioException catch (error) {
-            if (CancelToken.isCancel(error))
+            if (CancelToken.isCancel(error)) {
               throw const ShareMediaException(ShareMediaFailure.cancelled);
+            }
             if (error.response?.statusCode == 401 ||
-                error.response?.statusCode == 403)
+                error.response?.statusCode == 403) {
               throw const ShareMediaException(ShareMediaFailure.authentication);
+            }
             throw const ShareMediaException(ShareMediaFailure.network);
           } on Exception {
             throw const ShareMediaException(ShareMediaFailure.network);
@@ -1076,7 +1081,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   Future<ShareActionOutcome> _shareLinkFile(
     SharePayload payload, {
     CancelToken? token,
-  }) async {
+  }) => Future.sync(() {
     final uri = payload.value!;
     final post = widget.post;
     final work = widget.group;
@@ -1085,10 +1090,10 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             work != null &&
             work.access.key == (_boundKey ?? widget.accessKey) &&
             work.matchesPixivPage(post) &&
-            ref
+            (ref
                     .read(contentAccessContextProvider(work.access.key))
-                    ?.hasSameAuthorization(work.access) ==
-                true
+                    ?.hasSameAuthorization(work.access) ??
+                false)
         ? work
         : null;
     final creator = linkShareAuthor(post?.pixivData?.userName);
@@ -1130,7 +1135,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         setState(() => _showProgress = false);
       },
     );
-  }
+  });
 
   void _beginClipboardHandoff() {
     if (mounted) {

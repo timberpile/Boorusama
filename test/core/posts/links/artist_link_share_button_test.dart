@@ -11,7 +11,6 @@ import 'package:boorusama/core/posts/shares/src/share_action_adapter.dart';
 import 'package:boorusama/boorus/danbooru/artists/artist/src/widgets/artist_identity.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/foundation/filesystem.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -126,7 +125,7 @@ void main() {
         response.complete(const ShareResult('', ShareResultStatus.success));
         await tester.pumpAndSettle();
         expect(tester.widget<IconButton>(action).onPressed, isNotNull);
-        expect(await tester.runAsync(() => File(file.path).exists()), isTrue);
+        expect(File(file.path).existsSync(), isTrue);
         expect(tester.takeException(), isNull);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.android),

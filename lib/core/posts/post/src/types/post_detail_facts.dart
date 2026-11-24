@@ -20,6 +20,23 @@ final class PostDetailFacts extends Equatable {
        _commentCount = commentCount,
        _description = description;
 
+  factory PostDetailFacts.fromJson(Object? value) {
+    if (value == null) return const PostDetailFacts();
+    if (value is! Map || value.keys.any((k) => k is! String)) {
+      throw const FormatException('Invalid post detail facts');
+    }
+    return PostDetailFacts(
+      originalByteSize: value['originalByteSize'] as int?,
+      originalWidth: (value['originalWidth'] as num?)?.toDouble(),
+      originalHeight: (value['originalHeight'] as num?)?.toDouble(),
+      originalFormat: value['originalFormat'] as String?,
+      score: value['score'] as int?,
+      favoriteCount: value['favoriteCount'] as int?,
+      commentCount: value['commentCount'] as int?,
+      description: value['description'] as String?,
+    );
+  }
+
   final int? _originalByteSize;
   final double? _originalWidth;
   final double? _originalHeight;
@@ -56,23 +73,6 @@ final class PostDetailFacts extends Equatable {
     'description': ?description,
   };
 
-  factory PostDetailFacts.fromJson(Object? value) {
-    if (value == null) return const PostDetailFacts();
-    if (value is! Map || value.keys.any((k) => k is! String)) {
-      throw const FormatException('Invalid post detail facts');
-    }
-    return PostDetailFacts(
-      originalByteSize: value['originalByteSize'] as int?,
-      originalWidth: (value['originalWidth'] as num?)?.toDouble(),
-      originalHeight: (value['originalHeight'] as num?)?.toDouble(),
-      originalFormat: value['originalFormat'] as String?,
-      score: value['score'] as int?,
-      favoriteCount: value['favoriteCount'] as int?,
-      commentCount: value['commentCount'] as int?,
-      description: value['description'] as String?,
-    );
-  }
-
   @override
   List<Object?> get props => [
     originalByteSize,
@@ -108,8 +108,9 @@ String? originalFormatFromMime(String? mime) {
   final parts = mime?.toLowerCase().split('/');
   if (parts == null ||
       parts.length != 2 ||
-      !{'image', 'video'}.contains(parts.first))
+      !{'image', 'video'}.contains(parts.first)) {
     return null;
+  }
   final subtype = parts.last.split(';').first.trim();
   return switch (subtype) {
     'jpeg' => 'jpg',

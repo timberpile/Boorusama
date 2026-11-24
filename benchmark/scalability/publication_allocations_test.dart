@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fixtures.dart';
@@ -52,7 +53,7 @@ void main() {
     );
     // The helper isolate decodes VM-service responses outside this measured
     // isolate. Retain structural-container counters before and after the work.
-    print(
+    debugPrintSynchronously(
       'PUBLICATION_ALLOCATIONS ${jsonEncode({
         'bookmarks': count,
         'publications': publications,

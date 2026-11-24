@@ -71,10 +71,11 @@ class CurrentBooruConfigScope extends ConsumerWidget {
         .watch(booruConfigProvider)
         .where((value) => value.id == config.id)
         .firstOrNull;
-    if (live == null || live.auth != config.auth)
+    if (live == null || live.auth != config.auth) {
       return Scaffold(
         body: Center(child: Text(context.t.navigation.unavailable_profile)),
       );
+    }
     return scoped(live);
   }
 

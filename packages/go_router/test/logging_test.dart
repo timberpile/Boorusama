@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -19,8 +17,8 @@ void main() {
     testDeveloperLog = null;
   });
   test('setLogging does not clear listeners', () {
-    final StreamSubscription<LogRecord> subscription = logger.onRecord.listen(
-      expectAsync1<void, LogRecord>((LogRecord r) {}, count: 2),
+    final subscription = logger.onRecord.listen(
+      expectAsync1<void, LogRecord>((r) {}, count: 2),
     );
     addTearDown(subscription.cancel);
 
@@ -31,34 +29,34 @@ void main() {
   });
 
   testWidgets('It should not log anything the if debugLogDiagnostics is false', (
-    WidgetTester tester,
+    tester,
   ) async {
-    testDeveloperLog = expectAsync1((LogRecord data) {}, count: 0);
-    final StreamSubscription<LogRecord> subscription = Logger.root.onRecord.listen(
-      expectAsync1((LogRecord data) {}, count: 0),
+    testDeveloperLog = expectAsync1((data) {}, count: 0);
+    final subscription = Logger.root.onRecord.listen(
+      expectAsync1((data) {}, count: 0),
     );
     addTearDown(subscription.cancel);
     GoRouter(
       routes: <RouteBase>[
-        GoRoute(path: '/', builder: (_, GoRouterState state) => const Text('home')),
+        GoRoute(path: '/', builder: (_, state) => const Text('home')),
       ],
     );
   });
 
   testWidgets(
     'It should log the known routes and the initial route if debugLogDiagnostics is true',
-    (WidgetTester tester) async {
+    (tester) async {
       testDeveloperLog = expectAsync1(
-        (LogRecord data) {},
+        (data) {},
         count: 2,
         reason: 'Go router should log the 2 events',
       );
       final logs = <String>[];
-      Logger.root.onRecord.listen((LogRecord event) => logs.add(event.message));
+      Logger.root.onRecord.listen((event) => logs.add(event.message));
       GoRouter(
         debugLogDiagnostics: true,
         routes: <RouteBase>[
-          GoRoute(path: '/', builder: (_, GoRouterState state) => const Text('home')),
+          GoRoute(path: '/', builder: (_, state) => const Text('home')),
         ],
       );
 
@@ -71,20 +69,20 @@ void main() {
 
   testWidgets(
     'Go router should not log itself the known routes but send the events to the logger when hierarchicalLoggingEnabled is true',
-    (WidgetTester tester) async {
+    (tester) async {
       testDeveloperLog = expectAsync1(
-        (LogRecord data) {},
+        (data) {},
         count: 0,
         reason: 'Go router should log the events itself',
       );
       hierarchicalLoggingEnabled = true;
 
       final logs = <String>[];
-      Logger.root.onRecord.listen((LogRecord event) => logs.add(event.message));
+      Logger.root.onRecord.listen((event) => logs.add(event.message));
       GoRouter(
         debugLogDiagnostics: true,
         routes: <RouteBase>[
-          GoRoute(path: '/', builder: (_, GoRouterState state) => const Text('home')),
+          GoRoute(path: '/', builder: (_, state) => const Text('home')),
         ],
       );
 

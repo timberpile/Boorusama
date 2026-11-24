@@ -18,14 +18,14 @@ PoolBookmarkCover cover(String name) => PoolBookmarkCover(
   thumbnail: 'https://cdn.donmai.us/$name.jpg',
   sample: 'https://cdn.donmai.us/$name.jpg',
   original: 'https://cdn.donmai.us/$name.jpg',
-  variants: {},
+  variants: const {},
   postId: 1,
   visibility: GroupCoverVisibility(
-    tags: {'cat'},
+    tags: const {'cat'},
     rating: 'general',
     deleted: false,
     banned: false,
-    postFacts: {
+    postFacts: const {
       'score': 15,
       'source': 'https://pixiv.net/works/1',
       'uploaderName': 'artist',
@@ -45,7 +45,7 @@ class _FailedWrite implements PersistentCacheStore {
   String? get(String key) => delegate.get(key);
   @override
   Future<void> clear() => delegate.clear();
-  bool fail = true;
+  var fail = true;
   @override
   Future<void> put(String key, String value) async {
     await delegate.put(key, value);
@@ -85,7 +85,7 @@ void main() {
           thumbnail: selected.thumbnail,
           sample: selected.sample,
           original: selected.original,
-          variants: {},
+          variants: const {},
         ),
         config,
         {},

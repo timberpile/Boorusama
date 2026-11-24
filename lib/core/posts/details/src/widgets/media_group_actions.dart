@@ -237,7 +237,7 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         metadata: bookmarkData,
         cachedMembers: [
           for (var i = 0; i < (state.members?.members.length ?? 0); i++)
-            if (state.postAt(i) case final post?) post,
+            ?state.postAt(i),
         ],
       ),
       additionalButtons: [

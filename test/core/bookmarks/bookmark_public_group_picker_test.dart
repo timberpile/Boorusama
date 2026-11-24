@@ -23,7 +23,6 @@ import 'package:boorusama/core/content/content_access.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/content_map.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
-import 'package:boorusama/core/posts/post/src/types/image_url_resolver.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
@@ -122,12 +121,11 @@ void main() {
       'id': _zeroProfileId,
     }).copyWith(anonymousReadScope: scope);
     access = ContentAccessContext.anonymous(config: publicConfig, scope: scope);
-    remote = RemoteBookmarkPool(
+    remote = const RemoteBookmarkPool(
       id: 42,
       title: 'Public Pool',
       category: BookmarkedPoolCategory.collection,
       total: 3,
-      supportsUploadOrder: false,
     );
     draft =
         testPool(
@@ -141,7 +139,6 @@ void main() {
             booruType: BooruType.danbooru,
             booruId: BooruType.danbooru.id,
             source: site.toString(),
-            profileIdHint: null,
           ),
         );
     draftCalls = 0;
@@ -153,8 +150,12 @@ void main() {
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(initialConfigs: const []),
         ),
-        bookmarkRepoProvider.overrideWith((ref) async => repository),
-        bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
+        bookmarkRepoProvider.overrideWith(
+          (ref) => Future.sync(() => repository),
+        ),
+        bookmarkGroupRepoProvider.overrideWith(
+          (ref) => Future.sync(() => groups),
+        ),
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),

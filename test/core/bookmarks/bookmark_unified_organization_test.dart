@@ -106,12 +106,12 @@ void main() {
       ),
     );
     await legacyOrganization.put('version', 1);
-    await (BookmarkStorageMigration(
+    await BookmarkStorageMigration(
       bookmarks: repository,
       legacyGroups: legacyGroups,
       legacyOrganization: legacyOrganization,
       metadata: metadata,
-    )).open();
+    ).open();
     final active = contentMap(metadata.get(BookmarkStorageMigration.activeKey));
     final generation = contentMap(active['generation']);
     activeGroups = await Hive.openBox<BookmarkGroupHiveObject>(
@@ -130,12 +130,12 @@ void main() {
       generation['groups']! as String,
     );
     await Hive.openBox<dynamic>(generation['organization']! as String);
-    await (BookmarkStorageMigration(
+    await BookmarkStorageMigration(
       bookmarks: repository,
       legacyGroups: legacyGroups,
       legacyOrganization: legacyOrganization,
       metadata: metadata,
-    )).open();
+    ).open();
   }
 
   setUp(initializeActiveGeneration);

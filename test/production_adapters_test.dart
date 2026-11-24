@@ -13,9 +13,6 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_objec
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_factory_hive.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_repository.dart';
-import 'package:boorusama/core/bookmarks/src/types/unified_bookmark_store.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bulk_downloads/src/data/repo_io.dart';
 import 'package:boorusama/core/cache/hive_misc_data_store.dart';
@@ -121,7 +118,7 @@ void main() {
 
   test('production bookmark factory completes legacy organization migration before exposure', () async {
     const boxName = 'bookmark_factory_cutover_test';
-    final groupsId = poolGroupA;
+    const groupsId = poolGroupA;
     const parentFolderId = '550e8400-e29b-41d4-a716-446655440010';
     const childFolderId = '550e8400-e29b-41d4-a716-446655440011';
     final postDate = DateTime.utc(2024, 3, 4, 5, 6, 7, 123, 456);
@@ -156,13 +153,11 @@ void main() {
       const CollectionFolder(
         id: parentFolderId,
         name: 'Parent',
-        position: 0,
       ).toJson(),
       const CollectionFolder(
         id: childFolderId,
         name: 'Child',
         parentId: parentFolderId,
-        position: 0,
       ).toJson(),
     ]);
 

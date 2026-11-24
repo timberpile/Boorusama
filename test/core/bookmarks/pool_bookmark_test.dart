@@ -22,7 +22,7 @@ void main() {
       thumbnail: 'https://a.example/low.jpg',
       sample: 'https://a.example/sample.jpg',
       original: 'https://a.example/original.png',
-      variants: {
+      variants: const {
         '720x720': 'https://a.example/high.jpg',
         '360x360': 'https://a.example/medium.jpg',
       },
@@ -63,7 +63,7 @@ void main() {
       };
       final parsed = PoolBookmark.fromJson(raw);
       expect(parsed.identity.$1, 99999);
-      expect((parsed.toJson()['origin'] as Map)['booruTypeId'], 99999);
+      expect((parsed.toJson()['origin']! as Map)['booruTypeId'], 99999);
       expect(parsed.withGroups({poolGroupB}).identity, parsed.identity);
     },
   );
@@ -141,10 +141,12 @@ void main() {
     final result = await PoolSummaryIndexer(
       fetch: (query, limit) async {
         calls.add((query, limit));
-        if (query.endsWith('created_at_asc'))
+        if (query.endsWith('created_at_asc')) {
           return [testSearchPost(900, DateTime.utc(2000))];
-        if (query.endsWith('created_at'))
+        }
+        if (query.endsWith('created_at')) {
           return [testSearchPost(100, DateTime.utc(2026))];
+        }
         return [
           for (var i = 1; i <= 50; i++) TestPost(id: i, tags: {'tag_$i'}),
         ];
@@ -197,7 +199,7 @@ void main() {
 
   test('mixed upload sorts use extrema, newest fallback, then unknown', () {
     final state = library([
-      testPool(id: 10, newest: DateTime.utc(2025), oldest: DateTime.utc(2000)),
+      testPool(newest: DateTime.utc(2025), oldest: DateTime.utc(2000)),
       testPool(id: 11, newest: DateTime.utc(2020)),
       testPool(id: 12),
     ]);

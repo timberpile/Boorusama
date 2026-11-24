@@ -80,8 +80,9 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = watchContentMediaAccess(ref, config, post: post);
-    if (!access.allowed)
+    if (!access.allowed) {
       return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
+    }
     final details = PostDetails.of(context);
     final heroTag = postHeroTag(post);
     final automaticMediaLoadingEnabled = ref.watch(
@@ -127,13 +128,14 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                     final publicScope = config.anonymousReadScope;
                     if (publicScope != null) {
                       final uri = Uri.tryParse(request.url);
-                      if (uri == null || !publicScope.source.allowsMedia(uri))
+                      if (uri == null || !publicScope.source.allowsMedia(uri)) {
                         return const ErrorPlaceholder(
                           borderRadius: BorderRadius.zero,
                           video: true,
                           reason:
                               PostPresentationFallbackReason.unavailableEngine,
                         );
+                      }
                     }
                     final mediaDio = access.key == null
                         ? null
@@ -149,7 +151,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                       key: ValueKey((access.key, request.url)),
                       sourceLoader: access.key == null
                           ? null
-                          : (cancellation) async {
+                          : (cancellation) => Future.sync(() {
                               bool current() =>
                                   (publicScope?.isCurrent ?? true) &&
                                   ref.context.mounted &&
@@ -173,7 +175,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                                     : null,
                                 cache: ref.read(videoCacheManagerProvider),
                               );
-                            },
+                            }),
                       heroTag: heroTag,
                       url: request.url,
                       aspectRatio:

@@ -217,17 +217,14 @@ class BookmarkBackupData extends Equatable {
       records.whereType<PostBookmark>().toList();
   List<CollectionBookmark> get pools => [
     for (final record in records)
-      if (bookmarkCollectionProjection(
-            record,
-            memberships: {
-              for (final group in groups)
-                if (group.id != null && group.bookmarkIds.contains(record.id))
-                  group.id!:
-                      group.addedAt[record.id] ?? bookmarkCreatedAt(record),
-            },
-          )
-          case final projection?)
-        projection,
+      ?bookmarkCollectionProjection(
+        record,
+        memberships: {
+          for (final group in groups)
+            if (group.id != null && group.bookmarkIds.contains(record.id))
+              group.id!: group.addedAt[record.id] ?? bookmarkCreatedAt(record),
+        },
+      ),
   ];
 
   Map<String, dynamic> get extraFields {
@@ -419,10 +416,11 @@ BookmarkBackupData buildBookmarkBackupData({
     for (final id in selected) ...?tree.groupsById[id]?.bookmarkIds,
   };
   final assigned = {for (final group in normalized) ...group.bookmarkIds};
-  if (scope.includeUngrouped)
+  if (scope.includeUngrouped) {
     selectedIds.addAll(
       allRecords.map((r) => r.id).toSet().difference(assigned),
     );
+  }
   final exported = scope.isAll
       ? allRecords
       : allRecords.where((r) => selectedIds.contains(r.id)).toList();

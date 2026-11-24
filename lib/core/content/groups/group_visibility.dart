@@ -65,8 +65,9 @@ bool groupCoverPassesBlacklist(
   // prove arbitrary status expressions such as pending or flagged.
   if (blacklist.any(
     (p) => RegExp(r'(?:^|\s)[~-]?status:', caseSensitive: false).hasMatch(p),
-  ))
+  )) {
     return false;
+  }
   if (extra == null && blacklist.any(factExpressions.hasMatch)) return false;
   final data = TagFilterData(
     tags: facts.tags.map((v) => v.toLowerCase()).toSet(),

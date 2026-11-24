@@ -96,8 +96,8 @@ class _MixedPostDetailsImagePreloaderState
   final _directionHistory = DirectionHistory();
   PostDetailsPageViewController? _pageViewController;
   int? _lastPage;
-  bool _wasActive = false;
-  bool _refreshScheduled = false;
+  var _wasActive = false;
+  var _refreshScheduled = false;
   PixivUgoiraRequest? _preparingNeighbor;
   late int _lastItemCount = widget.pageCount;
 
@@ -161,8 +161,9 @@ class _MixedPostDetailsImagePreloaderState
 
   BooruConfig? _configAt(int index, Post post, List<BooruConfig> profiles) {
     final binding = widget.sequence?.entries[index].source;
-    if (binding != null)
+    if (binding != null) {
       return ref.read(viewerSourceAccessProvider(binding))?.config;
+    }
     return switch (const PostOriginResolver().resolve(post.origin, profiles)) {
       ResolvedPostOrigin(:final config) => config,
       _ => null,
@@ -280,8 +281,9 @@ class _MixedPostDetailsImagePreloaderState
                   )
                   .asData
                   ?.value !=
-              true)
+              true) {
         continue;
+      }
       if (config != null) {
         final repository = ref.read(booruRepoProvider(config.auth));
         if (repository case final ViewerPreloadMetadataResolver resolver) {
@@ -294,13 +296,15 @@ class _MixedPostDetailsImagePreloaderState
                 if (!mounted ||
                     (binding != null &&
                         ref.read(viewerSourceAccessProvider(binding))?.key !=
-                            accessKey))
+                            accessKey)) {
                   return null;
+                }
                 if (result == null ||
                     result.id != post.id ||
                     result.origin.booruType != post.origin.booruType ||
-                    result.origin.sourceHost != post.origin.sourceHost)
+                    result.origin.sourceHost != post.origin.sourceHost) {
                   return null;
+                }
                 return result;
               },
             ));
@@ -382,8 +386,9 @@ class _MixedPostDetailsImagePreloaderState
                       )
                       .asData
                       ?.value !=
-                  true)
+                  true) {
             return null;
+          }
           final auth = config.auth;
           if (post.isVideo) {
             return (
@@ -566,7 +571,7 @@ class _PostDetailsImagePreloaderState<T extends Post>
 
   // Direction tracking
   int? _lastPage;
-  bool _wasActive = false;
+  var _wasActive = false;
   final _directionHistory = DirectionHistory();
 
   PostDetailsPageViewController get _controller => _pageViewController!;
@@ -581,10 +586,11 @@ class _PostDetailsImagePreloaderState<T extends Post>
     if (!active) _preloadManager?.cancelAll();
     final controller = PostDetailsPageViewScope.of(context);
     if (identical(_pageViewController, controller)) {
-      if (resumed)
+      if (resumed) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _preloadAdjacentPages(controller.page);
         });
+      }
       return;
     }
 

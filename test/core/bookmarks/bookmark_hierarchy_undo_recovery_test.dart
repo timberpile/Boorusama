@@ -41,7 +41,7 @@ void main() {
         final shared = testPoolPost(81).copyWith(id: ids[0]);
         final orphan = testPoolPost(82).copyWith(id: ids[1]);
         await workspace.repository.upsertAll([shared, orphan]);
-        final insideDate = DateTime.utc(2024, 1, 1);
+        final insideDate = DateTime.utc(2024);
         final outsideDate = DateTime.utc(2024, 1, 2);
         await workspace.groupRepository.replaceMemberships(
           c.id,
@@ -316,7 +316,7 @@ final class _PowerCutCapture {
 
   final Directory sourceDirectory;
   int? _targetOrdinal;
-  int _ordinal = 0;
+  var _ordinal = 0;
   Directory? checkpointDirectory;
   var captured = false;
   var copiedHiveFiles = 0;

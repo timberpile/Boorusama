@@ -157,8 +157,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         _restoreScheduled ||
         position == null ||
         _controller.loadingMore ||
-        _controller.entries.isEmpty)
+        _controller.entries.isEmpty) {
       return;
+    }
     _restoreScheduled = true;
     final controller = _controller;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -169,8 +170,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
           ref
                   .read(contentAccessContextProvider(widget.access.key))
                   ?.hasSameAuthorization(widget.access) !=
-              true)
+              true) {
         return;
+      }
       _restored = true;
       final index = controller.indexForPosition?.call(position) ?? position;
       unawaited(
@@ -371,7 +373,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                 actions:
                                     presentation
                                         is BooruGroupSelectionPresentation
-                                    ? (presentation
+                                    ? (presentation!
                                               as BooruGroupSelectionPresentation)
                                           .buildSelectionActions(context, [
                                             for (final (index, entry)
@@ -532,7 +534,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
       );
     }
     return presentation is BooruMediaGroupBookmarkPresentation && group != null
-        ? (presentation as BooruMediaGroupBookmarkPresentation)
+        ? (presentation! as BooruMediaGroupBookmarkPresentation)
               .wrapBookmarkMenu(
                 context,
                 GroupBookmarkPresentationData(
@@ -553,8 +555,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
             true ||
         index < 0 ||
         index >= _controller.viewerEntries.length ||
-        _controller.viewerEntries[index].occurrenceId != occurrence)
+        _controller.viewerEntries[index].occurrenceId != occurrence) {
       return;
+    }
     goToPostDetailsPageCore<Post>(
       ref: ref,
       posts: [

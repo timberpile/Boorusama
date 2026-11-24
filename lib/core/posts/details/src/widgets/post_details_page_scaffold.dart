@@ -611,9 +611,10 @@ class _PostDetailPageScaffoldState<T extends Post>
           final post = page == null
               ? _postAt(index)
               : InheritedPost.maybeOf<Post>(context);
-          if (post == null)
+          if (post == null) {
             return widget.pageSummaryPreviewBuilder?.call(context, index) ??
                 const SizedBox.shrink();
+          }
           final ui = page == null ? widget.uiBuilder : page.uiBuilder;
           return switch (ui) {
             null => _buildFallbackPreview(context, index, post),

@@ -48,8 +48,9 @@ class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
     super.initState();
     final config = ref.readConfig;
     try {
-      if (config.auth.booruType != BooruType.danbooru)
+      if (config.auth.booruType != BooruType.danbooru) {
         throw const FormatException('Wrong Pool engine');
+      }
       final reference = const ContentReferenceCodec().parse(
         engine: config.auth.booruType,
         site: Uri.parse(config.url),
@@ -82,10 +83,11 @@ class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
   @override
   Widget build(BuildContext context) {
     final entry = _entry;
-    if (entry == null)
+    if (entry == null) {
       return ViewerEntryNavigationStatus(
         child: Text(context.t.bookmark.pool_unavailable),
       );
+    }
     final access = ref.watch(viewerSourceAccessProvider(entry.source!));
     if (access != null) {
       final source = ref

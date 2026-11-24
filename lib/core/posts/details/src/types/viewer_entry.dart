@@ -135,8 +135,9 @@ ContentReference? referenceForBoundGroup({
   if (config == null ||
       config == BooruConfig.empty ||
       config.auth.booruType != origin.booruType ||
-      normalizePostSourceHost(config.url) != origin.sourceHost)
+      normalizePostSourceHost(config.url) != origin.sourceHost) {
     return null;
+  }
   try {
     return const ContentReferenceCodec().parse(
       engine: origin.booruType,

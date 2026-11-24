@@ -284,7 +284,7 @@ class _Fixture {
   late final ProviderContainer container;
   late final ContentGroupSource source;
   final repo = _Posts();
-  int requests = 0;
+  var requests = 0;
   ContentReference get group => const ContentReferenceCodec().parse(
     engine: BooruType.szurubooru,
     site: Uri.parse(config.url),

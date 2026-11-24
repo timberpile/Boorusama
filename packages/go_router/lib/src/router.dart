@@ -20,13 +20,13 @@ import 'parser.dart';
 import 'route.dart';
 import 'state.dart';
 
-/// The function signature of [GoRouter.onException].
+/// The function signature of `GoRouter.onException`.
 ///
 /// Use `state.error` to access the exception.
 typedef GoExceptionHandler =
     void Function(BuildContext context, GoRouterState state, GoRouter router);
 
-/// The signature for the top-level [onEnter] callback.
+/// The signature for the top-level `onEnter` callback.
 ///
 /// This callback receives the [BuildContext], the current navigation state,
 /// the state being navigated to, and a reference to the [GoRouter] instance.
@@ -127,14 +127,14 @@ class RoutingConfig {
 /// started](https://github.com/flutter/packages/blob/main/packages/go_router/example/lib/main.dart)
 /// example, which shows an app with a simple route configuration.
 ///
-/// The [onEnter] callback allows intercepting navigation before routes are
+/// The `onEnter` callback allows intercepting navigation before routes are
 /// processed. Return [Allow] to proceed or [Block] to prevent navigation.
 /// Order of operations:
 /// 1) `onEnter` (your guard) - can block navigation
 /// 2) If allowed: legacy top-level `redirect` - runs in same navigation cycle
 /// 3) route-level `GoRoute.redirect`
 ///
-/// The [redirect] callback allows the app to redirect to a new location.
+/// The `redirect` callback allows the app to redirect to a new location.
 /// Alternatively, you can specify a redirect for an individual route using
 /// [GoRoute.redirect]. If [BuildContext.dependOnInheritedWidgetOfExactType] is
 /// used during the redirection (which is how `of` methods are usually
@@ -269,7 +269,7 @@ class GoRouter implements RouterConfig<RouteMatchList> {
 
     final ParserExceptionHandler? parserExceptionHandler;
     if (onException != null) {
-      parserExceptionHandler = (BuildContext context, RouteMatchList routeMatchList) {
+      parserExceptionHandler = (context, routeMatchList) {
         onException(context, configuration.buildTopLevelGoRouterState(routeMatchList), this);
         // Avoid updating GoRouterDelegate if onException is provided.
         return routerDelegate.currentConfiguration;
@@ -301,14 +301,13 @@ class GoRouter implements RouterConfig<RouteMatchList> {
       requestFocus: requestFocus,
       // wrap the returned Navigator to enable GoRouter.of(context).go() et al,
       // allowing the caller to wrap the navigator themselves
-      builderWithNav: (BuildContext context, Widget child) =>
-          InheritedGoRouter(goRouter: this, child: child),
+      builderWithNav: (context, child) => InheritedGoRouter(goRouter: this, child: child),
     );
 
     assert(() {
       log('setting initial location $initialLocation');
       return true;
-    }());
+    }(), 'Initial-location logging must complete.');
   }
 
   /// The top [GoRouterState], the state of the route that was
@@ -337,7 +336,7 @@ class GoRouter implements RouterConfig<RouteMatchList> {
   /// is not always deeplink-able.
   ///
   /// This option only affects web platform.
-  static bool optionURLReflectsImperativeAPIs = false;
+  static var optionURLReflectsImperativeAPIs = false;
 
   /// The route configuration used in go_router.
   late final RouteConfiguration configuration;
@@ -369,7 +368,7 @@ class GoRouter implements RouterConfig<RouteMatchList> {
   /// Whether to ignore platform's default initial location when
   /// `initialLocation` is set.
   ///
-  /// When set to [true], the [initialLocation] will take
+  /// When set to `true`, the `initialLocation` will take
   /// precedence over the platform's default initial location.
   /// This allows developers to control the starting route of the application
   /// independently of the platform.
@@ -378,9 +377,9 @@ class GoRouter implements RouterConfig<RouteMatchList> {
   /// Use [overridePlatformDefaultLocation] only if one wants to override
   /// platform implemented initial location.
   ///
-  /// Setting this parameter to [false] (default) will allow the platform's
+  /// Setting this parameter to `false` (default) will allow the platform's
   /// default initial location to be used even if the `initialLocation` is set.
-  /// It's advisable to only set this to [true] if one explicitly wants to.
+  /// It's advisable to only set this to `true` if one explicitly wants to.
   final bool overridePlatformDefaultLocation;
 
   final ValueListenable<RoutingConfig> _routingConfig;
@@ -445,14 +444,14 @@ class GoRouter implements RouterConfig<RouteMatchList> {
   /// * [replace] which replaces the top-most page of the page stack but treats
   ///   it as the same page. The page key will be reused. This will preserve the
   ///   state and not run any page animation.
-  Future<T?> push<T extends Object?>(String location, {Object? extra}) async {
+  Future<T?> push<T extends Object?>(String location, {Object? extra}) => Future.sync(() {
     log('pushing $location');
     return routeInformationProvider.push<T>(
       location,
       base: routerDelegate.currentConfiguration,
       extra: extra,
     );
-  }
+  });
 
   /// Push a named route onto the page stack w/ optional parameters, e.g.
   /// `name='person', pathParameters={'fid': 'f2', 'pid': 'p1'}`
@@ -556,8 +555,8 @@ class GoRouter implements RouterConfig<RouteMatchList> {
     assert(() {
       log('popping ${routerDelegate.currentConfiguration.uri}');
       return true;
-    }());
-    final RouteMatchList configBeforePop = routerDelegate.currentConfiguration;
+    }(), 'Route pop logging must complete.');
+    final configBeforePop = routerDelegate.currentConfiguration;
     routerDelegate.pop<T>(result);
     // Only restore when the pop completed synchronously (no onExit).
     // If deferred, currentConfiguration is still the same instance.
@@ -571,13 +570,13 @@ class GoRouter implements RouterConfig<RouteMatchList> {
     assert(() {
       log('refreshing ${routerDelegate.currentConfiguration.uri}');
       return true;
-    }());
+    }(), 'Route refresh logging must complete.');
     routeInformationProvider.notifyListeners();
   }
 
   /// Find the current GoRouter in the widget tree.
   static GoRouter of(BuildContext context) {
-    final GoRouter? router = maybeOf(context);
+    final router = maybeOf(context);
     if (router == null) {
       throw FlutterError('No GoRouter found in context');
     }
@@ -610,7 +609,7 @@ class GoRouter implements RouterConfig<RouteMatchList> {
       // verified by assert() during the initialization.
       return initialLocation!;
     }
-    Uri platformDefaultUri = Uri.parse(WidgetsBinding.instance.platformDispatcher.defaultRouteName);
+    var platformDefaultUri = Uri.parse(WidgetsBinding.instance.platformDispatcher.defaultRouteName);
     if (platformDefaultUri.hasEmptyPath) {
       platformDefaultUri = platformDefaultUri.replace(path: '/');
     }

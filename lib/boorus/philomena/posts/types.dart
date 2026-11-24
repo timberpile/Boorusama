@@ -221,8 +221,9 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
   ) {
     if (!post.isVideo &&
         config.imageDetaisQuality == null &&
-        postQuality == PostQuality.original)
+        postQuality == PostQuality.original) {
       return originalViewerImageUrl(post);
+    }
     final representation = post.philomenaData?.representation;
     if (representation == null) return _commonMedia(post);
     final quality = config.imageDetaisQuality;

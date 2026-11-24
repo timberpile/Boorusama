@@ -9,15 +9,17 @@ extension MiteMiteCollectionAliases on MiteMiteService {
         'collection-alias:${id.key}',
         () async {
           _ensureCurrent();
-          if (gate.approvedKey(id.publisher) == null)
+          if (gate.approvedKey(id.publisher) == null) {
             throw const SyncTrustRequired();
+          }
           if (id.kind == 'bookmarks') {
             final current = await mirrors.readMirrorState();
             if (!current.owners.values.any(
               (owner) =>
                   owner.publisher == id.publisher && owner.source == id.source,
-            ))
+            )) {
               throw const SyncConflict();
+            }
           } else {
             final current = await (await _followingRepository())
                 .readMirrorSnapshot();
@@ -26,8 +28,9 @@ extension MiteMiteCollectionAliases on MiteMiteService {
                   owner.kind == FollowingMirrorKind.folder &&
                   owner.publisher == id.publisher &&
                   owner.source == id.source,
-            ))
+            )) {
               throw const SyncConflict();
+            }
           }
           _ensureCurrent();
           await _collectionAliases.set(id, value);

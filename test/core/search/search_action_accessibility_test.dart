@@ -26,7 +26,9 @@ void main() {
     );
     final harness = FollowingTopicHarness(
       overrides: [
-        searchHistoryRepoProvider.overrideWith((_) async => repository),
+        searchHistoryRepoProvider.overrideWith(
+          (_) => Future.sync(() => repository),
+        ),
       ],
     );
     addTearDown(harness.dispose);

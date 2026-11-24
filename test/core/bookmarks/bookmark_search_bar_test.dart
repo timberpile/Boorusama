@@ -7,7 +7,6 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
-import 'package:boorusama/core/themes/colors/src/colors.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 import 'package:material_ui/material_ui.dart';

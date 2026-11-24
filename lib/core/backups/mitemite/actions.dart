@@ -61,12 +61,15 @@ Future<bool> confirmSyncAction(
     false;
 
 String syncErrorMessage(BuildContext context, Object error) {
-  if (error case SyncPartialReceiveFailure(:final failures))
+  if (error case SyncPartialReceiveFailure(:final failures)) {
     return '${context.t.mitemite.partial} ${syncErrorMessage(context, failures.values.first)}';
-  if (error is FollowingLocalCopySourceUnavailable)
+  }
+  if (error is FollowingLocalCopySourceUnavailable) {
     return context.t.mitemite.following_paused;
-  if (error is SyncPublicationPending)
+  }
+  if (error is SyncPublicationPending) {
     return context.t.mitemite.publication_pending;
+  }
   return syncFailureMessage(context, syncFailureKind(error));
 }
 
@@ -95,8 +98,9 @@ Future<void> runSyncAction(
   try {
     await action();
   } catch (error) {
-    if (context.mounted)
+    if (context.mounted) {
       Kurumi.showErrorToast(context, syncErrorMessage(context, error));
+    }
   }
 }
 
@@ -131,8 +135,9 @@ Future<bool> chooseSyncFolder(
       : await ref.read(appFilePickerProvider).pickDirectory();
   if (location == null ||
       !context.mounted ||
-      !isCurrentSyncService(context, service))
+      !isCurrentSyncService(context, service)) {
     return false;
+  }
   try {
     await service.configure(location);
   } finally {
@@ -154,32 +159,37 @@ Future<void> publishBookmarkGroup(
 ) => runSyncAction(context, () async {
   final service = await ref.read(miteMiteServiceProvider.future);
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
-  if (!service.configured && !await chooseSyncFolder(context, ref, service))
+  if (!service.configured && !await chooseSyncFolder(context, ref, service)) {
     return;
+  }
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   var state = await ref.read(bookmarkProvider.future);
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   var group = state.groupsById[source];
-  if (group == null || state.mirrors.isReceived(source))
+  if (group == null || state.mirrors.isReceived(source)) {
     throw const BookmarkMirrorReadOnly();
+  }
   if (service.publishedRoots.contains(source)) return;
   if (!await confirmSyncAction(
     context,
     context.t.mitemite.publish,
     context.t.mitemite.confirm_publish(name: group.name),
-  ))
+  )) {
     return;
+  }
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   // The dialog may have outlived a rename, deletion or ownership change.
   await ref.read(bookmarkProvider.notifier).refresh();
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   state = ref.read(bookmarkProvider).requireValue;
   group = state.groupsById[source];
-  if (group == null || state.mirrors.isReceived(source))
+  if (group == null || state.mirrors.isReceived(source)) {
     throw const BookmarkMirrorReadOnly();
+  }
   await service.publishGroup(source);
-  if (context.mounted)
+  if (context.mounted) {
     Kurumi.showSuccessToast(context, context.t.mitemite.publication_done);
+  }
 });
 
 Set<String> syncPublicationCoverage(
@@ -203,8 +213,9 @@ Future<void> stopBookmarkPublication(
   final state = await ref.read(bookmarkProvider.future);
   if (!context.mounted ||
       !isCurrentSyncService(context, service) ||
-      !service.publishedRoots.contains(source))
+      !service.publishedRoots.contains(source)) {
     return;
+  }
   final local = state.groups
       .where((group) => !state.mirrors.isReceived(group.id))
       .toList();
@@ -219,12 +230,14 @@ Future<void> stopBookmarkPublication(
     context.t.mitemite.stop_publishing,
     '${context.t.mitemite.confirm_stop(name: name)}\n\n'
     '${context.t.mitemite.publication_impact(removed: before.difference(after).length, retained: before.intersection(after).length)}',
-  ))
+  )) {
     return;
+  }
   if (!context.mounted || !isCurrentSyncService(context, service)) return;
   await service.stopPublishingGroup(source);
-  if (context.mounted)
+  if (context.mounted) {
     Kurumi.showSuccessToast(context, context.t.mitemite.publication_stopped);
+  }
 });
 
 /// The transaction recomputes this overlap-aware preview. Missing transport is

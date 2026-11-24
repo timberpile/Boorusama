@@ -39,7 +39,9 @@ void main() {
       final initial = runtime.initialState;
       final container = ProviderContainer(
         overrides: [
-          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          blacklistTagsProvider.overrideWith(
+            (_, _) => Future.sync(() => <String>{}),
+          ),
           ...buildBoorusamaOverrides(
             runtime,
             RebootData(
@@ -137,7 +139,9 @@ void main() {
               settings: initial.settings,
             ),
           ),
-          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          blacklistTagsProvider.overrideWith(
+            (_, _) => Future.sync(() => <String>{}),
+          ),
           downloadFileUrlExtractorProvider.overrideWith((_, _) {
             extractorReads++;
             return const UrlInsidePostExtractor();
@@ -217,7 +221,9 @@ void main() {
         final initial = runtime.initialState;
         final container = ProviderContainer(
           overrides: [
-            blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+            blacklistTagsProvider.overrideWith(
+              (_, _) => Future.sync(() => <String>{}),
+            ),
             ...buildBoorusamaOverrides(
               runtime,
               RebootData(
@@ -347,7 +353,9 @@ void main() {
             final initial = runtime.initialState;
             final container = ProviderContainer(
               overrides: [
-                blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+                blacklistTagsProvider.overrideWith(
+                  (_, _) => Future.sync(() => <String>{}),
+                ),
                 ...buildBoorusamaOverrides(
                   runtime,
                   RebootData(

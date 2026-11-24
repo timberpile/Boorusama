@@ -13,7 +13,7 @@ import 'bookmark_group_label.dart';
 class BookmarkPickerNavigation extends ChangeNotifier {
   String? _currentId;
   List<String> _path = const [];
-  BookmarkGroupTree _tree = BookmarkGroupTree(const []);
+  var _tree = BookmarkGroupTree(const []);
   String? get currentId => _currentId;
   void update(BookmarkGroupTree tree) {
     _tree = tree;
@@ -30,8 +30,9 @@ class BookmarkPickerNavigation extends ChangeNotifier {
   }
 
   void open(String? id) {
-    if (id == _currentId || (id != null && !_tree.groupsById.containsKey(id)))
+    if (id == _currentId || (id != null && !_tree.groupsById.containsKey(id))) {
       return;
+    }
     _currentId = id;
     _path = id == null
         ? const []
@@ -108,8 +109,9 @@ class _BookmarkFolderPickerContentsState
       _navigation.addListener(_navigated);
     }
     if (!identical(oldWidget.folders, widget.folders) ||
-        !identical(oldWidget.groups, widget.groups))
+        !identical(oldWidget.groups, widget.groups)) {
       _updateSnapshot();
+    }
   }
 
   void _updateSnapshot() {

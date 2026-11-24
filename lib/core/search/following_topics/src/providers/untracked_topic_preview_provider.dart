@@ -123,15 +123,15 @@ final untrackedTopicPreviewProvider = FutureProvider.autoDispose
                           scope.isCurrent &&
                           uri != null &&
                           scope.source.allowsMedia(uri) &&
-                          ref
+                          (ref
                                   .watch(
                                     contentPostVisibilityProvider((
                                       access: scope.key,
                                       post: post,
                                     )),
                                   )
-                                  .valueOrNull ==
-                              true;
+                                  .valueOrNull ??
+                              false);
                     })
                     .map((post) => post.thumbnailImageUrl),
               );

@@ -242,7 +242,7 @@ void main() {
       expect(config.networkSettings, isNull);
       expect(container.read(booruConfigProvider), isEmpty);
     });
-    if (!copied)
+    if (!copied) {
       test(
         'a unique compatible profile wins; duplicate accounts use public authority',
         () {
@@ -262,6 +262,7 @@ void main() {
           expect(container.read(booruConfigProvider), hasLength(2));
         },
       );
+    }
     test(
       'source change and public policy revocation never reuse a previous grant',
       () {

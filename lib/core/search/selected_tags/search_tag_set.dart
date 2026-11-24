@@ -104,9 +104,7 @@ class SearchTagSet extends Equatable {
   }
 
   void addTags(List<TagSearchItem> tags) {
-    for (final tag in tags) {
-      addTag(tag);
-    }
+    tags.forEach(addTag);
   }
 
   void removeTag(TagSearchItem tag) {

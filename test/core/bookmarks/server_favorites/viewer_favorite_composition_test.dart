@@ -52,6 +52,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'test_support.dart';
+import '../../../support/legacy_material_test_scope.dart';
 
 void main() {
   for (final mixed in [true, false]) {
@@ -168,7 +169,7 @@ void main() {
                   theme: ThemeData(
                     extensions: const [KurumiExtendedColorScheme()],
                   ).withBoorusamaColors(),
-                  builder: (context, child) => MaterialUiCompatibilityBridge(
+                  builder: (context, child) => LegacyMaterialTestScope(
                     child: KurumiTheme(
                       data: KurumiThemeData.fromMaterial(Theme.of(context)),
                       child: child!,

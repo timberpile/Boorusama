@@ -62,8 +62,9 @@ class PoolPagedSliverGrid extends ConsumerWidget {
                     )
                     .toList();
                 final next = raw.isEmpty ? null : rawPage + 1;
-                if (visible.isNotEmpty || next == null || attempt == 1)
+                if (visible.isNotEmpty || next == null || attempt == 1) {
                   return PoolDiscoveryPage(visible, next);
+                }
                 rawPage++;
               }
               throw StateError('Unreachable Pool continuation');

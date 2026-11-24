@@ -100,14 +100,14 @@ void main() {
         BookmarkGroup(
           id: root,
           name: 'Existing',
-          bookmarkIds: {0},
+          bookmarkIds: const {0},
           addedAt: {0: date},
         ),
         BookmarkGroup(
           id: leaf,
           name: 'Child',
           parentGroupId: root,
-          bookmarkIds: {0},
+          bookmarkIds: const {0},
           addedAt: {0: date},
         ),
       ];

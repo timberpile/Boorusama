@@ -94,10 +94,12 @@ void main() {
           'self-replace-',
         );
         Hive.init(directory.path);
-        if (!Hive.isAdapterRegistered(4))
+        if (!Hive.isAdapterRegistered(4)) {
           Hive.registerAdapter(BookmarkHiveObjectAdapter());
-        if (!Hive.isAdapterRegistered(5))
+        }
+        if (!Hive.isAdapterRegistered(5)) {
           Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+        }
         final posts = await Hive.openBox<BookmarkHiveObject>('favorites');
         await Hive.openBox<BookmarkGroupHiveObject>('bookmark_groups');
         final organization = await Hive.openBox<dynamic>('bookmark_folders');
@@ -256,7 +258,7 @@ void main() {
         if (explicit) {
           expect(after.map(bookmarkRecordProfileHint), everyElement(profile));
           expect(
-            (after.whereType<ContentGroupBookmark>().single).snapshot,
+            after.whereType<ContentGroupBookmark>().single.snapshot,
             pool.snapshot,
           );
         } else {
@@ -285,7 +287,7 @@ void main() {
                     '11111111-1111-4111-8111-111111111111',
                   )
                 : base;
-            final codec = const StoredBookmarkCodec();
+            const codec = StoredBookmarkCodec();
             final incoming = (codec.decode(
               codec.encodeForTransfer(original),
             ) as PostBookmark).copyWith(id: 9000);
@@ -296,7 +298,7 @@ void main() {
                 mapBookmarkImportProfiles(
                       incoming: [incoming],
                       local: [original],
-                      mappings: {if (mapping != null) key: mapping},
+                      mappings: {key: ?mapping},
                       explicitMappings: explicit ? {key} : {},
                     )[9000]!
                     as PostBookmark;

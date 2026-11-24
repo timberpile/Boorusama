@@ -17,7 +17,7 @@ class ServerFavoriteProjectionQueue<K> {
       } catch (error, stackTrace) {
         completion.completeError(error, stackTrace);
       } finally {
-        if (identical(_tails[key], tail)) _tails.remove(key);
+        if (identical(_tails[key], tail)) unawaited(_tails.remove(key));
       }
     });
     // The internal tail absorbs operation failures. The returned completion

@@ -58,14 +58,14 @@ Post dtoToAnimePicturesPost(
   ).withDetailFacts(
     PostDetailFacts(
       score: e.scoreNumber,
-      originalByteSize: originalUrl?.isNotEmpty == true ? e.size : null,
-      originalWidth: originalUrl?.isNotEmpty == true
+      originalByteSize: originalUrl?.isNotEmpty ?? false ? e.size : null,
+      originalWidth: originalUrl?.isNotEmpty ?? false
           ? e.width?.toDouble()
           : null,
-      originalHeight: originalUrl?.isNotEmpty == true
+      originalHeight: originalUrl?.isNotEmpty ?? false
           ? e.height?.toDouble()
           : null,
-      originalFormat: originalUrl?.isNotEmpty == true ? e.ext : null,
+      originalFormat: originalUrl?.isNotEmpty ?? false ? e.ext : null,
     ),
   );
 }

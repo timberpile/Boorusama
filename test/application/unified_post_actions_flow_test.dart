@@ -170,7 +170,7 @@ void main() {
     await harness.settle(tester);
     expect(attempts, 2);
     expect(snapshot.posts, posts);
-    dismissAllToast(showAnim: false);
+    dismissAllToast();
     // Advance the widget clock through oktoast's four-second fade lifetime.
     await tester.pump(const Duration(seconds: 4));
   });

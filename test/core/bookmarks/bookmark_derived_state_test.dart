@@ -54,7 +54,7 @@ void main() {
             BookmarkGroup(
               id: defaultBookmarkGroupId,
               name: 'Default',
-              bookmarkIds: {1},
+              bookmarkIds: const {1},
             ),
           ],
         ),
@@ -62,7 +62,7 @@ void main() {
       await container.pump();
       performanceRecorder.stop();
       final operations =
-          (performanceRecorder.snapshot()['summary'] as Map)['operations']
+          (performanceRecorder.snapshot()['summary']! as Map)['operations']
               as List;
       expect(
         operations.where(
@@ -103,9 +103,9 @@ void main() {
           BookmarkGroup(
             id: defaultBookmarkGroupId,
             name: 'Default',
-            bookmarkIds: {1, 2},
+            bookmarkIds: const {1, 2},
           ),
-          BookmarkGroup(id: groupId, name: 'Target', bookmarkIds: {1}),
+          BookmarkGroup(id: groupId, name: 'Target', bookmarkIds: const {1}),
         ],
       );
       final notifier = _Library(initial);
@@ -144,7 +144,7 @@ void main() {
       expect(identical(await container.read(provider.future), before), isTrue);
       performanceRecorder.stop();
       final operations =
-          (performanceRecorder.snapshot()['summary'] as Map)['operations']
+          (performanceRecorder.snapshot()['summary']! as Map)['operations']
               as List;
       expect(
         operations.where(
@@ -279,9 +279,9 @@ void main() {
         BookmarkGroup(
           id: defaultBookmarkGroupId,
           name: 'Default',
-          bookmarkIds: {1},
+          bookmarkIds: const {1},
         ),
-        BookmarkGroup(id: groupId, name: 'Other', bookmarkIds: {}),
+        BookmarkGroup(id: groupId, name: 'Other', bookmarkIds: const {}),
       ],
     );
     final notifier = _Library(initial);

@@ -38,10 +38,11 @@ void main() {
     BasicMigration(
       version: 1,
       onUp: (context) {
-        context.execute(
-          'CREATE TABLE payload (id INTEGER PRIMARY KEY, value TEXT NOT NULL)',
-        );
-        context.execute("INSERT INTO payload VALUES (7, 'preserved')");
+        context
+          ..execute(
+            'CREATE TABLE payload (id INTEGER PRIMARY KEY, value TEXT NOT NULL)',
+          )
+          ..execute("INSERT INTO payload VALUES (7, 'preserved')");
         beforeFinish?.call();
       },
     ),
@@ -96,7 +97,7 @@ void main() {
         migrations: steps,
       );
       final events = <MigrationEvent>[];
-      final migration = manager(steps)
+      manager(steps)
         ..addProgressListener(
           MigrationProgressListener(
             onEvent: (event) {
@@ -104,8 +105,8 @@ void main() {
               if (event is MigrationStartedEvent) competing.runMigrations();
             },
           ),
-        );
-      migration.runMigrations();
+        )
+        ..runMigrations();
       expect(events, [
         isA<MigrationStartedEvent>(),
         isA<MigrationCompletedEvent>(),
@@ -122,15 +123,15 @@ void main() {
 
   test('completion observers see the committed successful history', () {
     List<Map<String, Object?>>? atCompletion;
-    final migration = manager(migrations())
+    manager(migrations())
       ..addProgressListener(
         MigrationProgressListener(
           onEvent: (event) {
             if (event is MigrationCompletedEvent) atCompletion = history();
           },
         ),
-      );
-    migration.runMigrations();
+      )
+      ..runMigrations();
     expect(atCompletion, [
       {'version': 1, 'success': 1, 'error_message': null},
     ]);
@@ -238,8 +239,9 @@ void main() {
 
   test('a failed BEGIN does not roll back the caller transaction', () {
     final migration = manager(migrations());
-    db.execute('BEGIN TRANSACTION');
-    db.execute('CREATE TABLE caller_owned (id INTEGER PRIMARY KEY)');
+    db
+      ..execute('BEGIN TRANSACTION')
+      ..execute('CREATE TABLE caller_owned (id INTEGER PRIMARY KEY)');
     expect(migration.runMigrations, throwsA(isA<SqliteException>()));
     expect(
       db.select(

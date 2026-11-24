@@ -31,21 +31,21 @@ class _BoxPainter extends CustomPainter {
 
   // These three faces follow the perspective of assets/images/logo.svg.
   // Small negative-space seams replace the logo's thick dark outlines.
-  static final Path _top = Path()
+  static final _top = Path()
     ..moveTo(1.6, 5.2)
     ..lineTo(12, 1.2)
     ..lineTo(22.4, 5.2)
     ..lineTo(12, 9.1)
     ..close();
 
-  static final Path _left = Path()
+  static final _left = Path()
     ..moveTo(1.6, 6.4)
     ..lineTo(11.4, 10.2)
     ..lineTo(11.4, 22.8)
     ..lineTo(1.6, 18.1)
     ..close();
 
-  static final Path _right = Path()
+  static final _right = Path()
     ..moveTo(12.6, 10.2)
     ..lineTo(22.4, 6.4)
     ..lineTo(22.4, 18.1)

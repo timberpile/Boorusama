@@ -33,13 +33,13 @@ class _OperationGate {
 
 class _GatedBookmarkHiveRepository extends BookmarkHiveRepository {
   _GatedBookmarkHiveRepository(
-    Box<BookmarkHiveObject> posts, {
+    super.posts, {
     required super.groupPayloadBox,
     required super.metadataBox,
     required super.coordinator,
     required super.legacyGroupBoxName,
     required super.legacyOrganizationBoxName,
-  }) : super(posts);
+  });
 
   _OperationGate? revisionGate;
   _OperationGate? committedGate;
@@ -96,7 +96,7 @@ class _GatedBookmarkHiveRepository extends BookmarkHiveRepository {
 
 class _Store implements MiscDataStore {
   final values = <String, String>{};
-  bool failNext = false;
+  var failNext = false;
   @override
   String? get(String key) => values[key];
   @override
@@ -117,10 +117,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('hierarchy-controller-');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     final posts = await Hive.openBox<BookmarkHiveObject>('posts');
     final payloads = await Hive.openBox<dynamic>('posts_unified_payloads');
     final metadata = await Hive.openBox<dynamic>('posts_unified_metadata');

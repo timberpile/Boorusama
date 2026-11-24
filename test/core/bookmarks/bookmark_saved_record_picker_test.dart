@@ -56,7 +56,7 @@ void main() {
         BookmarkGroup(
           id: poolGroupA,
           name: 'A',
-          bookmarkIds: {1, 4},
+          bookmarkIds: const {1, 4},
           addedAt: {
             1: DateTime.utc(2024, 1, 2),
             4: DateTime.utc(2024, 3, 4),
@@ -65,7 +65,7 @@ void main() {
         BookmarkGroup(
           id: poolGroupB,
           name: 'B',
-          bookmarkIds: {1, 4},
+          bookmarkIds: const {1, 4},
           addedAt: {
             1: DateTime.utc(2025, 5, 6),
             4: DateTime.utc(2025, 7, 8),
@@ -234,7 +234,7 @@ class _Library extends BookmarkLibraryNotifier {
       group: BookmarkGroup(
         id: poolGroupA,
         name: name,
-        bookmarkIds: {},
+        bookmarkIds: const {},
         parentGroupId: parent,
       ),
       addedCount: creations.last.records.length,

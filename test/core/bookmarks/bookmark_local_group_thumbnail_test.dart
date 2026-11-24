@@ -167,7 +167,9 @@ Widget _app(
   ImageListingSettings listing,
 ) => ProviderScope(
   overrides: [
-    blacklistTagsProvider.overrideWith((ref, filter) async => <String>{}),
+    blacklistTagsProvider.overrideWith(
+      (ref, filter) => Future.sync(() => <String>{}),
+    ),
     booruConfigProvider.overrideWith(
       () => BooruConfigNotifier(initialConfigs: [config]),
     ),

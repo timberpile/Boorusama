@@ -14,8 +14,8 @@ const storageKey = 'bookmarkGroupViewModes';
 
 class _Store implements MiscDataStore {
   final values = <String, String>{};
-  int writes = 0;
-  bool failNext = false;
+  var writes = 0;
+  var failNext = false;
   Completer<void>? started;
   Completer<void>? release;
 

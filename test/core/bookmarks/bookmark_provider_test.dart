@@ -138,7 +138,7 @@ void main() {
                 localId: pool.localId,
                 createdAt: preparedAt,
                 observedAt: preparedAt,
-                groupIds: {defaultBookmarkGroupId},
+                groupIds: const {defaultBookmarkGroupId},
               )
             : PoolBookmark.fromJson({
                 ...pool.toJson(),
@@ -360,7 +360,7 @@ void main() {
           }
           expect(remaining.groups.any((group) => group.id == target), isFalse);
           expect(find.text('Undo'), findsNothing);
-          dismissAllToast(showAnim: false);
+          dismissAllToast();
           await tester.pump(const Duration(seconds: 5));
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
@@ -394,7 +394,7 @@ void main() {
             bookmark.snapshot,
           );
         }
-        dismissAllToast(showAnim: false);
+        dismissAllToast();
         await tester.pump(const Duration(seconds: 5));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
@@ -535,7 +535,7 @@ void main() {
             expect(restored.membershipsFor(old.uniqueId), {groupId});
           }
         }
-        dismissAllToast(showAnim: false);
+        dismissAllToast();
         // Drain OKToast's animation callbacks after tapping Undo.
         await tester.pump(const Duration(seconds: 5));
         await tester.pumpAndSettle();
@@ -1110,7 +1110,7 @@ void main() {
     final destination = await groupRepository.createGroup('Destination');
     final other = await groupRepository.createGroup('Other');
     await groupRepository.addBookmarks(other.id, {stored.id});
-    final settings = Settings.defaultSettings;
+    const settings = Settings.defaultSettings;
     final container = createContainer(
       settingsNotifier: _TestSettingsNotifier(settings),
     );
@@ -1197,7 +1197,6 @@ void main() {
           BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
         ),
         stored.toPost(),
-        target: const BookmarkTarget.defaultGroup(),
       );
 
       expect(outcome, BookmarkToggleOutcome.removed);
@@ -1418,7 +1417,7 @@ void main() {
     'group deletion does not write settings',
     () async {
       final group = await groupRepository.createGroup('Protected');
-      final settings = Settings.defaultSettings;
+      const settings = Settings.defaultSettings;
       final container = createContainer(
         settingsNotifier: _FailingSettingsNotifier(settings),
       );
@@ -1435,7 +1434,7 @@ void main() {
     'a committed deletion succeeds when publishing fails',
     () async {
       final group = await groupRepository.createGroup('Committed');
-      final settings = Settings.defaultSettings;
+      const settings = Settings.defaultSettings;
       final publication = _FailingPublicationGroupRepository(groupBox);
       final container = createContainer(
         settingsNotifier: _TestSettingsNotifier(settings),
@@ -1460,7 +1459,7 @@ void main() {
 
   test('a committed group delete error is reconciled as success', () async {
     final group = await groupRepository.createGroup('Committed delete');
-    final settings = Settings.defaultSettings;
+    const settings = Settings.defaultSettings;
     final container = createContainer(
       settingsNotifier: _TestSettingsNotifier(settings),
       groupRepositoryOverride: _CommitsThenThrowsDeleteGroupRepository(
@@ -1810,10 +1809,9 @@ class _FailingSettingsNotifier extends SettingsNotifier {
 
 class _FailingAddBookmarkRepository extends BookmarkHiveRepository {
   _FailingAddBookmarkRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -1829,7 +1827,7 @@ class _FailingAddBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _FailingMembershipGroupRepository extends BookmarkGroupRepositoryHive {
-  _FailingMembershipGroupRepository(super._box);
+  _FailingMembershipGroupRepository(super.box);
 
   @override
   Future<BookmarkGroup> addBookmarks(String groupId, Set<int> bookmarkIds) =>
@@ -1840,7 +1838,7 @@ class _FailingMembershipGroupRepository extends BookmarkGroupRepositoryHive {
 
 class _CommitsThenThrowsDeleteGroupRepository
     extends BookmarkGroupRepositoryHive {
-  _CommitsThenThrowsDeleteGroupRepository(super._box);
+  _CommitsThenThrowsDeleteGroupRepository(super.box);
 
   @override
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
@@ -1851,7 +1849,7 @@ class _CommitsThenThrowsDeleteGroupRepository
 
 class _CommitsThenThrowsCreateGroupRepository
     extends BookmarkGroupRepositoryHive {
-  _CommitsThenThrowsCreateGroupRepository(super._box);
+  _CommitsThenThrowsCreateGroupRepository(super.box);
 
   @override
   Future<BookmarkGroup> createGroup(String name, {String? id}) async {
@@ -1861,7 +1859,7 @@ class _CommitsThenThrowsCreateGroupRepository
 }
 
 class _CommitsThenThrowsAddGroupRepository extends BookmarkGroupRepositoryHive {
-  _CommitsThenThrowsAddGroupRepository(super._box);
+  _CommitsThenThrowsAddGroupRepository(super.box);
 
   @override
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
@@ -1912,19 +1910,19 @@ class _FailingPublicationGroupRepository extends BookmarkGroupRepositoryHive {
   }
 
   @override
-  Future<List<CollectionFolder>> readFolders() async {
+  Future<List<CollectionFolder>> readFolders() => Future.sync(() {
     if (_remaining > 0) {
       _remaining--;
       failedReads++;
       throw StateError('Committed but publication is unavailable');
     }
     return super.readFolders();
-  }
+  });
 }
 
 class _FailingAddedMembersPublicationGroupRepository
     extends BookmarkGroupRepositoryHive {
-  _FailingAddedMembersPublicationGroupRepository(super._box);
+  _FailingAddedMembersPublicationGroupRepository(super.box);
 
   var failNextRead = false;
   var failedReads = 0;
@@ -1949,10 +1947,9 @@ class _FailingAddedMembersPublicationGroupRepository
 
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
   _FailingSecondReadBookmarkRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -1986,10 +1983,9 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
 
 class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
   _CommitsThenThrowsAddBookmarkRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -2009,10 +2005,9 @@ class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
 
 class _BookmarkPostRepository extends BookmarkHiveRepository {
   _BookmarkPostRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -2031,10 +2026,9 @@ class _BookmarkPostRepository extends BookmarkHiveRepository {
 
 class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
   _FailsSecondAddBookmarkRepository(
-    Box<BookmarkHiveObject> box,
+    super.posts,
     BookmarkTestStorage storage,
   ) : super(
-        box,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,
@@ -2073,7 +2067,7 @@ PostBookmark _bookmarkFromPost(Post post) {
 
 class _FailsSecondAddAndFirstCleanupRepository
     extends _FailsSecondAddBookmarkRepository {
-  _FailsSecondAddAndFirstCleanupRepository(super.box, super.storage);
+  _FailsSecondAddAndFirstCleanupRepository(super.posts, super.storage);
 
   var _removeCount = 0;
 

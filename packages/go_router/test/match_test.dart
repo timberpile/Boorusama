@@ -13,14 +13,14 @@ void main() {
     test('simple', () {
       final route = GoRoute(path: '/users/:userId', builder: _builder);
       final pathParameters = <String, String>{};
-      final List<RouteMatchBase> matches = RouteMatchBase.match(
+      final matches = RouteMatchBase.match(
         route: route,
         pathParameters: pathParameters,
         uri: Uri.parse('/users/123'),
         rootNavigatorKey: GlobalKey<NavigatorState>(),
       );
       expect(matches.length, 1);
-      final RouteMatchBase match = matches.first;
+      final match = matches.first;
       expect(match.route, route);
       expect(match.matchedLocation, '/users/123');
       expect(pathParameters['userId'], '123');
@@ -33,7 +33,7 @@ void main() {
         routes: <GoRoute>[GoRoute(path: '/users/:userId', builder: _builder)],
       );
       final pathParameters = <String, String>{};
-      final List<RouteMatchBase> matches = RouteMatchBase.match(
+      final matches = RouteMatchBase.match(
         route: route,
         uri: Uri.parse('/users/123'),
         rootNavigatorKey: GlobalKey<NavigatorState>(),
@@ -49,13 +49,13 @@ void main() {
         routes: <GoRoute>[GoRoute(path: '/users/:userId', builder: _builder)],
       );
       final pathParameters = <String, String>{};
-      final List<RouteMatchBase> matches1 = RouteMatchBase.match(
+      final matches1 = RouteMatchBase.match(
         route: route,
         pathParameters: pathParameters,
         uri: Uri.parse('/users/123'),
         rootNavigatorKey: GlobalKey<NavigatorState>(),
       );
-      final List<RouteMatchBase> matches2 = RouteMatchBase.match(
+      final matches2 = RouteMatchBase.match(
         route: route,
         pathParameters: pathParameters,
         uri: Uri.parse('/users/1234'),
@@ -69,14 +69,14 @@ void main() {
     test('GoRoute Match has stable unique key', () {
       final route = GoRoute(path: '/users/:userId', builder: _builder);
       final pathParameters = <String, String>{};
-      final List<RouteMatchBase> matches1 = RouteMatchBase.match(
+      final matches1 = RouteMatchBase.match(
         route: route,
         uri: Uri.parse('/users/123'),
         rootNavigatorKey: GlobalKey<NavigatorState>(),
         pathParameters: pathParameters,
       );
 
-      final List<RouteMatchBase> matches2 = RouteMatchBase.match(
+      final matches2 = RouteMatchBase.match(
         route: route,
         uri: Uri.parse('/users/1234'),
         rootNavigatorKey: GlobalKey<NavigatorState>(),
@@ -131,20 +131,20 @@ void main() {
       ],
     );
     final pathParameters = <String, String>{};
-    final List<RouteMatchBase> matches = RouteMatchBase.match(
+    final matches = RouteMatchBase.match(
       route: route,
       pathParameters: pathParameters,
       uri: Uri.parse('/a/b/c/d'),
       rootNavigatorKey: root,
     );
     expect(matches.length, 4);
-    expect(matches[0].route, isA<GoRoute>().having((GoRoute route) => route.path, 'path', '/'));
+    expect(matches[0].route, isA<GoRoute>().having((route) => route.path, 'path', '/'));
     expect(
       matches[1].route,
-      isA<ShellRoute>().having((ShellRoute route) => route.navigatorKey, 'navigator key', shell1),
+      isA<ShellRoute>().having((route) => route.navigatorKey, 'navigator key', shell1),
     );
-    expect(matches[2].route, isA<GoRoute>().having((GoRoute route) => route.path, 'path', 'b'));
-    expect(matches[3].route, isA<GoRoute>().having((GoRoute route) => route.path, 'path', 'd'));
+    expect(matches[2].route, isA<GoRoute>().having((route) => route.path, 'path', 'b'));
+    expect(matches[3].route, isA<GoRoute>().having((route) => route.path, 'path', 'd'));
   });
 
   group('ImperativeRouteMatch', () {
@@ -178,7 +178,7 @@ void main() {
     final completer1 = Completer<void>();
     final completer2 = Completer<void>();
 
-    test('can equal and has', () async {
+    test('can equal and has', () {
       var match1 = ImperativeRouteMatch(pageKey: key1, matches: matchList1, completer: completer1);
       var match2 = ImperativeRouteMatch(pageKey: key1, matches: matchList1, completer: completer1);
       expect(match1 == match2, isTrue);

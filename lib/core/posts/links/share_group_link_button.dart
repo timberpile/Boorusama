@@ -58,7 +58,7 @@ class _GroupLinkShareButtonState extends ConsumerState<GroupLinkShareButton> {
       onPressed:
           !_open &&
               entry != null &&
-              access?.accepts(entry.contentReference) == true
+              (access?.accepts(entry.contentReference) ?? false)
           ? () => _share(entry)
           : null,
     );

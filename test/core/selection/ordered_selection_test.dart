@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:selection_mode/src/core/selection_item_info.dart';
-// ignore_for_file: invalid_use_of_internal_member, implementation_imports
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selection_mode/selection_mode.dart';
 

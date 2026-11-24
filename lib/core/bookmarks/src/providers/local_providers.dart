@@ -82,8 +82,7 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   );
 
   final hosts = <String>{
-    for (final bookmark in bookmarks)
-      if (bookmarkSourceHost(bookmark) case final host?) host,
+    for (final bookmark in bookmarks) ?bookmarkSourceHost(bookmark),
   };
   hosts.addAll(
     pools

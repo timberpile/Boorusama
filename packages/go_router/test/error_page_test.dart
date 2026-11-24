@@ -26,7 +26,7 @@ void main() {
   testWidgets(
     'clicking the button should redirect to /',
     testClickingTheButtonRedirectsToRoot(
-      buttonFinder: find.byWidgetPredicate((Widget widget) => widget is GestureDetector),
+      buttonFinder: find.byWidgetPredicate((widget) => widget is GestureDetector),
       widget: widgetsAppBuilder(home: const ErrorScreen(null)),
     ),
   );
@@ -35,7 +35,7 @@ void main() {
 Widget widgetsAppBuilder({required Widget home}) {
   return WidgetsApp(
     onGenerateRoute: (_) {
-      return MaterialPageRoute<void>(builder: (BuildContext _) => home);
+      return MaterialPageRoute<void>(builder: (_) => home);
     },
     color: Colors.white,
   );

@@ -39,7 +39,7 @@ void main() {
         postId: 50,
         site: 'beta.example',
         uploadedAt: DateTime.utc(2025),
-        bookmarkedAt: DateTime.utc(2026, 1, 1),
+        bookmarkedAt: DateTime.utc(2026),
       ),
       _bookmark(
         localId: 3,
@@ -80,7 +80,7 @@ void main() {
   });
 
   test('equal upload dates have a stable site and ID tie-breaker', () {
-    final sameDate = DateTime.utc(2025, 1, 1);
+    final sameDate = DateTime.utc(2025);
     final bookmarks = [
       _bookmark(
         localId: 1,
@@ -217,7 +217,7 @@ PostBookmark _bookmark({
     ),
     booruData: const LegacyPostData(typeKey: 'test', custom: {}),
   );
-  final markedAt = bookmarkedAt ?? DateTime.utc(2026, 1);
+  final markedAt = bookmarkedAt ?? DateTime.utc(2026);
   return PostBookmark.fromSnapshot(
     id: localId,
     createdAt: markedAt,

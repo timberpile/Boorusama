@@ -26,8 +26,9 @@ bool serverFavoriteActorMatches(BooruConfig expected, BooruConfig actual) {
       b.booruType != BooruType.pixiv ||
       a.booruId != b.booruId ||
       a.url != b.url ||
-      a.login != b.login)
+      a.login != b.login) {
     return false;
+  }
   final user = pixivAuthenticatedUserId(a);
   return user != null && user == pixivAuthenticatedUserId(b);
 }

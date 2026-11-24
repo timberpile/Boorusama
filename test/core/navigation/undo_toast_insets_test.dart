@@ -86,7 +86,7 @@ void main() {
         expect(tester.getRect(toast).bottom, closeTo(640 - 44 - 16, 0.5));
 
         tester.view.viewInsets = const FakeViewPadding(bottom: 240);
-        tester.view.padding = const FakeViewPadding();
+        tester.view.padding = FakeViewPadding.zero;
         await tester.pumpAndSettle();
         expect(tester.getRect(toast).bottom, closeTo(640 - 240 - 16, 0.5));
         final action = find.widgetWithText(TextButton, 'Undo');

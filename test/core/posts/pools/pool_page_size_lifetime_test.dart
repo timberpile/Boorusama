@@ -166,12 +166,12 @@ void main() {
 
 Future<void> _complete(WidgetTester tester, Future<void> future) async {
   var complete = false;
-  future.whenComplete(() => complete = true);
+  final tracked = future.whenComplete(() => complete = true);
   for (var i = 0; i < 100 && !complete; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
   expect(complete, isTrue, reason: 'Pool request did not complete');
-  await future;
+  await tracked;
 }
 
 class _Repository implements PostRepository<Post> {

@@ -62,7 +62,7 @@ void main() {
         id: 'bookmarks',
         childIds: {'one', 'two', 'three'},
       );
-      var ids = <String>{'one'};
+      final ids = <String>{'one'};
       await tester.pumpWidget(
         _app(
           StatefulBuilder(

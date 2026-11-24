@@ -65,7 +65,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           appUpdateStatusProvider.overrideWith(
-            (ref) async => ref.watch(status),
+            (ref) => Future.sync(() => ref.watch(status)),
           ),
         ],
       );
@@ -151,7 +151,9 @@ void main() {
       });
       final container = ProviderContainer(
         overrides: [
-          appUpdateStatusProvider.overrideWith((ref) async => _available),
+          appUpdateStatusProvider.overrideWith(
+            (ref) => Future.sync(() => _available),
+          ),
           githubAndroidInstallationSupportedProvider.overrideWithValue(false),
           navigationProfilesProvider.overrideWithValue([profile]),
           navigationCatalogProvider.overrideWithValue(

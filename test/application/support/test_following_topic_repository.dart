@@ -37,9 +37,7 @@ final class _MemoryBox<T> implements Box<T> {
 
   @override
   Future<void> deleteAll(Iterable<dynamic> keys) async {
-    for (final key in keys) {
-      _items.remove(key);
-    }
+    keys.forEach(_items.remove);
   }
 
   @override

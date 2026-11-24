@@ -144,7 +144,7 @@ void main() {
         localId: poolProfile,
         createdAt: newest,
         observedAt: newest,
-        groupIds: {poolGroupA, poolGroupB},
+        groupIds: const {poolGroupA, poolGroupB},
         addedAt: {poolGroupA: early, poolGroupB: newest},
       );
       final state = library(pools: [pool, related]);

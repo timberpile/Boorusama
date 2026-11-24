@@ -72,7 +72,7 @@ class BookmarkNativeGroupCard extends ConsumerWidget {
         ?.presentation;
     final card = PoolGridItem(
       category: presentation is BooruGroupKindPresentation
-          ? (presentation as BooruGroupKindPresentation).kindLabel(
+          ? (presentation! as BooruGroupKindPresentation).kindLabel(
               context,
               bookmark.summary,
             )
@@ -118,11 +118,12 @@ class BookmarkNativeGroupCard extends ConsumerWidget {
                 );
                 if (context.mounted) notifier.showRemovalUndo(context, result);
               } catch (_) {
-                if (context.mounted)
+                if (context.mounted) {
                   Kurumi.showErrorToast(
                     context,
                     context.t.bookmark.groups.operation_failed,
                   );
+                }
               }
             },
           ),
@@ -173,7 +174,7 @@ bool nativeGroupCoverAllowed(
       groupCoverPassesBlacklist(
         visibility,
         blacklist,
-        postId: cover?.representedPost?.sourceKey.startsWith('id:') == true
+        postId: cover?.representedPost?.sourceKey.startsWith('id:') ?? false
             ? int.tryParse(cover!.representedPost!.sourceKey.substring(3))
             : null,
       );
@@ -204,11 +205,12 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
     final config = access?.config;
     final cover =
         recoveredCover ?? ref.watch(nativeWorkSavedCoverProvider(bookmark));
-    if (config == null)
+    if (config == null) {
       return BookmarkAccessPlaceholder(
         origin: origin,
         reader: BookmarkReaderRequest.reference(bookmark.reference),
       );
+    }
     if (cover == null) return _NativeCoverFailure(onFailed: onFailed);
     final blacklist = ref.watch(blacklistTagsProvider(config.filter));
     if (!blacklist.hasValue || blacklist.isLoading) {

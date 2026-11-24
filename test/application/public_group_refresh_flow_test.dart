@@ -82,7 +82,7 @@ void main() {
       );
       final state = f.container.read(bookmarkProvider).requireValue;
       final after = state.pools.single;
-      final record = state.byId[after.bookmarkId] as ContentGroupBookmark;
+      final record = state.byId[after.bookmarkId]! as ContentGroupBookmark;
       expect(after.bookmarkId, before.bookmarkId);
       expect(after.identity, before.identity);
       expect(after.groupIds, before.groupIds);
@@ -96,7 +96,7 @@ void main() {
       expect(f.container.read(booruConfigProvider), isEmpty);
       expect(f.metadataRequests, 1);
       expect(f.privateRequests, 0);
-      dismissAllToast(showAnim: false);
+      dismissAllToast();
       await tester.pump(const Duration(seconds: 6));
       expect(tester.takeException(), isNull);
     },
@@ -120,7 +120,7 @@ void main() {
     final after = f.container.read(bookmarkProvider).requireValue.pools.single;
     expect(after, before);
     expect(f.privateRequests, 0);
-    dismissAllToast(showAnim: false);
+    dismissAllToast();
     await tester.pump(const Duration(seconds: 6));
     expect(tester.takeException(), isNull);
   });
@@ -143,7 +143,7 @@ void main() {
     );
     final before = f.container.read(bookmarkProvider).requireValue.pools.single;
     final savedBefore =
-        f.container.read(bookmarkProvider).requireValue.byId[id]
+        f.container.read(bookmarkProvider).requireValue.byId[id]!
             as RelatedBookmark;
     expect(savedBefore.preferredOrder, RelatedPostsOrder.newest);
     await f.refresh(tester);
@@ -161,7 +161,7 @@ void main() {
     );
     final state = f.container.read(bookmarkProvider).requireValue;
     final after = state.pools.single;
-    final savedAfter = state.byId[id] as RelatedBookmark;
+    final savedAfter = state.byId[id]! as RelatedBookmark;
     expect(after.bookmarkId, id);
     expect(after.identity, before.identity);
     expect(after.groupIds, before.groupIds);
@@ -173,7 +173,7 @@ void main() {
     expect(f.queries, contains('parent:10'));
     expect(f.container.read(booruConfigProvider), isEmpty);
     expect(f.privateRequests, 0);
-    dismissAllToast(showAnim: false);
+    dismissAllToast();
     await tester.pump(const Duration(seconds: 6));
     expect(tester.takeException(), isNull);
   });
@@ -186,8 +186,8 @@ class _Fixture {
   final started = Completer<void>();
   late HeadlessAppHarness harness;
   late ProviderContainer container;
-  int metadataRequests = 0;
-  int privateRequests = 0;
+  var metadataRequests = 0;
+  var privateRequests = 0;
   BooruConfig? publicConfig;
   final queries = <String>[];
   BooruConfig get privateConfig => BooruConfig.fromJson({
@@ -203,10 +203,12 @@ class _Fixture {
     final backend = FakeBooruBackend();
     final f = _Fixture(backend, holdMetadata ? Completer<void>() : null);
     Hive.init('/public-refresh-memory');
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     final rows = await Hive.openBox<BookmarkHiveObject>(
       'posts',
       bytes: Uint8List(0),
@@ -248,8 +250,9 @@ class _Fixture {
       posts.readAll,
       createFile: (path) {
         if (path == '/public-refresh-memory/$groupName.hive' ||
-            path == '/public-refresh-memory/$organizationName.hive')
+            path == '/public-refresh-memory/$organizationName.hive') {
           return _PresentFile();
+        }
         throw StateError('Unexpected fixture filesystem path');
       },
     );
@@ -279,7 +282,7 @@ class _Fixture {
           sourceSite: Uri.parse(_site),
           createdAt: DateTime.utc(2020),
           observedAt: DateTime.utc(2021),
-          groupIds: {poolGroupA},
+          groupIds: const {poolGroupA},
         )
       else
         pool,
@@ -319,7 +322,9 @@ class _Fixture {
       additionalOverrides: [
         booruConfigProvider.overrideWith(_Profiles.new),
         dataMutationCoordinatorProvider.overrideWithValue(coordinator),
-        bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+        bookmarkGroupRepoProvider.overrideWith(
+          (_) => Future.sync(() => groups),
+        ),
         booruGroupCapabilityProvider.overrideWith(
           (ref, type) => type == BooruType.danbooru
               ? createDanbooruGroupCapability(ref)
@@ -328,7 +333,9 @@ class _Fixture {
         poolBookmarkCapabilityProvider.overrideWith(
           (ref, _) => DanbooruPoolBookmarks(ref),
         ),
-        blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+        blacklistTagsProvider.overrideWith(
+          (_, _) => Future.sync(() => <String>{}),
+        ),
         anonymousContentAccessProvider.overrideWith((ref, requested) {
           if (!ref.watch(_allowed) || requested != source) return null;
           final key = ContentAccessKey(

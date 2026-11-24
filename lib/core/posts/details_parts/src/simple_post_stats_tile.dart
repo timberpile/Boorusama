@@ -34,8 +34,9 @@ class SimplePostStatsTile extends StatelessWidget {
     final favCount = this.favCount;
     final score = this.score;
     final totalComments = this.totalComments;
-    if (favCount == null && score == null && totalComments == null)
+    if (favCount == null && score == null && totalComments == null) {
       return const SizedBox.shrink();
+    }
     return DetailsWidgetSeparator(
       padding:
           padding ??

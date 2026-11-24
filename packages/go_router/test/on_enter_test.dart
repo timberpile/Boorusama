@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// ignore_for_file: cascade_invocations, diagnostic_describe_all_properties, unawaited_futures
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -18,7 +16,7 @@ void main() {
       return Future<void>.delayed(Duration.zero).then((_) => router.dispose());
     });
 
-    testWidgets('Should set current/next state correctly', (WidgetTester tester) async {
+    testWidgets('Should set current/next state correctly', (tester) async {
       GoRouterState? capturedCurrentState;
       GoRouterState? capturedNextState;
       var onEnterCallCount = 0;
@@ -27,16 +25,16 @@ void main() {
         initialLocation: '/',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               onEnterCallCount++;
               capturedCurrentState = current;
               capturedNextState = next;
               return const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/',
@@ -56,7 +54,7 @@ void main() {
       expect(capturedCurrentState?.uri.path, capturedNextState?.uri.path);
     });
 
-    testWidgets('Should block navigation when onEnter returns false', (WidgetTester tester) async {
+    testWidgets('Should block navigation when onEnter returns false', (tester) async {
       final navigationAttempts = <String>[];
       var currentPath = '/';
 
@@ -64,15 +62,15 @@ void main() {
         initialLocation: '/',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               navigationAttempts.add(next.uri.path);
               currentPath = current.uri.path;
               return next.uri.path.contains('blocked') ? const Block.stop() : const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/',
@@ -89,11 +87,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final BuildContext context = tester.element(find.byType(Router<Object>));
-      final GoRouteInformationParser parser = router.routeInformationParser;
-      final RouteMatchList beforeBlockedNav = router.routerDelegate.currentConfiguration;
+      final parser = router.routeInformationParser;
+      final beforeBlockedNav = router.routerDelegate.currentConfiguration;
 
       // Try blocked route
-      final RouteMatchList blockedMatch = await parser.parseRouteInformationWithDependencies(
+      final blockedMatch = await parser.parseRouteInformationWithDependencies(
         RouteInformation(
           uri: Uri.parse('/blocked'),
           state: RouteInformationState<void>(type: NavigatingType.go),
@@ -107,7 +105,7 @@ void main() {
       expect(navigationAttempts, contains('/blocked'));
 
       // Try allowed route
-      final RouteMatchList allowedMatch = await parser.parseRouteInformationWithDependencies(
+      final allowedMatch = await parser.parseRouteInformationWithDependencies(
         RouteInformation(
           uri: Uri.parse('/allowed'),
           state: RouteInformationState<void>(type: NavigatingType.go),
@@ -119,21 +117,21 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('Should allow navigation when onEnter returns true', (WidgetTester tester) async {
+    testWidgets('Should allow navigation when onEnter returns true', (tester) async {
       var onEnterCallCount = 0;
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               onEnterCallCount++;
               return next.uri.path.contains('block') ? const Block.stop() : const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/home',
@@ -157,21 +155,20 @@ void main() {
       await tester.pumpAndSettle();
 
       final BuildContext context = tester.element(find.byType(Scaffold));
-      final RouteMatchList matchList = await router.routeInformationParser
-          .parseRouteInformationWithDependencies(
-            RouteInformation(
-              uri: Uri.parse('/home/allowed'),
-              state: RouteInformationState<void>(type: NavigatingType.go),
-            ),
-            context,
-          );
+      final matchList = await router.routeInformationParser.parseRouteInformationWithDependencies(
+        RouteInformation(
+          uri: Uri.parse('/home/allowed'),
+          state: RouteInformationState<void>(type: NavigatingType.go),
+        ),
+        context,
+      );
 
       expect(matchList.uri.path, equals('/home/allowed'));
       expect(onEnterCallCount, greaterThan(0));
     });
 
     testWidgets('Should trigger onException when the redirection limit is exceeded', (
-      WidgetTester tester,
+      tester,
     ) async {
       final completer = Completer<void>();
       Object? capturedError;
@@ -179,23 +176,23 @@ void main() {
       router = GoRouter(
         initialLocation: '/start',
         redirectLimit: 2,
-        onException: (BuildContext context, GoRouterState state, GoRouter goRouter) {
+        onException: (context, state, goRouter) {
           capturedError = state.error;
           goRouter.go('/fallback');
           completer.complete();
         },
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               if (next.uri.path == '/recursive') {
                 return Block.then(() => goRouter.push('/recursive'));
               }
               return const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/start',
@@ -224,25 +221,24 @@ void main() {
       expect(find.text('Fallback'), findsOneWidget);
     });
 
-    testWidgets('Should handle `go` usage in onEnter', (WidgetTester tester) async {
+    testWidgets('Should handle `go` usage in onEnter', (tester) async {
       var isAuthenticatedResult = false;
 
       Future<bool> isAuthenticated() => Future<bool>.value(isAuthenticatedResult);
 
       final paramsSink = StreamController<({String current, String next})>();
-      final Stream<({String current, String next})> paramsStream = paramsSink.stream
-          .asBroadcastStream();
+      final paramsStream = paramsSink.stream.asBroadcastStream();
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
+              context,
+              current,
+              next,
+              goRouter,
             ) async {
-              final bool isProtected = next.uri.toString().contains('protected');
+              final isProtected = next.uri.toString().contains('protected');
               paramsSink.add((current: current.uri.toString(), next: next.uri.toString()));
 
               if (!isProtected) {
@@ -294,18 +290,18 @@ void main() {
       await paramsSink.close();
     });
 
-    testWidgets('Should handle `goNamed` usage in onEnter', (WidgetTester tester) async {
+    testWidgets('Should handle `goNamed` usage in onEnter', (tester) async {
       final navigationAttempts = <String>[];
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               navigationAttempts.add(next.uri.path);
 
               if (next.uri.path == '/requires-auth') {
@@ -317,7 +313,7 @@ void main() {
                 );
               }
               return const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/home',
@@ -330,7 +326,7 @@ void main() {
           GoRoute(
             path: '/login',
             name: 'login-page',
-            builder: (_, GoRouterState state) => Scaffold(
+            builder: (_, state) => Scaffold(
               body: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -359,25 +355,24 @@ void main() {
       expect(find.text('Login Page - From: /requires-auth'), findsOneWidget);
     });
 
-    testWidgets('Should handle `push` usage in onEnter', (WidgetTester tester) async {
+    testWidgets('Should handle `push` usage in onEnter', (tester) async {
       const isAuthenticatedResult = false;
 
       Future<bool> isAuthenticated() => Future<bool>.value(isAuthenticatedResult);
 
       final paramsSink = StreamController<({String current, String next})>();
-      final Stream<({String current, String next})> paramsStream = paramsSink.stream
-          .asBroadcastStream();
+      final paramsStream = paramsSink.stream.asBroadcastStream();
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
+              context,
+              current,
+              next,
+              goRouter,
             ) async {
-              final bool isProtected = next.uri.toString().contains('protected');
+              final isProtected = next.uri.toString().contains('protected');
               paramsSink.add((current: current.uri.toString(), next: next.uri.toString()));
               if (!isProtected) {
                 return const Allow();
@@ -385,7 +380,7 @@ void main() {
               if (await isAuthenticated()) {
                 return const Allow();
               }
-              await router.push<bool?>('/sign-in').then((bool? isLoggedIn) {
+              await router.push<bool?>('/sign-in').then((isLoggedIn) {
                 if (isLoggedIn ?? false) {
                   router.go(next.uri.toString());
                 }
@@ -436,17 +431,17 @@ void main() {
       await paramsSink.close();
     });
 
-    testWidgets('Should handle `replace` usage in onEnter', (WidgetTester tester) async {
+    testWidgets('Should handle `replace` usage in onEnter', (tester) async {
       final navigationHistory = <String>[];
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
+              context,
+              current,
+              next,
+              goRouter,
             ) async {
               navigationHistory.add('Entering: ${next.uri.path}');
 
@@ -491,17 +486,17 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
     });
 
-    testWidgets('Should handle `pushReplacement` usage in onEnter', (WidgetTester tester) async {
+    testWidgets('Should handle `pushReplacement` usage in onEnter', (tester) async {
       final navigationLog = <String>[];
 
       router = GoRouter(
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
+              context,
+              current,
+              next,
+              goRouter,
             ) async {
               navigationLog.add('Entering: ${next.uri.path}');
 
@@ -562,7 +557,7 @@ void main() {
     });
 
     testWidgets('onEnter should handle protected route redirection with query parameters', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Test setup
       var isAuthenticatedResult = false;
@@ -572,12 +567,11 @@ void main() {
       final paramsSink = StreamController<({String current, String next})>();
       // Use broadcast stream for potentially multiple listeners/expects if needed,
       // although expectLater handles one listener well.
-      final Stream<({String current, String next})> paramsStream = paramsSink.stream
-          .asBroadcastStream();
+      final paramsStream = paramsSink.stream.asBroadcastStream();
 
       // Helper to navigate after sign-in button press
       void goToRedirect(GoRouter router, GoRouterState state) {
-        final String? redirect = state.uri.queryParameters['redirectTo'];
+        final redirect = state.uri.queryParameters['redirectTo'];
         // Use null check and Uri.tryParse for safety
         if (redirect != null && Uri.tryParse(redirect) != null) {
           // Decode potentially encoded URI component
@@ -592,10 +586,10 @@ void main() {
         initialLocation: '/home',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
+              context,
+              current,
+              next,
+              goRouter,
               // Renamed parameter to avoid shadowing router variable
             ) async {
               // Log the navigation attempt state URIs
@@ -640,7 +634,7 @@ void main() {
           GoRoute(
             path: '/sign-in',
             name: 'sign-in',
-            builder: (_, GoRouterState state) => Scaffold(
+            builder: (_, state) => Scaffold(
               appBar: AppBar(
                 title: const Text('Sign In Screen Title'), // Unique text
               ),
@@ -722,7 +716,7 @@ void main() {
     });
 
     testWidgets('Should handle sequential navigation steps in onEnter', (
-      WidgetTester tester,
+      tester,
     ) async {
       final navigationChain = <String>[];
       final navigationComplete = Completer<void>();
@@ -731,12 +725,12 @@ void main() {
         initialLocation: '/start',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
-              final String targetPath = next.uri.path;
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
+              final targetPath = next.uri.path;
               navigationChain.add('Entering: $targetPath');
 
               // Execute a simpler navigation sequence
@@ -753,7 +747,7 @@ void main() {
               }
 
               return const Allow();
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/start',
@@ -811,7 +805,7 @@ void main() {
     });
 
     testWidgets('Should call onException when exceptions thrown in onEnter callback', (
-      WidgetTester tester,
+      tester,
     ) async {
       final completer = Completer<void>();
       Object? capturedError;
@@ -820,7 +814,7 @@ void main() {
       // to avoid triggering the exception when navigating to the fallback route.
       router = GoRouter(
         initialLocation: '/error',
-        onException: (BuildContext context, GoRouterState state, GoRouter goRouter) {
+        onException: (context, state, goRouter) {
           capturedError = state.error;
           // Navigate to a safe fallback route.
           goRouter.go('/fallback');
@@ -828,18 +822,18 @@ void main() {
         },
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               // If the navigation target is '/fallback', allow it without throwing.
               if (next.uri.path == '/fallback') {
                 return const Allow();
               }
               // For any other target, throw an exception.
               throw Exception('onEnter error triggered');
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/error',
@@ -869,24 +863,24 @@ void main() {
     });
 
     testWidgets('Should raise BlockedInitialNavigationException when the initial navigation '
-        'is blocked by onEnter with no prior route to restore', (WidgetTester tester) async {
+        'is blocked by onEnter with no prior route to restore', (tester) async {
       Object? capturedError;
 
       router = GoRouter(
         initialLocation: '/protected',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               if (next.uri.path == '/protected') {
                 return const Block.stop();
               }
               return const Allow();
-            },
-        onException: (BuildContext context, GoRouterState state, GoRouter goRouter) {
+            }),
+        onException: (context, state, goRouter) {
           capturedError = state.error;
         },
         routes: <GoRoute>[GoRoute(path: '/protected', builder: (_, _) => const Placeholder())],
@@ -899,7 +893,7 @@ void main() {
       expect(capturedError, isA<GoException>());
     });
 
-    testWidgets('onEnter has priority over deprecated redirect', (WidgetTester tester) async {
+    testWidgets('onEnter has priority over deprecated redirect', (tester) async {
       var redirectCallCount = 0;
       var onEnterCallCount = 0;
       var lastOnEnterBlocked = false;
@@ -911,16 +905,15 @@ void main() {
           GoRoute(path: '/blocked', builder: (_, _) => const Text('Blocked')),
           GoRoute(path: '/allowed', builder: (_, _) => const Text('Allowed')),
         ],
-        onEnter: (_, _, GoRouterState next, _) async {
+        onEnter: (_, _, next, _) => Future.sync(() {
           onEnterCallCount++;
           lastOnEnterBlocked = next.uri.path == '/blocked';
           if (lastOnEnterBlocked) {
             return const Block.stop();
           }
           return const Allow();
-        },
-        // ignore: deprecated_member_use_from_same_package
-        redirect: (_, GoRouterState state) {
+        }),
+        redirect: (_, state) {
           redirectCallCount++;
           // This should never be called for /blocked
           return null;
@@ -960,7 +953,7 @@ void main() {
     });
 
     testWidgets('onEnter blocks navigation and preserves current route', (
-      WidgetTester tester,
+      tester,
     ) async {
       String? capturedCurrentPath;
       String? capturedNextPath;
@@ -972,7 +965,7 @@ void main() {
           GoRoute(path: '/page2', builder: (_, _) => const Text('Page 2')),
           GoRoute(path: '/protected', builder: (_, _) => const Text('Protected')),
         ],
-        onEnter: (_, GoRouterState current, GoRouterState next, _) async {
+        onEnter: (_, current, next, _) => Future.sync(() {
           capturedCurrentPath = current.uri.path;
           capturedNextPath = next.uri.path;
 
@@ -980,7 +973,7 @@ void main() {
             return const Block.stop();
           }
           return const Allow();
-        },
+        }),
       );
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -1005,15 +998,15 @@ void main() {
       expect(capturedNextPath, equals('/protected'));
     });
 
-    testWidgets('pop does not call onEnter but restore does', (WidgetTester tester) async {
+    testWidgets('pop does not call onEnter but restore does', (tester) async {
       var onEnterCount = 0;
 
       router = GoRouter(
         initialLocation: '/a',
-        onEnter: (_, _, _, _) async {
+        onEnter: (_, _, _, _) => Future.sync(() {
           onEnterCount++;
           return const Allow();
-        },
+        }),
         routes: <RouteBase>[
           GoRoute(
             path: '/a',
@@ -1047,20 +1040,20 @@ void main() {
       // Explicit restore would call onEnter (tested separately in integration)
     });
 
-    testWidgets('restore navigation calls onEnter for re-validation', (WidgetTester tester) async {
+    testWidgets('restore navigation calls onEnter for re-validation', (tester) async {
       var onEnterCount = 0;
       var allowNavigation = true;
 
       router = GoRouter(
         initialLocation: '/home',
-        onEnter: (_, _, GoRouterState next, _) async {
+        onEnter: (_, _, next, _) => Future.sync(() {
           onEnterCount++;
           // Simulate auth check - block protected route if not allowed
           if (next.uri.path == '/protected' && !allowNavigation) {
             return const Block.stop();
           }
           return const Allow();
-        },
+        }),
         routes: <RouteBase>[
           GoRoute(
             path: '/home',
@@ -1085,10 +1078,10 @@ void main() {
 
       // Simulate state restoration by explicitly calling parser with restore type
       final BuildContext context = tester.element(find.byType(Router<Object>));
-      final GoRouteInformationParser parser = router.routeInformationParser;
+      final parser = router.routeInformationParser;
 
       // Create a restore navigation to protected route
-      final RouteMatchList restoredMatch = await parser.parseRouteInformationWithDependencies(
+      final restoredMatch = await parser.parseRouteInformationWithDependencies(
         RouteInformation(
           uri: Uri.parse('/protected'),
           state: RouteInformationState<void>(
@@ -1105,7 +1098,7 @@ void main() {
 
       // Now simulate session expired - block on restore
       allowNavigation = false;
-      final RouteMatchList blockedRestore = await parser.parseRouteInformationWithDependencies(
+      final blockedRestore = await parser.parseRouteInformationWithDependencies(
         RouteInformation(
           uri: Uri.parse('/protected'),
           state: RouteInformationState<void>(
@@ -1123,7 +1116,7 @@ void main() {
     });
 
     testWidgets('goNamed supports fragment (hash) and preserves it in state.uri', (
-      WidgetTester tester,
+      tester,
     ) async {
       router = GoRouter(
         initialLocation: '/',
@@ -1135,7 +1128,7 @@ void main() {
           GoRoute(
             path: '/article/:id',
             name: 'article',
-            builder: (_, GoRouterState state) {
+            builder: (_, state) {
               return Scaffold(
                 body: Center(
                   child: Text('article=${state.pathParameters['id']};frag=${state.uri.fragment}'),
@@ -1163,7 +1156,7 @@ void main() {
     });
 
     testWidgets('relative "./" navigation resolves against current location', (
-      WidgetTester tester,
+      tester,
     ) async {
       router = GoRouter(
         initialLocation: '/parent',
@@ -1195,7 +1188,7 @@ void main() {
     });
 
     testWidgets('route-level redirect still runs after onEnter allows', (
-      WidgetTester tester,
+      tester,
     ) async {
       final seenNextPaths = <String>[];
 
@@ -1203,14 +1196,14 @@ void main() {
         initialLocation: '/',
         onEnter:
             (
-              BuildContext context,
-              GoRouterState current,
-              GoRouterState next,
-              GoRouter goRouter,
-            ) async {
+              context,
+              current,
+              next,
+              goRouter,
+            ) => Future.sync(() {
               seenNextPaths.add(next.uri.path);
               return const Allow(); // don't block; let route-level redirect run
-            },
+            }),
         routes: <RouteBase>[
           GoRoute(
             path: '/',
@@ -1245,25 +1238,25 @@ void main() {
     });
 
     testWidgets('Allow(then) error is reported but does not revert navigation', (
-      WidgetTester tester,
+      tester,
     ) async {
       // Capture FlutterError.reportError calls
       FlutterErrorDetails? reported;
-      final void Function(FlutterErrorDetails)? oldHandler = FlutterError.onError;
-      FlutterError.onError = (FlutterErrorDetails details) {
+      final oldHandler = FlutterError.onError;
+      FlutterError.onError = (details) {
         reported = details;
       };
       addTearDown(() => FlutterError.onError = oldHandler);
 
       router = GoRouter(
         initialLocation: '/home',
-        onEnter: (_, _, GoRouterState next, _) async {
+        onEnter: (_, _, next, _) => Future.sync(() {
           if (next.uri.path == '/boom') {
             // Allow, but run a failing "then" callback
             return Allow(then: () => throw StateError('then blew up'));
           }
           return const Allow();
-        },
+        }),
         routes: <RouteBase>[
           GoRoute(
             path: '/home',
@@ -1292,7 +1285,7 @@ void main() {
       expect(reported!.exception.toString(), contains('then blew up'));
     });
 
-    testWidgets('Hard-stop vs chaining resets onEnter history', (WidgetTester tester) async {
+    testWidgets('Hard-stop vs chaining resets onEnter history', (tester) async {
       // With redirectLimit=1:
       //  - Block.stop() resets history so repeated attempts don't hit the limit.
       //  - Block.then(() => go(...)) keeps history and will exceed the limit.
@@ -1308,7 +1301,7 @@ void main() {
             exceededCompleter.complete();
           }
         },
-        onEnter: (_, _, GoRouterState next, GoRouter goRouter) async {
+        onEnter: (_, _, next, goRouter) => Future.sync(() {
           if (next.uri.path == '/blocked-once') {
             // Hard stop: no then -> history should reset
             return const Block.stop();
@@ -1318,7 +1311,7 @@ void main() {
             return Block.then(() => goRouter.go('/chain'));
           }
           return const Allow();
-        },
+        }),
         routes: <RouteBase>[
           GoRoute(
             path: '/start',
@@ -1361,7 +1354,7 @@ void main() {
     });
 
     testWidgets('restore runs onEnter -> legacy -> route-level redirect', (
-      WidgetTester tester,
+      tester,
     ) async {
       final calls = <String>[];
 
@@ -1389,7 +1382,6 @@ void main() {
           calls.add('onEnter');
           return const Allow();
         },
-        // ignore: deprecated_member_use_from_same_package
         redirect: (_, _) {
           calls.add('legacy');
           return null;
@@ -1413,7 +1405,7 @@ void main() {
 
       // Simulate restore by parsing with restore type
       final BuildContext context = tester.element(find.byType(Router<Object>));
-      final GoRouteInformationParser parser = router.routeInformationParser;
+      final parser = router.routeInformationParser;
 
       await parser.parseRouteInformationWithDependencies(
         RouteInformation(
@@ -1430,7 +1422,7 @@ void main() {
       expect(calls, containsAllInOrder(<String>['onEnter', 'legacy', 'route-level']));
     });
     testWidgets('onEnter blocking prevents stale state restoration (pop case)', (
-      WidgetTester tester,
+      tester,
     ) async {
       // This test reproduces https://github.com/flutter/flutter/issues/178853
       // 1. Push A -> B
@@ -1441,7 +1433,7 @@ void main() {
 
       router = GoRouter(
         initialLocation: '/home',
-        onEnter: (_, _, GoRouterState next, _) =>
+        onEnter: (_, _, next, _) =>
             next.uri.path == '/blocked' ? const Block.stop() : const Allow(),
         routes: <RouteBase>[
           GoRoute(
@@ -1469,7 +1461,7 @@ void main() {
       expect(find.text('Allowed'), findsOneWidget);
 
       // 2. Pop (simulating system back / imperative pop)
-      final NavigatorState navigator = tester.state(find.byType(Navigator).last);
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator).last);
       navigator.pop();
       await tester.pumpAndSettle();
       expect(find.text('Home'), findsOneWidget);
@@ -1488,7 +1480,7 @@ void main() {
 
     group('with refreshListenable', () {
       testWidgets('Block.then(router.go) navigates after refreshListenable fires', (
-        WidgetTester tester,
+        tester,
       ) async {
         final isAuthenticated = ValueNotifier<bool>(true);
         addTearDown(isAuthenticated.dispose);
@@ -1496,19 +1488,18 @@ void main() {
         router = GoRouter(
           initialLocation: '/home',
           refreshListenable: isAuthenticated,
-          onEnter:
-              (BuildContext context, GoRouterState current, GoRouterState next, GoRouter goRouter) {
-                // Public routes — always allow
-                if (next.uri.path == '/login') {
-                  return const Allow();
-                }
+          onEnter: (context, current, next, goRouter) {
+            // Public routes — always allow
+            if (next.uri.path == '/login') {
+              return const Allow();
+            }
 
-                // Protected routes — require auth
-                if (!isAuthenticated.value) {
-                  return Block.then(() => goRouter.go('/login'));
-                }
-                return const Allow();
-              },
+            // Protected routes — require auth
+            if (!isAuthenticated.value) {
+              return Block.then(() => goRouter.go('/login'));
+            }
+            return const Allow();
+          },
           routes: <RouteBase>[
             GoRoute(
               path: '/home',
@@ -1536,7 +1527,7 @@ void main() {
       });
 
       testWidgets('Block.then(router.goNamed) navigates after refreshListenable fires', (
-        WidgetTester tester,
+        tester,
       ) async {
         final isAuthenticated = ValueNotifier<bool>(true);
         addTearDown(isAuthenticated.dispose);
@@ -1544,17 +1535,16 @@ void main() {
         router = GoRouter(
           initialLocation: '/home',
           refreshListenable: isAuthenticated,
-          onEnter:
-              (BuildContext context, GoRouterState current, GoRouterState next, GoRouter goRouter) {
-                if (next.uri.path == '/login') {
-                  return const Allow();
-                }
+          onEnter: (context, current, next, goRouter) {
+            if (next.uri.path == '/login') {
+              return const Allow();
+            }
 
-                if (!isAuthenticated.value) {
-                  return Block.then(() => goRouter.goNamed('login'));
-                }
-                return const Allow();
-              },
+            if (!isAuthenticated.value) {
+              return Block.then(() => goRouter.goNamed('login'));
+            }
+            return const Allow();
+          },
           routes: <RouteBase>[
             GoRoute(
               path: '/home',
@@ -1581,7 +1571,7 @@ void main() {
 
       testWidgets(
         'Block.then(router.go) navigates after multiple rapid refreshListenable emissions',
-        (WidgetTester tester) async {
+        (tester) async {
           final authState = ValueNotifier<int>(0);
           addTearDown(authState.dispose);
 
@@ -1590,10 +1580,10 @@ void main() {
             refreshListenable: authState,
             onEnter:
                 (
-                  BuildContext context,
-                  GoRouterState current,
-                  GoRouterState next,
-                  GoRouter goRouter,
+                  context,
+                  current,
+                  next,
+                  goRouter,
                 ) {
                   if (next.uri.path == '/login') {
                     return const Allow();
@@ -1632,7 +1622,7 @@ void main() {
       );
 
       testWidgets('Allow.then(router.go) navigates after refreshListenable fires', (
-        WidgetTester tester,
+        tester,
       ) async {
         final shouldRedirect = ValueNotifier<bool>(false);
         addTearDown(shouldRedirect.dispose);
@@ -1640,17 +1630,16 @@ void main() {
         router = GoRouter(
           initialLocation: '/home',
           refreshListenable: shouldRedirect,
-          onEnter:
-              (BuildContext context, GoRouterState current, GoRouterState next, GoRouter goRouter) {
-                if (next.uri.path == '/dashboard') {
-                  return const Allow();
-                }
+          onEnter: (context, current, next, goRouter) {
+            if (next.uri.path == '/dashboard') {
+              return const Allow();
+            }
 
-                if (shouldRedirect.value && next.uri.path == '/home') {
-                  return Allow(then: () => goRouter.go('/dashboard'));
-                }
-                return const Allow();
-              },
+            if (shouldRedirect.value && next.uri.path == '/home') {
+              return Allow(then: () => goRouter.go('/dashboard'));
+            }
+            return const Allow();
+          },
           routes: <RouteBase>[
             GoRoute(
               path: '/home',
@@ -1675,14 +1664,14 @@ void main() {
       });
 
       testWidgets('Block.then error is reported after refreshListenable fires', (
-        WidgetTester tester,
+        tester,
       ) async {
         final trigger = ValueNotifier<bool>(false);
         addTearDown(trigger.dispose);
 
         FlutterErrorDetails? reported;
-        final void Function(FlutterErrorDetails)? oldHandler = FlutterError.onError;
-        FlutterError.onError = (FlutterErrorDetails details) {
+        final oldHandler = FlutterError.onError;
+        FlutterError.onError = (details) {
           reported = details;
         };
         addTearDown(() => FlutterError.onError = oldHandler);
@@ -1690,13 +1679,12 @@ void main() {
         router = GoRouter(
           initialLocation: '/home',
           refreshListenable: trigger,
-          onEnter:
-              (BuildContext context, GoRouterState current, GoRouterState next, GoRouter goRouter) {
-                if (trigger.value && next.uri.path == '/home') {
-                  return Block.then(() => throw StateError('callback error'));
-                }
-                return const Allow();
-              },
+          onEnter: (context, current, next, goRouter) {
+            if (trigger.value && next.uri.path == '/home') {
+              return Block.then(() => throw StateError('callback error'));
+            }
+            return const Allow();
+          },
           routes: <RouteBase>[
             GoRoute(
               path: '/home',
@@ -1723,7 +1711,7 @@ void main() {
     // route-level redirects produce chains.
     group('onEnter with chained redirects', () {
       testWidgets('onEnter called once when top-level redirect chains', (
-        WidgetTester tester,
+        tester,
       ) async {
         // Regression test for https://github.com/flutter/flutter/issues/178984
         //
@@ -1737,15 +1725,15 @@ void main() {
           initialLocation: '/',
           onEnter:
               (
-                BuildContext context,
-                GoRouterState current,
-                GoRouterState next,
-                GoRouter goRouter,
-              ) async {
+                context,
+                current,
+                next,
+                goRouter,
+              ) => Future.sync(() {
                 onEnterCallCount++;
                 return const Allow();
-              },
-          redirect: (BuildContext context, GoRouterState state) {
+              }),
+          redirect: (context, state) {
             redirectCallCount++;
             if (state.matchedLocation == '/') {
               return '/a';
@@ -1775,7 +1763,7 @@ void main() {
       });
 
       testWidgets('onEnter called once when route-level triggers top-level redirect', (
-        WidgetTester tester,
+        tester,
       ) async {
         // Route-level on /src: /src -> /dst
         // Top-level: /dst -> /final
@@ -1786,15 +1774,15 @@ void main() {
           initialLocation: '/src',
           onEnter:
               (
-                BuildContext context,
-                GoRouterState current,
-                GoRouterState next,
-                GoRouter goRouter,
-              ) async {
+                context,
+                current,
+                next,
+                goRouter,
+              ) => Future.sync(() {
                 onEnterCallCount++;
                 return const Allow();
-              },
-          redirect: (BuildContext context, GoRouterState state) {
+              }),
+          redirect: (context, state) {
             if (state.matchedLocation == '/dst') {
               return '/final';
             }
@@ -1808,7 +1796,7 @@ void main() {
                 GoRoute(
                   path: 'src',
                   builder: (_, _) => const Text('Src'),
-                  redirect: (BuildContext context, GoRouterState state) => '/dst',
+                  redirect: (context, state) => '/dst',
                 ),
               ],
             ),
@@ -1827,7 +1815,7 @@ void main() {
         expect(onEnterCallCount, 1);
       });
 
-      testWidgets('onEnter block prevents redirect chain evaluation', (WidgetTester tester) async {
+      testWidgets('onEnter block prevents redirect chain evaluation', (tester) async {
         // onEnter blocks navigation to /a.
         // Top-level redirect: /a -> /b (should never be evaluated).
         var redirectCallCount = 0;
@@ -1836,18 +1824,18 @@ void main() {
           initialLocation: '/',
           onEnter:
               (
-                BuildContext context,
-                GoRouterState current,
-                GoRouterState next,
-                GoRouter goRouter,
-              ) async {
+                context,
+                current,
+                next,
+                goRouter,
+              ) => Future.sync(() {
                 // Block all navigation except to /.
                 if (next.uri.path == '/') {
                   return const Allow();
                 }
                 return const Block.stop();
-              },
-          redirect: (BuildContext context, GoRouterState state) {
+              }),
+          redirect: (context, state) {
             redirectCallCount++;
             if (state.matchedLocation == '/a') {
               return '/b';

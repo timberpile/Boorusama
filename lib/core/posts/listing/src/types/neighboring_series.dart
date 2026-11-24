@@ -84,7 +84,7 @@ List<NeighboringSeriesEntry<T>> groupNeighboringSeries<T>(
     if (claimed.contains(start) && retained == null) continue;
     final scope = enabled ? scopeKey(posts[start]) : null;
     var indices = retained?.indices ?? [start];
-    int? series = retained?.seriesId;
+    var series = retained?.seriesId;
     if (scope != null) {
       if (series != null) {
         indices = extend(indices, series, scope);

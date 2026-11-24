@@ -7,7 +7,6 @@ import 'identity_file.dart';
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -130,35 +129,35 @@ final class MiteMiteService extends ChangeNotifier {
   final _operations = DataMutationCoordinator();
   final _preparation = DataMutationCoordinator();
   String? location;
-  String name = 'Boorusama';
-  bool discoveryNotifications = true;
+  var name = 'Boorusama';
+  var discoveryNotifications = true;
   Set<String> publishedRoots = const {};
   Set<String> publishedFollowingRoots = const {};
   List<DiscoveredSyncDevice> devices = const [];
   Map<String, Object> deviceFailures = const {};
   // Transport serialization is independent of interactive UI availability.
-  bool busy = false;
+  var busy = false;
   final _pendingActions = <String, int>{};
   Future<void>? _updateRequest;
-  bool _sourceRequested = true;
-  bool _sourcePass = false;
-  int _storageGeneration = 0;
+  var _sourceRequested = true;
+  var _sourcePass = false;
+  var _storageGeneration = 0;
   final _verifiedCatalogs =
       <String, ({Uint8List bytes, VerifiedSyncCatalog ticket})>{};
   ({String intent, Uint8List bytes})? _verifiedOwnCatalog;
   final _pendingProjection = <SyncDomain>{};
   late final _collectionAliases = SyncCollectionAliases(preferences);
-  bool _aliasesRecovered = false;
+  var _aliasesRecovered = false;
   final _repairSources = <String>{};
   Future<void>? _maintenance;
   Future<void> get maintenanceCompletion => _maintenance ?? Future.value();
-  bool _auditDue = true;
-  bool _foreground = true;
+  var _auditDue = true;
+  var _foreground = true;
   final _clock = Stopwatch()..start();
   late final Duration Function() _elapsed;
   Duration? _foregroundSince;
   Duration _activeBefore = Duration.zero;
-  Duration _nextAudit = const Duration(minutes: 15);
+  var _nextAudit = const Duration(minutes: 15);
 
   Future<void>? _reconciliation;
   bool get isReconciling => _updateRequest != null || _reconciliation != null;
@@ -223,7 +222,7 @@ final class MiteMiteService extends ChangeNotifier {
     }
   }
 
-  bool applying = false;
+  var applying = false;
   Object? failure;
   Object? outgoingFailure;
   Object? retentionFailure;
@@ -243,7 +242,7 @@ final class MiteMiteService extends ChangeNotifier {
     mutations: mutations,
     now: now,
   );
-  bool _disposed = false;
+  var _disposed = false;
   bool get configured => location != null;
   SyncCatalogGate get gate =>
       SyncCatalogGate(store: preferences, mutations: mutations);
@@ -370,7 +369,9 @@ final class MiteMiteService extends ChangeNotifier {
     ];
     await deliver(() async {
       await events.discover(discoveries, lastSync ?? now());
-      for (final device in discoveries) _pendingDiscoveries.remove(device.key);
+      for (final device in discoveries) {
+        _pendingDiscoveries.remove(device.key);
+      }
     });
     await deliver(() async {
       final state = await mirrors.readMirrorState();
@@ -421,7 +422,9 @@ final class MiteMiteService extends ChangeNotifier {
     if (_pendingActionFailures.isNotEmpty) {
       final captured = List<SyncEvent>.of(_pendingActionFailures);
       await deliver(() async {
-        for (final event in captured) await events.recordFailure(event);
+        for (final event in captured) {
+          await events.recordFailure(event);
+        }
         _pendingActionFailures.removeRange(0, captured.length);
       });
     }
@@ -444,8 +447,9 @@ final class MiteMiteService extends ChangeNotifier {
       return;
     }
     final data = jsonDecode(completed) as Map<String, dynamic>;
-    if (data['version'] != 1)
+    if (data['version'] != 1) {
       throw const FormatException('Invalid publication completion receipt');
+    }
     final roots = data['roots'] as Map<String, dynamic>;
     await events.reconcilePublications({
       for (final kind in const ['bookmarks', 'following_topics'])
@@ -553,8 +557,9 @@ final class MiteMiteService extends ChangeNotifier {
       SyncTrigger.resume,
       SyncTrigger.localChange,
       SyncTrigger.audit,
-    }.contains(trigger))
+    }.contains(trigger)) {
       _sourceRequested = true;
+    }
     final active = _updateRequest;
     if (active != null) return active;
     late final Future<void> request;
@@ -571,10 +576,11 @@ final class MiteMiteService extends ChangeNotifier {
         }().whenComplete(() {
           if (identical(_updateRequest, request)) _updateRequest = null;
           _notify();
-          if (!_disposed)
+          if (!_disposed) {
             unawaited(
               _scheduleMaintenance(force: trigger == SyncTrigger.audit),
             );
+          }
         });
     _updateRequest = request;
     _notify();
@@ -655,14 +661,16 @@ final class MiteMiteService extends ChangeNotifier {
   Future<int> _projectionEpoch(SyncDomain domain) async {
     if (domain == SyncDomain.bookmarks) {
       final snapshot = await mirrors.readMirrorState();
-      if (_receiverMirrors?.epoch != snapshot.epoch)
+      if (_receiverMirrors?.epoch != snapshot.epoch) {
         _receiverMirrors = snapshot;
+      }
       return snapshot.epoch;
     }
     final snapshot = await (await _followingRepository()).readMirrorSnapshot();
     if (receiverFollowing?.structureDigest != snapshot.structureDigest ||
-        receiverFollowing?.mirrors.epoch != snapshot.mirrors.epoch)
+        receiverFollowing?.mirrors.epoch != snapshot.mirrors.epoch) {
       receiverFollowing = snapshot;
+    }
     return snapshot.mirrors.epoch;
   }
 
@@ -698,7 +706,9 @@ final class MiteMiteService extends ChangeNotifier {
 
   Future<void> retryProjection() => _action('projection', () async {
     await _refreshProjection();
-    if (reloadFailure case final error?) throw error;
+    if (reloadFailure case final error?) {
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
   });
 
   Future<void> acknowledgeOffers(Set<String> captured) => captured.isEmpty
@@ -718,8 +728,9 @@ final class MiteMiteService extends ChangeNotifier {
     'trust:${device.id}',
     () async {
       final live = devices.where((d) => d.id == device.id).firstOrNull;
-      if (live == null || live.fingerprint != device.fingerprint)
+      if (live == null || live.fingerprint != device.fingerprint) {
         throw const SyncTrustRequired();
+      }
       // Persist the current authenticated offer baseline before granting trust.
       // A failed receipt write cannot pin a key then lose its initial baseline.
       if (gate.approvedKey(device.id) == null &&
@@ -778,7 +789,7 @@ final class MiteMiteService extends ChangeNotifier {
           () => preferences.put(
             _forgetKey,
             canonicalSyncJson(
-              [..._pendingForgets(), id].toSet().toList()..sort(),
+              {..._pendingForgets(), id}.toList()..sort(),
             ),
           ),
         );
@@ -852,7 +863,7 @@ final class MiteMiteService extends ChangeNotifier {
     String? publisher,
     String? source,
   }) {
-    if (error is SyncPartialReceiveFailure)
+    if (error is SyncPartialReceiveFailure) {
       return [
         for (final entry in error.failures.entries)
           ..._failureEvents(
@@ -862,6 +873,7 @@ final class MiteMiteService extends ChangeNotifier {
             source: entry.key,
           ),
       ];
+    }
     String? identity(String? value) {
       if (value == null) return null;
       try {
@@ -1042,8 +1054,9 @@ final class MiteMiteService extends ChangeNotifier {
           try {
             final subscriptions =
                 (await mirrors.readMirrorState()).subscriptions[publisher];
-            if (subscriptions?.isNotEmpty ?? false)
+            if (subscriptions?.isNotEmpty ?? false) {
               await _receive(storage, device, ticket);
+            }
           } catch (error) {
             errors[publisher] = error;
             failures.addAll(
@@ -1081,10 +1094,11 @@ final class MiteMiteService extends ChangeNotifier {
         );
       }
     }
-    if (retentionFailure != null)
+    if (retentionFailure != null) {
       failures.addAll(
         _failureEvents(retentionFailure!, sourceKind: 'retention'),
       );
+    }
     final foundIds = found.map((device) => device.id).toSet();
     _verifiedCatalogs.removeWhere(
       (publisher, _) =>
@@ -1110,11 +1124,12 @@ final class MiteMiteService extends ChangeNotifier {
       for (final entry in subscriptions.entries) {
         if (entry.value.isEmpty ||
             foundIds.contains(entry.key) ||
-            knownErrors.contains(entry.key))
+            knownErrors.contains(entry.key)) {
           continue;
+        }
         const error = SyncPublisherUnavailable();
         errors[entry.key] = error;
-        for (final source in entry.value)
+        for (final source in entry.value) {
           failures.addAll(
             _failureEvents(
               error,
@@ -1123,6 +1138,7 @@ final class MiteMiteService extends ChangeNotifier {
               source: source,
             ),
           );
+        }
       }
     }
     if (!listEquals(devices, found)) devices = List.unmodifiable(found);
@@ -1165,8 +1181,9 @@ final class MiteMiteService extends ChangeNotifier {
             canonicalSyncJson(
                   (jsonDecode(previous) as Map<String, dynamic>)['roots'],
                 ) ==
-                canonicalSyncJson(completed))
+                canonicalSyncJson(completed)) {
           return;
+        }
         await preferences.put(
           _completedPublicationsKey,
           canonicalSyncJson({
@@ -1240,13 +1257,15 @@ final class MiteMiteService extends ChangeNotifier {
       if (!listEquals(
         capturedProfiles,
         profiles?.call() ?? const <BackupProfileReference>[],
-      ))
+      )) {
         throw const SyncConflict();
+      }
       if (sourceFollowing != null &&
           (await (await _followingRepository()).readMirrorSnapshot())
                   .structureDigest !=
-              sourceFollowing.snapshot.structureDigest)
+              sourceFollowing.snapshot.structureDigest) {
         throw const SyncConflict();
+      }
       if (generation != _storageGeneration ||
           await store.readRevision() != snapshot.revision) {
         throw const SyncConflict();

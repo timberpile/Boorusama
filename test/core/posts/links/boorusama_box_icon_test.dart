@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:boorusama/core/posts/links/boorusama_box_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -31,9 +29,7 @@ void main() {
     await tester.runAsync(() async {
       final image = await boundary.toImage();
       try {
-        final pixels = await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        );
+        final pixels = await image.toByteData();
         expect(pixels, isNotNull);
         List<int> pixel(int x, int y) {
           final offset = (y * 48 + x) * 4;

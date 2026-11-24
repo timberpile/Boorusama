@@ -70,7 +70,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
     }
   }
 
-  bool detailsAvailable = true;
+  var detailsAvailable = true;
   bool get detailsPreferred => sheetState.value.isExpanded;
   bool get isExpanded => detailsAvailable && detailsPreferred;
 

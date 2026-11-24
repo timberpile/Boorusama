@@ -146,7 +146,7 @@ class _SearchPageScaffoldState<T extends Post>
       readApplied: () => _controller.tagString.value,
       commit: () {
         if (!mounted) return;
-        if (session?.closeOnClear == true &&
+        if ((session?.closeOnClear ?? false) &&
             _controller.tagString.value.isNotEmpty &&
             _tagsController.tags.isEmpty) {
           final route = ModalRoute.of(context);

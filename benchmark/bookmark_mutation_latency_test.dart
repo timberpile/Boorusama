@@ -208,7 +208,7 @@ void main() {
                     'wholeReads': metrics.reads,
                     'repairs': metrics.repairs,
                     'operations':
-                        (performanceRecorder.snapshot()['summary']
+                        (performanceRecorder.snapshot()['summary']!
                             as Map)['operations'],
                   }),
                 );
@@ -265,7 +265,7 @@ void main() {
                   'wholeReads': metrics.reads,
                   'repairs': metrics.repairs,
                   'operations':
-                      (performanceRecorder.snapshot()['summary']
+                      (performanceRecorder.snapshot()['summary']!
                           as Map)['operations'],
                 }),
               );
@@ -405,7 +405,7 @@ class _Metrics {
 }
 
 class _Bookmarks extends BookmarkHiveRepository {
-  _Bookmarks(super.box, this.metrics, BookmarkTestStorage storage)
+  _Bookmarks(super.posts, this.metrics, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
@@ -457,7 +457,7 @@ class _Bookmarks extends BookmarkHiveRepository {
 }
 
 class _Groups extends BookmarkGroupRepositoryHive {
-  _Groups(super._box, Box<dynamic> organization, this.metrics)
+  _Groups(super.box, Box<dynamic> organization, this.metrics)
     : super(organizationBox: organization);
   final _Metrics metrics;
   @override

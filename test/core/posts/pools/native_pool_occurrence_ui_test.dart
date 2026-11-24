@@ -124,8 +124,7 @@ void main() {
       expect(controller().items.map((p) => p.id), [1, 2]);
       expect(find.text('Before'), findsWidgets);
       var jumped = false;
-      final jump = controller().jumpToPage(2)
-        ..whenComplete(() => jumped = true);
+      final jump = controller().jumpToPage(2).whenComplete(() => jumped = true);
       for (var i = 0; i < 100 && !jumped; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -134,9 +133,10 @@ void main() {
       await tester.pump();
       expect(controller().page, 2);
       version = 2;
-      final refreshed = controller().refresh(maintainPage: true);
       var done = false;
-      refreshed.whenComplete(() => done = true);
+      final refreshed = controller()
+          .refresh(maintainPage: true)
+          .whenComplete(() => done = true);
       for (var i = 0; i < 100 && !done; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }

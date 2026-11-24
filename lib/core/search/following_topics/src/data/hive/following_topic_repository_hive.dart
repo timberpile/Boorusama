@@ -68,7 +68,7 @@ class HiveFollowingTopicRepository
   final Clock _clock;
   final Box<dynamic>? _organizationBox;
   final AppFileSystem _fs;
-  bool _mirrorRecoveryComplete = false;
+  var _mirrorRecoveryComplete = false;
   Future<void> _mutationTail = Future.value();
 
   @override
@@ -144,8 +144,9 @@ class HiveFollowingTopicRepository
       if (owner == null ||
           !owner.hasDefinitionChange ||
           (topicsOnly && owner.kind != FollowingMirrorKind.topic) ||
-          (entry.value != null && owner.definitionDigest != entry.value))
+          (entry.value != null && owner.definitionDigest != entry.value)) {
         continue;
+      }
       owners[entry.key] = owner.copyWith(acknowledge: true);
       changed = true;
     }
@@ -705,9 +706,7 @@ class HiveFollowingTopicRepository
   @override
   Future<void> setFeedOrder(String profileId, List<String> orderedIds) =>
       _serialize(() async {
-        for (final id in orderedIds) {
-          _requireWritableFollowing(id);
-        }
+        orderedIds.forEach(_requireWritableFollowing);
         final storage = _organizationBox;
         if (storage == null) throw StateError('Feed storage unavailable');
         final mirrors = _followingMirrors();
@@ -1096,14 +1095,16 @@ class HiveFollowingTopicRepository
         !const DeepCollectionEquality().equals(
           value['queryStructure'],
           current.queryStructure,
-        ))
+        )) {
       return null;
+    }
     final oldest = value['oldest'];
     if (oldest != null && (oldest is! String || oldest.isEmpty)) return null;
     // New posts after an empty query invalidate its empty-history shortcut.
     if (oldest == null &&
-        value['emptyAtHighestSeen'] != current.highestSeenPostId)
+        value['emptyAtHighestSeen'] != current.highestSeenPostId) {
       return null;
+    }
     return FeedHistoryEnd(oldestPostIdentity: oldest as String?);
   }
 
@@ -2214,7 +2215,7 @@ class HiveFollowingTopicRepository
       id: object.id,
       profileId: object.profileId,
       localSource: object.localSource is Map
-          ? FollowingTopicSource.fromJson(object.localSource as Map)
+          ? FollowingTopicSource.fromJson(object.localSource! as Map)
           : null,
       query: object.query,
       queryStructure: SearchQueryStructure.tryParse(object.queryStructure),

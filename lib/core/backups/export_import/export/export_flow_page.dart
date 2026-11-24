@@ -729,14 +729,14 @@ class _ExportReadyState extends ConsumerState<_ExportReady> {
         final saved = await ref
             .read(androidExportSaveServiceProvider)
             .save(source, fileName: _fileName);
-        if (saved && context.mounted) {
+        if (saved && mounted) {
           Kurumi.showSuccessToast(
             context,
             context.t.settings.backup_and_restore.export_import.saved,
           );
         }
       } catch (_) {
-        if (context.mounted) {
+        if (mounted) {
           Kurumi.showErrorToast(
             context,
             context.t.settings.backup_and_restore.export_import.save_failed,
@@ -751,7 +751,7 @@ class _ExportReadyState extends ConsumerState<_ExportReady> {
       onPick: (directory) async {
         final fs = ref.read(appFileSystemProvider);
         await copyExportToDirectory(fs, source, directory, fileName: _fileName);
-        if (context.mounted) {
+        if (mounted) {
           Kurumi.showSuccessToast(
             context,
             context.t.settings.backup_and_restore.export_import.saved,

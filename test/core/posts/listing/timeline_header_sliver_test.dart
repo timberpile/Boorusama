@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/rendering.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
 import 'package:material_ui/material_ui.dart';
@@ -133,7 +131,7 @@ void main() {
     'oversized pinned controls scroll fully into view and repin when they fit',
     (tester) async {
       final controller = ScrollController();
-      final headerExtent = ValueNotifier(400.0);
+      final headerExtent = ValueNotifier<double>(400);
       addTearDown(controller.dispose);
       addTearDown(headerExtent.dispose);
 
@@ -311,11 +309,9 @@ void main() {
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
         final pixel = await tester.runAsync(() async {
-          final image = await boundary.toImage(pixelRatio: 1);
+          final image = await boundary.toImage();
           try {
-            final bytes = (await image.toByteData(
-              format: ui.ImageByteFormat.rawRgba,
-            ))!;
+            final bytes = (await image.toByteData())!;
             final offset = (20 * image.width + 20) * 4;
             return List.generate(4, (i) => bytes.getUint8(offset + i));
           } finally {

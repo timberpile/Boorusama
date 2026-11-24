@@ -36,7 +36,7 @@ final bookmarkButtonStateProvider = Provider.autoDispose
               .presentationFor(
                 library,
                 identity,
-                ignoredGroupIds: favorites?.ignoreBookmarkStatus == true
+                ignoredGroupIds: favorites?.ignoreBookmarkStatus ?? false
                     ? favorites!.assignedGroupIds
                     : const {},
               ),

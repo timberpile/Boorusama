@@ -40,8 +40,6 @@ void main() {
     () {
       final counts = pixivWorkLegacyPageCounts([
         work(
-          id: 120,
-          pageCount: 3,
           pages: [
             page(120, 0),
             {

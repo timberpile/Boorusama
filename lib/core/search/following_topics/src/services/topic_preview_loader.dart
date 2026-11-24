@@ -19,8 +19,9 @@ class TopicPreviewLoader {
       final uri = Uri.tryParse(url.trim());
       if (uri == null ||
           !{'http', 'https'}.contains(uri.scheme) ||
-          uri.host.isEmpty)
+          uri.host.isEmpty) {
         continue;
+      }
       unique.add(uri.toString());
       if (unique.length == 4) break;
     }

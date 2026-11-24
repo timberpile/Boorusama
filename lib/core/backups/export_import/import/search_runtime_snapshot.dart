@@ -19,7 +19,6 @@ final class SearchRuntimeSnapshot extends Equatable {
     feeds: const [],
     organization: TopicOrganization(
       folders: const [],
-      homeSearchIds: const [],
     ),
   );
 
@@ -305,8 +304,9 @@ final class SearchRuntimeSnapshotService {
 
     final searchesByProfile = <String, List<FollowingTopic>>{};
     for (final search in snapshot.searches) {
-      if (!protected.contains(search.id))
+      if (!protected.contains(search.id)) {
         searchesByProfile.putIfAbsent(search.profileId, () => []).add(search);
+      }
     }
     for (final entry in searchesByProfile.entries) {
       await repository.restoreForProfile(entry.key, entry.value);
@@ -314,8 +314,9 @@ final class SearchRuntimeSnapshotService {
 
     final feedsByProfile = <String, List<TopicFeed>>{};
     for (final feed in snapshot.feeds) {
-      if (!protected.contains(feed.id))
+      if (!protected.contains(feed.id)) {
         feedsByProfile.putIfAbsent(feed.profileId, () => []).add(feed);
+      }
     }
     for (final entry in feedsByProfile.entries) {
       await repository.restoreFeeds(entry.key, entry.value);

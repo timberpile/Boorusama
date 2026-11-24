@@ -180,10 +180,10 @@ void main() {
         var calls = 0;
         final manager = PreloadManager(
           elapsed: () => async.elapsed,
-          preloader: (_, _) async {
+          preloader: (_, _) => Future.sync(() {
             calls++;
             throw StateError('offline');
-          },
+          }),
         );
         for (var i = 0; i < 300; i++) {
           manager.preloadMedias(plan(['url:$i']));
@@ -244,9 +244,7 @@ void main() {
       final tokens = <CancelToken>[];
       final manager = PreloadManager(
         elapsed: () => async.elapsed,
-        downloadConfiguration: const DownloadConfiguration(
-          maxConcurrentDownloads: 2,
-        ),
+        downloadConfiguration: const DownloadConfiguration(),
         preloader: (url, token) {
           tokens.add(token);
           return (pending[url] = Completer<void>()).future;

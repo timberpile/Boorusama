@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../support/navigation_panel_test_utils.dart';
 
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
@@ -151,7 +153,7 @@ void main() {
     await harness.settle(tester);
     final viewer = controller.binding!.currentRoute!;
     var completions = 0;
-    viewer.popped.then((_) => completions++);
+    unawaited(viewer.popped.then((_) => completions++));
     router.go('/bookmarks');
     await harness.pumpUntil(
       tester,
@@ -236,7 +238,7 @@ void main() {
       final saved = repository.bookmarks.single;
       final browseViewer = controller.binding!.currentRoute!;
       var browseCompleted = 0;
-      browseViewer.popped.then((_) => browseCompleted++);
+      unawaited(browseViewer.popped.then((_) => browseCompleted++));
       await select(const DestinationId.app(AppDestination.bookmarks));
       expect(browseCompleted, 1);
       expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
@@ -253,10 +255,12 @@ void main() {
       // A root dialog belongs to this viewer, as does a branch-local popup.
       final viewerContext = tester.element(find.byType(BookmarkDetailsPage));
       var rootCompleted = 0;
-      showDialog<void>(
-        context: viewerContext,
-        builder: (_) => const AlertDialog(title: Text('Viewer dialog')),
-      ).then((_) => rootCompleted++);
+      unawaited(
+        showDialog<void>(
+          context: viewerContext,
+          builder: (_) => const AlertDialog(title: Text('Viewer dialog')),
+        ).then((_) => rootCompleted++),
+      );
       await harness.settle(tester);
       expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
       await select(const DestinationId.app(AppDestination.following));
@@ -270,21 +274,23 @@ void main() {
       final pageRef =
           tester.element(find.byType(FollowingTopicsPage)) as WidgetRef;
       var followingCompleted = 0;
-      pageRef
-          .pushRoute<void>(
-            '/details',
-            extra: DetailsRouteContext(
-              initialIndex: 0,
-              posts: backend.posts,
-              scrollController: null,
-              isDesktop: false,
-              hero: false,
-              initialThumbnailUrl: null,
-              config: backend.config,
-              useMixedViewer: true,
-            ),
-          )
-          .then((_) => followingCompleted++);
+      unawaited(
+        pageRef
+            .pushRoute<void>(
+              '/details',
+              extra: DetailsRouteContext(
+                initialIndex: 0,
+                posts: backend.posts,
+                scrollController: null,
+                isDesktop: false,
+                hero: false,
+                initialThumbnailUrl: null,
+                config: backend.config,
+                useMixedViewer: true,
+              ),
+            )
+            .then((_) => followingCompleted++),
+      );
       await harness.pumpUntilFound(
         tester,
         find.byType(PostDetailsPageScaffold),
@@ -292,11 +298,13 @@ void main() {
       await harness.settle(tester);
       final context = tester.element(find.byType(PostDetailsPageScaffold));
       var localCompleted = 0;
-      showDialog<void>(
-        context: context,
-        useRootNavigator: false,
-        builder: (_) => const AlertDialog(title: Text('Local viewer dialog')),
-      ).then((_) => localCompleted++);
+      unawaited(
+        showDialog<void>(
+          context: context,
+          useRootNavigator: false,
+          builder: (_) => const AlertDialog(title: Text('Local viewer dialog')),
+        ).then((_) => localCompleted++),
+      );
       await harness.settle(tester);
       await select(DestinationId.browse(backend.config.id));
       expect(followingCompleted, 1);

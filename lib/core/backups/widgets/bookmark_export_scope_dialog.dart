@@ -111,10 +111,11 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
                       title: Text(FolderTree(widget.folders).path(f.id)),
                       secondary: const Icon(Icons.folder_outlined),
                       onChanged: (selected) => setState(() {
-                        if (selected ?? false)
+                        if (selected ?? false) {
                           _folderIds.add(f.id);
-                        else
+                        } else {
                           _folderIds.remove(f.id);
+                        }
                       }),
                     ),
                   ),

@@ -36,7 +36,7 @@ class GroupViewToggle extends ConsumerWidget {
     }
 
     final icon = Icon(single ? Symbols.grid_view : Symbols.image, size: 24);
-    if (!overlay)
+    if (!overlay) {
       return IconButton(
         key: const ValueKey('group-view-toggle'),
         tooltip: label,
@@ -44,6 +44,7 @@ class GroupViewToggle extends ConsumerWidget {
         icon: icon,
         onPressed: toggle,
       );
+    }
     return Tooltip(
       message: label,
       child: ViewerOverlayIconButton(

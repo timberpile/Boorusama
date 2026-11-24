@@ -32,7 +32,7 @@ void main() {
           addTearDown(tags.dispose);
           addTearDown(controller.dispose);
           addTearDown(selection.dispose);
-          final keyboard = ValueNotifier(0.0);
+          final keyboard = ValueNotifier<double>(0);
           addTearDown(keyboard.dispose);
           final harness = FollowingTopicHarness(
             overrides: [searchBarPositionProvider.overrideWithValue(position)],

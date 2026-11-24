@@ -71,7 +71,7 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
                 initialConfig: local ? owner : null,
                 closeOnClear:
                     fresh &&
-                    params.fromSearchBar == true &&
+                    (params.fromSearchBar ?? false) &&
                     state.extra is SearchRouteContext &&
                     destination?.id.kind == DestinationKind.browse,
               ),

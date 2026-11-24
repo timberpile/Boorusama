@@ -29,7 +29,7 @@ void main() {
             }),
           ),
           200,
-          headers: {if (contentType != null) 'content-type': contentType},
+          headers: {'content-type': ?contentType},
         );
         final client = MockClient((_) async => response);
         addTearDown(client.close);

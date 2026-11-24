@@ -6,11 +6,11 @@ import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 
 import '../../../support/fakes/bookmark_test_storage.dart';
 
@@ -45,8 +45,8 @@ BooruConfig pixivFavoriteTestProfile({
 });
 
 class FavoriteTestStore implements MiscDataStore {
-  bool fail = false;
-  int writes = 0;
+  var fail = false;
+  var writes = 0;
   final values = <String, String>{};
   @override
   String? get(String key) => values[key];
@@ -71,7 +71,7 @@ class FavoriteTestSource implements ServerFavoriteSource {
   FavoriteTestSource(this.posts);
   List<Post> posts;
   Map<int, List<Post>>? pages;
-  int calls = 0;
+  var calls = 0;
   Object? error;
   Completer<ServerFavoritePage<Post>>? pending;
   final requested = Completer<void>();
@@ -129,7 +129,7 @@ class FavoriteHarness {
   late Box<dynamic> organizationBox;
   late BookmarkTestStorage bookmarkStorage;
   List<Override> Function(BooruConfig)? _extraOverrides;
-  bool _unifiedGroups = false;
+  var _unifiedGroups = false;
   late BooruConfig profile;
 
   Future<void> open({
@@ -161,10 +161,12 @@ class FavoriteHarness {
     source = FavoriteTestSource([post(1), post(2)]);
     directory = await Directory.systemTemp.createTemp('server-favorites-');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     _extraOverrides = extraOverrides;
     _unifiedGroups = unifiedGroups;
     await _openRepositories();
@@ -191,9 +193,15 @@ class FavoriteHarness {
             groupBox,
             organizationBox: organizationBox,
           );
-    final BookmarkGroupRepository groupRepository = _unifiedGroups
-        ? UnifiedBookmarkGroupRepository(bookmarks: bookmarks, reader: groups)
-        : groups;
+    final BookmarkGroupRepository groupRepository;
+    if (_unifiedGroups) {
+      groupRepository = UnifiedBookmarkGroupRepository(
+        bookmarks: bookmarks,
+        reader: groups,
+      );
+    } else {
+      groupRepository = groups;
+    }
     container = ProviderContainer(
       overrides: [
         ...bookmarkStorage.overrides,

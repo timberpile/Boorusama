@@ -14,7 +14,7 @@ void main() {
   const cloud = 'content://example.provider/tree/opaque%3A123';
   final calls = <MethodCall>[];
   String? displayName;
-  bool revoked = false;
+  var revoked = false;
 
   setUp(() {
     calls.clear();
@@ -25,8 +25,9 @@ void main() {
           AutoBackupRepositoryAndroid.channel,
           (call) async {
             calls.add(call);
-            if (revoked)
+            if (revoked) {
               throw PlatformException(code: 'backup_folder_access_required');
+            }
             return displayName;
           },
         );

@@ -59,7 +59,11 @@ void main() {
       await expectLater(store.complete('failed', media), throwsStateError);
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sidecarStoreProvider.overrideWith((ref) async => store)],
+          overrides: [
+            sidecarStoreProvider.overrideWith(
+              (ref) => Future.sync(() => store),
+            ),
+          ],
           child: _app(const Scaffold(body: SidecarFailureNotice())),
         ),
       );

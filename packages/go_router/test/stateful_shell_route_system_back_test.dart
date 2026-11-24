@@ -13,7 +13,7 @@ import 'test_helpers.dart';
 void main() {
   group('iOS back gesture inside a StatefulShellRoute', () {
     testWidgets('pops the top sub-route '
-        'when there is an active sub-route', (WidgetTester tester) async {
+        'when there is an active sub-route', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 
       await tester.pumpWidget(const _TestApp());
@@ -35,7 +35,7 @@ void main() {
     });
 
     testWidgets('pops StatefulShellRoute '
-        'when there are no active sub-routes', (WidgetTester tester) async {
+        'when there are no active sub-routes', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 
       await tester.pumpWidget(const _TestApp());
@@ -55,7 +55,7 @@ void main() {
 
   group('Android back button inside a StatefulShellRoute', () {
     testWidgets('pops the top sub-route '
-        'when there is an active sub-route', (WidgetTester tester) async {
+        'when there is an active sub-route', (tester) async {
       await tester.pumpWidget(const _TestApp());
       expect(find.text('Home'), findsOneWidget);
 
@@ -75,7 +75,7 @@ void main() {
     });
 
     testWidgets('pops StatefulShellRoute '
-        'when there are no active sub-routes', (WidgetTester tester) async {
+        'when there are no active sub-routes', (tester) async {
       await tester.pumpWidget(const _TestApp());
       expect(find.text('Home'), findsOneWidget);
 
@@ -98,11 +98,11 @@ class _TestApp extends StatefulWidget {
 }
 
 class _TestAppState extends State<_TestApp> {
-  final GoRouter _router = GoRouter(
+  final _router = GoRouter(
     routes: <GoRoute>[
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) {
+        builder: (context, state) {
           return Scaffold(
             appBar: AppBar(title: const Text('Home')),
             body: Center(
@@ -119,9 +119,9 @@ class _TestAppState extends State<_TestApp> {
           StatefulShellRoute.indexedStack(
             builder:
                 (
-                  BuildContext context,
-                  GoRouterState state,
-                  StatefulNavigationShell navigationShell,
+                  context,
+                  state,
+                  navigationShell,
                 ) {
                   return navigationShell;
                 },
@@ -130,7 +130,7 @@ class _TestAppState extends State<_TestApp> {
                 routes: <GoRoute>[
                   GoRoute(
                     path: '/post',
-                    builder: (BuildContext context, GoRouterState state) {
+                    builder: (context, state) {
                       return Scaffold(
                         appBar: AppBar(title: const Text('Post')),
                         body: Center(
@@ -146,7 +146,7 @@ class _TestAppState extends State<_TestApp> {
                     routes: <GoRoute>[
                       GoRoute(
                         path: 'comment',
-                        builder: (BuildContext context, GoRouterState state) {
+                        builder: (context, state) {
                           return Scaffold(appBar: AppBar(title: const Text('Comment')));
                         },
                       ),

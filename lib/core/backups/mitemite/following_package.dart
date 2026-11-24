@@ -54,8 +54,9 @@ void requireSyncFollowingScope(
     if (topic.id == collection.source &&
         topic.folderId == null &&
         data.homeSearchIds.length == 1 &&
-        data.homeSearchIds.single == topic.id)
+        data.homeSearchIds.single == topic.id) {
       return;
+    }
   }
   if (data.folders.length == 1 &&
       data.records.isEmpty &&
@@ -63,8 +64,9 @@ void requireSyncFollowingScope(
     final folder = data.folders.single;
     if (folder.id == collection.source &&
         folder.parentId == null &&
-        folder.searchIds.isEmpty)
+        folder.searchIds.isEmpty) {
       return;
+    }
   }
   throw const FormatException(
     'Following package contains unrelated definitions',
@@ -137,7 +139,7 @@ final class SyncFollowingPackageValidator {
     required Uint8List bytes,
     int maxPreparedBytes = 64 * 1024 * 1024,
   }) async {
-    if (useWorker && fs.runtimeType == IoFileSystem)
+    if (useWorker && fs.runtimeType == IoFileSystem) {
       return Isolate.run(
         _FollowingValidateTask(
           collection,
@@ -145,6 +147,7 @@ final class SyncFollowingPackageValidator {
           maxPreparedBytes,
         ).run,
       );
+    }
     if (collection.kind != 'following_topics' ||
         bytes.isEmpty ||
         bytes.length > miteMiteMaxBytes) {
@@ -193,8 +196,9 @@ final class SyncFollowingPackageValidator {
           staged.pathFor(source.parts.single.path),
         );
         final payload = decodeData(data: encoded);
-        if (payload.version != source.schemaVersion)
+        if (payload.version != source.schemaVersion) {
           throw const SyncUpdateRequired();
+        }
         if (payload.data.any(
           (row) =>
               row is Map &&
@@ -237,10 +241,11 @@ final class SyncFollowingPackageBuilder {
     required DateTime createdAt,
   }) async {
     requireSyncFollowingScope(data, collection);
-    if (useWorker && fs.runtimeType == IoFileSystem)
+    if (useWorker && fs.runtimeType == IoFileSystem) {
       return Isolate.run(
         _FollowingBuildTask(collection, data, appVersion, createdAt).run,
       );
+    }
     final portable = _portableDefinition(data);
     final scratch = await fs.createTempDirectory('boorusama_following_build_');
     try {
@@ -317,8 +322,8 @@ final class _FollowingBuildTask {
   final String version;
   final DateTime at;
   Future<ValidatedSyncFollowingPackage> run() =>
-      SyncFollowingPackageBuilder(
-        fs: const IoFileSystem(),
+      const SyncFollowingPackageBuilder(
+        fs: IoFileSystem(),
         useWorker: false,
       ).build(
         collection: collection,
@@ -334,8 +339,8 @@ final class _FollowingValidateTask {
   final TransferableTypedData bytes;
   final int budget;
   Future<ValidatedSyncFollowingPackage> run() =>
-      SyncFollowingPackageValidator(
-        fs: const IoFileSystem(),
+      const SyncFollowingPackageValidator(
+        fs: IoFileSystem(),
         useWorker: false,
       ).validate(
         collection: collection,

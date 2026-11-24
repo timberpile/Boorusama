@@ -145,13 +145,13 @@ final _poolTagOverlayProvider = Provider.autoDispose
 class _PoolTagOverlay {
   BookmarkTagIndex? _base;
   Object? _revision;
-  BookmarkTagIndex? _value;
+  late BookmarkTagIndex _value;
   BookmarkTagIndex build(
     BookmarkTagIndex base,
     List<CollectionBookmark> pools,
     Object revision,
   ) {
-    if (identical(base, _base) && revision == _revision) return _value!;
+    if (identical(base, _base) && revision == _revision) return _value;
     _base = base;
     _revision = revision;
     return _value = base.withPoolBookmarks(pools);

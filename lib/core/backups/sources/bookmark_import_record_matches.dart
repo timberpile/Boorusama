@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:collection/collection.dart';
+import 'package:meta/meta.dart';
 
 import '../../bookmarks/src/data/stored_bookmark_codec.dart';
 import '../../bookmarks/src/types/bookmark_record_fields.dart';
@@ -80,6 +81,7 @@ Map<int, Bookmark> matchUnaddressableBookmarkRecords({
   return matches;
 }
 
+@immutable
 final class _ExactRecordKey {
   const _ExactRecordKey(this.value);
   final Object value;

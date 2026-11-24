@@ -110,7 +110,8 @@ void main() {
               db.execute('PRAGMA user_version = 3');
             case 'trigger':
               db.execute(
-                '''CREATE TRIGGER unexpected AFTER INSERT ON download_tasks
+                '''
+CREATE TRIGGER unexpected AFTER INSERT ON download_tasks
                 BEGIN DELETE FROM saved_download_tasks; END''',
               );
             case 'orphan':
@@ -279,10 +280,11 @@ void main() {
             'DELETE FROM migrations_history WHERE version > $version',
           );
           old.execute('PRAGMA user_version = $version');
-          if (version == 0)
+          if (version == 0) {
             old.execute(
               'ALTER TABLE download_tasks ADD COLUMN notifications INTEGER',
             );
+          }
         } finally {
           old.close();
         }
@@ -484,7 +486,8 @@ void _history(String path, {String? query}) {
     SearchHistoryRepositorySqlite(db: db).initialize();
     if (query != null) {
       db.execute(
-        '''INSERT INTO search_history
+        '''
+INSERT INTO search_history
         (query, type, booru_type_name, site_url, created_at, updated_at)
         VALUES (?, 'simple', 'test', 'https://example.invalid', 1, 1)''',
         [query],

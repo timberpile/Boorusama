@@ -60,8 +60,9 @@ class _BoorusamaArtistLinkPageState
     final matches = link.matchingProfiles(
       ref.watch(orderedProfileConfigsProvider),
     );
-    if (_adding)
+    if (_adding) {
       return _frame(const Center(child: CircularProgressIndicator()));
+    }
     final selected =
         matches.where((profile) => profile.id == _selectedId).firstOrNull ??
         (matches.length == 1 ? matches.single : null);

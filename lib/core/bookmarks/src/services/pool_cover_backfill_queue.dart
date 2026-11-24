@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'package:clock/clock.dart';
 
 /// Serial in-flight deduplication with bounded, short-lived result retention.
@@ -15,16 +13,16 @@ final class PoolCoverBackfillQueue {
   final Duration cooldown;
   final int maxCompletedJobs;
   final _jobs = <Object, Future<dynamic>>{};
-  final _completed =
-      LinkedHashMap<Object, ({DateTime until, Future<dynamic> result})>();
+  final _completed = <Object, ({DateTime until, Future<dynamic> result})>{};
   Future<void> _tail = Future.value();
 
   Future<T> run<T>(Object key, Future<T> Function() operation) {
     final now = clock.now();
     _completed.removeWhere((_, entry) => !now.isBefore(entry.until));
     if (_jobs[key] case final pending?) return pending as Future<T>;
-    if (_completed[key] case final retained?)
+    if (_completed[key] case final retained?) {
       return retained.result as Future<T>;
+    }
     final result = _tail.then<T>((_) => operation());
     _jobs[key] = result;
     void complete() {

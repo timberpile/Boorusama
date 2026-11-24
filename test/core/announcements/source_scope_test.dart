@@ -35,11 +35,13 @@ void main() {
             backend.config.auth,
           ),
           announcementRepositoryProvider.overrideWithValue(repository),
-          dismissedAnnouncementIdsProvider.overrideWith((ref) async => {}),
+          dismissedAnnouncementIdsProvider.overrideWith(
+            (ref) => Future.sync(() => {}),
+          ),
         ],
       );
       addTearDown(root.dispose);
-      for (final BooruConfig profile in [backend.configB, backend.config]) {
+      for (final profile in [backend.configB, backend.config]) {
         final child = ProviderContainer(
           parent: root,
           overrides: [

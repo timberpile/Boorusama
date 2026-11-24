@@ -63,10 +63,10 @@ void main() {
       var calls = 0;
       final queue = PreloadMetadataQueue<int, String>(onResolved: () {});
       addTearDown(queue.dispose);
-      Future<String?> fail() async {
+      Future<String?> fail() => Future.sync(() {
         calls++;
         throw StateError('unavailable');
-      }
+      });
 
       Future<String?> load() async {
         calls++;

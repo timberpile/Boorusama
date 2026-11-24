@@ -52,13 +52,13 @@ final class _UnavailableMediaAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) async {
+  ) => Future.sync(() {
     throw DioException(
       requestOptions: options,
       type: DioExceptionType.cancel,
       message: 'Media access revoked',
     );
-  }
+  });
 
   @override
   void close({bool force = false}) {}

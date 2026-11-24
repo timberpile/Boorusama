@@ -157,7 +157,7 @@ class _RecordingFileSystem extends IoFileSystem {
   _RecordingFileSystem({this.fail = false});
   final bool fail;
   final writes = <String, String>{};
-  bool flushed = false;
+  var flushed = false;
   @override
   Future<void> writeString(
     String path,

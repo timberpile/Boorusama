@@ -36,14 +36,17 @@ final class BookmarkReadTarget {
         owner.publisher != publisher ||
         owner.source != source ||
         owner.reading.isEmpty ||
-        !SyncGroupReadingState.fromJson(owner.reading).members.contains(member))
+        !SyncGroupReadingState.fromJson(owner.reading).members
+            .contains(member)) {
       return false;
+    }
     if (scopeGroupId == null) return true;
     final root = state.owners[scopeGroupId];
     if (root == null ||
         root.publisher != publisher ||
-        root.source != scopeSource)
+        root.source != scopeSource) {
       return false;
+    }
     final bySource = {
       for (final item in state.owners.values)
         if (item.publisher == publisher) item.source: item,

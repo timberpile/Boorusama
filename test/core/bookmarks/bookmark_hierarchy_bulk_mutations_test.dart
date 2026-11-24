@@ -134,7 +134,7 @@ void main() {
 
       await service.deleteGroup(parent.id);
 
-      expect((await groupRepository.getGroup(parent.id)), isNull);
+      expect(await groupRepository.getGroup(parent.id), isNull);
       expect(await groupRepository.getGroup(child.id), isNull);
       expect(await groupRepository.getGroup(grandchild.id), isNull);
       expect(await repository.read(saved.id), isNull);

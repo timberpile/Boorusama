@@ -165,7 +165,7 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
         id: 'bookmarks',
         children: bookmarkExportNodes(
           buildBookmarkBackupData(
-            records: bookmarks?.hasUnifiedRecords == true
+            records: bookmarks?.hasUnifiedRecords ?? false
                 ? bookmarks!.records
                 : null,
             bookmarks: bookmarks?.items ?? [],

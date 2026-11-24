@@ -27,7 +27,7 @@ void main() {
     thumbnail: 'https://media.example/thumb.jpg',
     sample: 'https://media.example/sample.jpg',
     original: 'https://media.example/original.png',
-    variants: {
+    variants: const {
       '180x180': 'https://media.example/180.jpg',
       '360x360': 'https://media.example/360.jpg',
       '720x720': 'https://media.example/720.jpg',
@@ -183,7 +183,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            blacklistTagsProvider.overrideWith(
+              (ref, filter) => Future.sync(() => {}),
+            ),
             booruConfigProvider.overrideWith(
               () => BooruConfigNotifier(initialConfigs: [config]),
             ),

@@ -53,12 +53,12 @@ void main() {
       final data =
           (fixture['post'] ?? fixture['detail']) as Map<String, dynamic>;
       XmlElement xml(Map<String, dynamic> attributes) =>
-          XmlElement(XmlName('post'), [
+          XmlElement(const XmlName.parts('post'), [
             for (final e in attributes.entries)
-              XmlAttribute(XmlName(e.key), e.value.toString()),
+              XmlAttribute(XmlName.parts(e.key), e.value.toString()),
           ]);
       const base = 'https://fixtures.invalid/';
-      final Post post = switch (fixture['family']) {
+      final post = switch (fixture['family']) {
         'danbooru' => dan.postDtoToPostNoMetadata(
           dan_api.PostDto.fromJson(data),
         ),

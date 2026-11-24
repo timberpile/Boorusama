@@ -747,8 +747,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final entry = widget.sequence?.entries[_mediaPager!.page];
     if (entry is! GroupViewerEntry ||
         !supportsGroupReading(entry) ||
-        !_hasMediaPager(_mediaPager!.page))
+        !_hasMediaPager(_mediaPager!.page)) {
       return const [];
+    }
     final summary =
         ref.read(mediaGroupProvider(entry)).details?.summary ?? entry.summary;
     final sortable =
@@ -1466,7 +1467,7 @@ class _GroupSummaryTags extends ConsumerWidget {
               runSpacing: 4,
               children: [
                 for (final tag in tags.values)
-                  if ((tag.displayName ?? tag.name) case final name?
+                  if (tag.displayName ?? tag.name case final name?
                       when name.isNotEmpty)
                     KurumiCompactChip(label: name),
               ],

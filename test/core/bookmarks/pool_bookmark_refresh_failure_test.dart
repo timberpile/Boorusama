@@ -48,8 +48,8 @@ void main() {
           title: 'Series',
           createdAt: DateTime.utc(2026),
           observedAt: DateTime.utc(2026),
-          groupIds: {defaultBookmarkGroupId},
-          tags: {},
+          groupIds: const {defaultBookmarkGroupId},
+          tags: const {},
           coverage: PoolTagCoverage.partial,
           cover: selected,
           coverUrl: selected.thumbnail,
@@ -58,10 +58,16 @@ void main() {
           overrides: [
             bookmarkProvider.overrideWith(
               () => _Saved(
-                BookmarkLibraryState(bookmarks: [], groups: [], pools: [old]),
+                BookmarkLibraryState(
+                  bookmarks: const [],
+                  groups: const [],
+                  pools: [old],
+                ),
               ),
             ),
-            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            blacklistTagsProvider.overrideWith(
+              (ref, filter) => Future.sync(() => {}),
+            ),
             originAwarePostRepoProvider.overrideWith(
               (ref, config) => PostRepositoryBuilder<Post>(
                 fetch: (tags, page, {limit, options}) async => PostResult(

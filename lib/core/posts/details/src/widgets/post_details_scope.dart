@@ -162,10 +162,11 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
     _routeAnimation?.removeListener(_onRouteAnimationTick);
     final chrome = _navigationChrome;
-    if (chrome != null)
+    if (chrome != null) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => chrome.setViewerFor(this, active: false, immersive: false),
       );
+    }
     _pageViewController.overlay.removeListener(_syncNavigationChrome);
     _pageViewController.bottomObstruction.removeListener(_syncNavigationChrome);
     _controller?.dispose();

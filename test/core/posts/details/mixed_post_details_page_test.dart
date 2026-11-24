@@ -136,7 +136,6 @@ import 'package:boorusama/core/navigation/destination_profile_scope.dart';
 import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 import 'package:boorusama/core/navigation/navigation_overlay_insets.dart';
 import 'package:boorusama/core/posts/shares/src/providers.dart';
-import 'package:boorusama/core/posts/shares/src/unified_post_share_sheet.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -177,7 +176,7 @@ void main() {
           policyEpoch: 1,
         );
         final posts = [
-          pixivWorkPagePosts(works.work(id: 120, pageCount: 1), access).single,
+          pixivWorkPagePosts(works.work(pageCount: 1), access).single,
           pixivWorkPagePosts(
             works.work(id: 121, pageCount: 1, type: 'ugoira'),
             access,
@@ -1317,7 +1316,7 @@ void main() {
             if (pixiv)
               GroupViewerEntry(
                 summary: pixivWorkSummary(
-                  works.work(id: 120),
+                  works.work(),
                   ContentAccessContext.profile(
                     config: target,
                     authEpoch: 1,
@@ -1595,7 +1594,7 @@ void main() {
         entries: [
           GroupViewerEntry(
             summary: pixivWorkSummary(
-              works.work(id: 120, pageCount: 3),
+              works.work(),
               access,
             ),
             occurrenceId: 120,
@@ -1608,7 +1607,7 @@ void main() {
           ),
           GroupViewerEntry(
             summary: pixivWorkSummary(
-              works.work(id: 122, pageCount: 3),
+              works.work(id: 122),
               access,
             ),
             occurrenceId: 122,
@@ -1625,7 +1624,7 @@ void main() {
             access: authorized,
             fetchWork: (id) async {
               reads.add(id);
-              return works.work(id: id, pageCount: 3);
+              return works.work(id: id);
             },
           ),
         ),
@@ -2741,7 +2740,6 @@ void main() {
       final firstWorkReady = Completer<void>();
       final harness = _Harness(
         posts: const [],
-        initialIndex: 0,
         entries: [
           for (final id in [120, 121])
             GroupViewerEntry(
@@ -2919,7 +2917,7 @@ void main() {
         entries: [
           GroupViewerEntry(
             summary: pixivWorkSummary(
-              works.work(id: 120, pageCount: 2),
+              works.work(pageCount: 2),
               access,
             ),
             occurrenceId: 'summary-first',
@@ -2935,7 +2933,7 @@ void main() {
             access: actor,
             fetchWork: (_) async {
               await manifestReady.future;
-              return works.work(id: 120, pageCount: 2);
+              return works.work(pageCount: 2);
             },
           ),
         ),
@@ -3120,8 +3118,6 @@ void main() {
         );
         const pagePreviewUrl = 'https://i.pximg.net/large/120_first_page.jpg';
         final work = works.work(
-          id: 120,
-          pageCount: 3,
           // Detail metadata can replace the listing's cover URL. Page zero
           // resolves from the top-level image_urls, not meta_pages.
           sample: pagePreviewUrl,
@@ -3143,7 +3139,7 @@ void main() {
           posts: const [],
           entries: [
             GroupViewerEntry(
-              summary: pixivWorkSummary(works.work(id: 120), access),
+              summary: pixivWorkSummary(works.work(), access),
               occurrenceId: 'first-cover',
               source: ViewerSourceBinding(_configs[2]),
             ),
@@ -3335,7 +3331,7 @@ void main() {
       posts: const [],
       entries: [
         GroupViewerEntry(
-          summary: pixivWorkSummary(works.work(id: 120, pageCount: 1), access),
+          summary: pixivWorkSummary(works.work(pageCount: 1), access),
           occurrenceId: 'manual-media',
           source: ViewerSourceBinding(_configs[2]),
         ),
@@ -3555,19 +3551,14 @@ void main() {
                         as RenderRepaintBoundary;
                 final image = await boundary.toImage();
                 try {
-                  final data = await image.toByteData(
-                    format: ui.ImageByteFormat.rawRgba,
-                  );
+                  final data = await image.toByteData();
                   if (data == null) return false;
                   final bytes = data.buffer.asUint8List();
                   final center =
                       tester.getRect(targetRaw.first).center -
                       tester.getTopLeft(find.byKey(captureKey));
-                  final x = center.dx.round().clamp(0, image.width - 1).toInt();
-                  final y = center.dy
-                      .round()
-                      .clamp(0, image.height - 1)
-                      .toInt();
+                  final x = center.dx.round().clamp(0, image.width - 1);
+                  final y = center.dy.round().clamp(0, image.height - 1);
                   final pixelIndex = (y * image.width + x) * 4;
                   return bytes[pixelIndex] == 0 &&
                       bytes[pixelIndex + 1] == 0 &&
@@ -9470,13 +9461,14 @@ class _ReadingGroupSource extends ContentGroupSource {
   @override
   TaskEither<BooruError, GroupMemberBatch> loadMembers(GroupMemberQuery query) {
     onMemberQuery?.call(query);
-    if (fail)
+    if (fail) {
       return TaskEither.left(
         UnknownError(
           error: StateError('fixture'),
           message: 'Fixture member load failed',
         ),
       );
+    }
     final posts = [
       for (var i = 0; i < 2; i++)
         _post(

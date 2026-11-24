@@ -175,8 +175,9 @@ void main() {
         final decoded =
             (codec.decode(snapshot) as StoredPostDecodeSuccess).post;
         expect(decoded.detailFacts, post.detailFacts);
-        if (entry.key == 'Sankaku' || entry.key == 'Pixiv')
+        if (entry.key == 'Sankaku' || entry.key == 'Pixiv') {
           expect(decoded.sitePostId, isNull);
+        }
         expect(
           (decoded.booruData as UnknownPostData).custom,
           (post.booruData as UnknownPostData).custom,

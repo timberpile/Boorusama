@@ -13,7 +13,7 @@ class ServerFavoriteTarget extends Equatable {
       groupId = null;
 
   const ServerFavoriteTarget.group(String id)
-    : assert(id != ''),
+    : assert(id != '', 'A server favorite target must have an ID.'),
       mode = ServerFavoriteTargetMode.group,
       groupId = id;
 

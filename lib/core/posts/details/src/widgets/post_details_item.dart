@@ -273,8 +273,9 @@ class _PostDetailsItemState<T extends Post>
   }
 
   void _notifyDisplayed() {
-    if ((widget.post ?? widget.posts[widget.index]).requiresDetailLookup)
+    if ((widget.post ?? widget.posts[widget.index]).requiresDetailLookup) {
       return;
+    }
     if (widget.onDisplayed == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _maybeDisplayed();

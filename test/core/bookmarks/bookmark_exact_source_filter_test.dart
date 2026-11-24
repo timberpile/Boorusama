@@ -22,7 +22,7 @@ void main() {
     final state = BookmarkLibraryState(
       bookmarks: posts,
       pools: [
-        testPool(id: 10, host: 'booru.example', tags: {'allowed'}),
+        testPool(host: 'booru.example', tags: {'allowed'}),
         testPool(id: 11, host: 'notbooru.example', tags: {'allowed'}),
         testPool(id: 12, host: 'sub.booru.example', tags: {'allowed'}),
         testPool(

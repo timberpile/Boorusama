@@ -82,8 +82,9 @@ final class BookmarkGroupTree {
   }
 
   List<BookmarkGroup> selectionRoots(Set<String> selectedIds) {
-    if (!groupsById.keys.toSet().containsAll(selectedIds))
+    if (!groupsById.keys.toSet().containsAll(selectedIds)) {
       throw ArgumentError('Unknown Group selection');
+    }
     final covered = <String, bool>{};
     final result = <BookmarkGroup>[];
     for (final id in selectedIds) {
@@ -97,7 +98,9 @@ final class BookmarkGroupTree {
       }
       final hasSelectedAncestor =
           parent != null && (selectedIds.contains(parent) || covered[parent]!);
-      for (final entry in path) covered[entry] = hasSelectedAncestor;
+      for (final entry in path) {
+        covered[entry] = hasSelectedAncestor;
+      }
       if (!hasSelectedAncestor) result.add(groupsById[id]!);
     }
     result.sort((a, b) {
@@ -178,11 +181,13 @@ final class BookmarkGroupTree {
     final positions = <String?, int>{};
     for (final group in groupsById.values) {
       if (removedIds.contains(group.id) ||
-          removedIds.contains(group.parentGroupId))
+          removedIds.contains(group.parentGroupId)) {
         continue;
+      }
       final next = positions[group.parentGroupId] ?? 0;
-      if (group.position >= next)
+      if (group.position >= next) {
         positions[group.parentGroupId] = group.position + 1;
+      }
     }
     final result = <BookmarkGroup>[];
     final survivingParents = <String, String?>{};
@@ -195,9 +200,12 @@ final class BookmarkGroupTree {
         path.add(parent);
         parent = groupsById[parent]!.parentGroupId;
       }
-      if (parent != null && survivingParents.containsKey(parent))
+      if (parent != null && survivingParents.containsKey(parent)) {
         parent = survivingParents[parent];
-      for (final id in path) survivingParents[id] = parent;
+      }
+      for (final id in path) {
+        survivingParents[id] = parent;
+      }
       final position = positions[parent] ?? 0;
       positions[parent] = position + 1;
       result.add(

@@ -372,8 +372,9 @@ class SelectDataStep extends ConsumerWidget {
       onChanged: (selected) {
         for (final task in options) {
           if (selected.contains(task.id) !=
-              (task.status == SelectStatus.selected))
+              (task.status == SelectStatus.selected)) {
             notifier.toggleTask(task.id);
+          }
         }
       },
       child: Column(

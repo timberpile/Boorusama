@@ -108,7 +108,7 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
           encoder: (config) => config.toJson(),
         ),
         extraSteps: [
-          _BooruConfigValidationStep(),
+          const _BooruConfigValidationStep(),
           _BooruConfigConfirmationStep(ref),
         ],
         ref: ref,

@@ -29,11 +29,8 @@ import '../../support/fakes/test_post.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
-import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
@@ -71,10 +68,12 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('pool-cover-native-');
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     await open();
   });
   tearDown(() async {
@@ -136,7 +135,7 @@ void main() {
           ),
         ),
         index: GroupBookmarkIndex(
-          tags: {'source-tag'},
+          tags: const {'source-tag'},
           basis: GroupTagIndexBasis.sourceGroup,
           coverage: MetadataCoverage.complete,
           oldestMemberUpload: DateTime.utc(2020),
@@ -158,7 +157,7 @@ void main() {
       thumbnail: 'https://danbooru.donmai.us/cover.jpg',
       sample: 'https://danbooru.donmai.us/sample.jpg',
       original: 'https://danbooru.donmai.us/original.jpg',
-      variants: {},
+      variants: const {},
     ),
     coverUrl: 'https://danbooru.donmai.us/cover.jpg',
     coverPolicy: 'current-policy',
@@ -189,7 +188,7 @@ void main() {
     container = null;
     await Hive.close();
     await open();
-    final saved = await repository.read(original.id) as ContentGroupBookmark;
+    final saved = (await repository.read(original.id))! as ContentGroupBookmark;
     expect(saved.snapshot.index!.basis, GroupTagIndexBasis.sourceGroup);
     expect(saved.snapshot.index!.tags, original.snapshot.index!.tags);
     expect(saved.snapshot.index!.coverage, original.snapshot.index!.coverage);
@@ -248,7 +247,7 @@ void main() {
       final service = await notifier();
       final pool = container!.read(bookmarkProvider).requireValue.pools.single;
       await service.fillMissingPoolCover(summary(pool), canCommit: () => true);
-      final saved = await repository.read(id) as LegacyGroupBookmark;
+      final saved = (await repository.read(id))! as LegacyGroupBookmark;
       expect(saved.metadata.cover, isNotNull);
       expect(saved.metadata.tags, original.metadata.tags);
       expect(saved.metadata.coverage, original.metadata.coverage);
@@ -280,7 +279,7 @@ void main() {
             groupDigest: bookmarkMirrorGroupDigest(group),
           ),
         },
-        subscriptions: {
+        subscriptions: const {
           poolProfile: {poolGroupB},
         },
       );
@@ -369,7 +368,7 @@ void main() {
                 groupDigest: bookmarkMirrorGroupDigest(received),
               ),
             },
-            subscriptions: {
+            subscriptions: const {
               poolProfile: {poolGroupB},
             },
           );
@@ -433,7 +432,9 @@ void main() {
             if (publicAccess != null)
               contentAccessContextProvider(publicAccess.key)
                   .overrideWith((ref) => publicAccess),
-            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            blacklistTagsProvider.overrideWith(
+              (ref, filter) => Future.sync(() => {}),
+            ),
             originAwarePostRepoProvider.overrideWith(
               (ref, config) => PostRepositoryBuilder<Post>(
                 fetch: (tags, page, {limit, options}) async {
@@ -493,9 +494,9 @@ void main() {
               expected: mirrors,
               next: BookmarkMirrorState(
                 epoch: 2,
-                owners: {},
+                owners: const {},
                 checkpoints: mirrors.checkpoints,
-                forgotten: {poolProfile},
+                forgotten: const {poolProfile},
               ),
               removeIds: {id},
               removeGroupIds: {poolGroupA},
@@ -516,7 +517,7 @@ void main() {
                   groupDigest: bookmarkMirrorGroupDigest(received),
                 ),
               },
-              subscriptions: {
+              subscriptions: const {
                 poolProfile: {poolGroupB},
               },
             );
@@ -542,7 +543,7 @@ void main() {
         expect(calls, 1);
         expect(await repository.readMirrorState(), mirrors);
         expect(await groups.getGroups(), beforeGroups);
-        final saved = await repository.read(id) as ContentGroupBookmark;
+        final saved = (await repository.read(id))! as ContentGroupBookmark;
         if (!membership.startsWith('local')) {
           expect(saved, original);
           expect(await repository.readRevision(), revision);
@@ -564,9 +565,9 @@ void main() {
               expected: mirrors,
               next: BookmarkMirrorState(
                 epoch: 2,
-                owners: {},
+                owners: const {},
                 checkpoints: mirrors.checkpoints,
-                forgotten: {poolProfile},
+                forgotten: const {poolProfile},
               ),
               removeIds: {id},
               removeGroupIds: {poolGroupA},
@@ -611,7 +612,8 @@ void main() {
           .pools
           .firstWhere((p) => p.bookmarkId == original.id);
       await service.refreshPoolBookmark(summary(pool));
-      final saved = await repository.read(original.id) as ContentGroupBookmark;
+      final saved =
+          (await repository.read(original.id))! as ContentGroupBookmark;
       expect(saved.snapshot.index, original.snapshot.index);
       expect(
         saved.snapshot.details?.description,
@@ -679,7 +681,9 @@ void main() {
                 : config,
           ],
           overrides: [
-            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            blacklistTagsProvider.overrideWith(
+              (ref, filter) => Future.sync(() => {}),
+            ),
             originAwarePostRepoProvider.overrideWith(
               (ref, source) => PostRepositoryBuilder<Post>(
                 fetch: (tags, page, {limit, options}) async {
@@ -691,8 +695,9 @@ void main() {
                   );
                   expect(tags.join(' '), isNot(contains('pool:')));
                   expect(limit, 40);
-                  if (mode == 'failure' || mode == 'revoked')
+                  if (mode == 'failure' || mode == 'revoked') {
                     throw StateError('offline');
+                  }
                   if (controlled) {
                     entered.complete();
                     await release.future;
@@ -752,7 +757,7 @@ void main() {
                 : RelatedOrderCommitResult.stale,
           );
         }
-        final saved = await repository.read(id) as RelatedBookmark;
+        final saved = (await repository.read(id))! as RelatedBookmark;
         if (mode == 'success') {
           expect(saved.preferredOrder, RelatedPostsOrder.newest);
           expect(

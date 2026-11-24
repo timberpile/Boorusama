@@ -3,7 +3,6 @@ import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:boorusama/core/backups/mitemite/reading_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/navigation/page_presentation_profile.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
@@ -52,6 +51,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
+import '../../support/legacy_material_test_scope.dart';
 
 void main() {
   testWidgets('folder grid keeps its children on scroll and adapts to width', (
@@ -190,7 +190,7 @@ void main() {
       performanceRecorder.start();
       library.publish(groups: [_group('g', 'After')]);
       await tester.pumpAndSettle();
-      final summary = performanceRecorder.snapshot()['summary'] as Map;
+      final summary = performanceRecorder.snapshot()['summary']! as Map;
       expect(
         (summary['operations'] as List).where(
           (dynamic op) => op['op'] == 'bookmarkSelect',
@@ -203,7 +203,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('After'), findsOneWidget);
       expect(find.text('Before'), findsNothing);
-      final revealed = performanceRecorder.snapshot()['summary'] as Map;
+      final revealed = performanceRecorder.snapshot()['summary']! as Map;
       expect(
         (revealed['operations'] as List).where(
           (dynamic op) => op['op'] == 'bookmarkSelect',
@@ -787,9 +787,9 @@ void main() {
                 BookmarkGroup(
                   id: defaultBookmarkGroupId,
                   name: 'Default',
-                  bookmarkIds: {},
+                  bookmarkIds: const {},
                 ),
-                _group('first', 'First', position: 0),
+                _group('first', 'First'),
                 _group('second', 'Second', position: 1),
               ],
             ),
@@ -818,7 +818,7 @@ void main() {
             BookmarkGroup(
               id: defaultBookmarkGroupId,
               name: 'Default',
-              bookmarkIds: {},
+              bookmarkIds: const {},
             ),
             _group('g', 'Saved'),
           ],
@@ -1911,7 +1911,7 @@ Future<GoRouter> _pump(
               ).copyWith(textScaler: TextScaler.linear(textScale)),
               child: KurumiTheme(
                 data: KurumiThemeData.fromMaterial(Theme.of(context)),
-                child: MaterialUiCompatibilityBridge(child: child!),
+                child: LegacyMaterialTestScope(child: child!),
               ),
             ),
           ),

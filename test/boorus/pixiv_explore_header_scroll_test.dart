@@ -138,7 +138,6 @@ class _Client extends PixivClient {
     illusts: page == 1
         ? [for (var id = 1; id <= 120; id++) works.work(id: id)]
         : [],
-    hasMore: false,
   );
   @override
   Future<PixivIllustListResult> getRanking({

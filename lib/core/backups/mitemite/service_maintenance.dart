@@ -60,14 +60,16 @@ extension MiteMiteMaintenance on MiteMiteService {
     final cached = _verifiedOwnCatalog;
     if (cached != null &&
         cached.intent == raw &&
-        listEquals(cached.bytes, bytes))
+        listEquals(cached.bytes, bytes)) {
       return true;
+    }
     try {
       final content = await verifySyncDocument(bytes, identity.publicKey);
       final matches =
           canonicalSyncJson(content) == canonicalSyncJson(prior.toJson());
-      if (matches)
+      if (matches) {
         _verifiedOwnCatalog = (intent: raw, bytes: Uint8List.fromList(bytes));
+      }
       return matches;
     } on FormatException {
       return false;
@@ -80,8 +82,9 @@ extension MiteMiteMaintenance on MiteMiteService {
     if (_disposed ||
         !_foreground ||
         location == null ||
-        (!_auditDue && _activeTime < _nextAudit))
+        (!_auditDue && _activeTime < _nextAudit)) {
       return Future.value();
+    }
     late final Future<void> running;
     running =
         Future<void>(() async {
@@ -90,8 +93,9 @@ extension MiteMiteMaintenance on MiteMiteService {
           try {
             void current() {
               _ensureCurrent();
-              if (!_foreground || generation != _storageGeneration)
+              if (!_foreground || generation != _storageGeneration) {
                 throw const _MaintenanceObsolete();
+              }
             }
 
             current();
@@ -106,8 +110,9 @@ extension MiteMiteMaintenance on MiteMiteService {
             );
             void sameCatalog() {
               current();
-              if (preferences.get(intentKey) != raw)
+              if (preferences.get(intentKey) != raw) {
                 throw const _MaintenanceObsolete();
+              }
             }
 
             for (final entry in catalog.entries) {

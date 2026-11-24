@@ -22,7 +22,7 @@ ImageMedia? thumbnailOnlyViewerPreloadMedia(
   final original = post.originalImageUrl;
   final thumbnail =
       [
-        if (thumbnailUrl != null) thumbnailUrl,
+        ?thumbnailUrl,
         post.thumbnailImageUrl,
       ].where((url) => url.isNotEmpty && url != original).firstOrNull ??
       '';

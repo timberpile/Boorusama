@@ -62,7 +62,7 @@ final class AnonymousSource extends Equatable {
       (!target.hasQuery ||
           (_site == 'https://realbooru.com' && _realbooruMediaQuery(target))) &&
       (_site != 'https://realbooru.com' ||
-          RegExp(r'^/{1,2}(?:images|thumbnails|samples)/')
+          RegExp('^/{1,2}(?:images|thumbnails|samples)/')
               .hasMatch(target.path)) &&
       _mediaHosts.contains(target.host) &&
       _safePath(target) &&
@@ -127,8 +127,9 @@ bool _catalogPermits(AnonymousSource source) {
       .firstOrNull;
   if (site == null) return false;
   if (site.metadata['auth'] case {'required': true}) return false;
-  if (site.metadata['quick-profile'] case {'authentication': 'required'})
+  if (site.metadata['quick-profile'] case {'authentication': 'required'}) {
     return false;
+  }
   return true;
 }
 
@@ -151,8 +152,9 @@ bool _realbooruMediaQuery(Uri target) =>
 bool _realbooruApi(Uri target) {
   if (target.path != '/index.php') return false;
   final query = target.queryParameters;
-  if (target.queryParametersAll.values.any((values) => values.length != 1))
+  if (target.queryParametersAll.values.any((values) => values.length != 1)) {
     return false;
+  }
   bool number(String name, {int minimum = 0, int? maximum}) {
     final value = query[name];
     if (value == null) return true;

@@ -9,12 +9,12 @@ import 'package:go_router/go_router.dart';
 import 'test_helpers.dart';
 
 void main() {
-  testWidgets('GoRouter.push does not trigger unnecessary rebuilds', (WidgetTester tester) async {
+  testWidgets('GoRouter.push does not trigger unnecessary rebuilds', (tester) async {
     final routes = <GoRoute>[
-      GoRoute(path: '/', builder: (BuildContext context, _) => const HomePage()),
+      GoRoute(path: '/', builder: (context, _) => const HomePage()),
       GoRoute(
         path: '/1',
-        builder: (BuildContext context, _) {
+        builder: (context, _) {
           return ElevatedButton(
             onPressed: () {
               context.push('/1');
@@ -52,7 +52,7 @@ void main() {
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static bool built = false;
+  static var built = false;
   @override
   Widget build(BuildContext context) {
     built = true;

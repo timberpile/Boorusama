@@ -67,8 +67,10 @@ Map<int, DateTime>? bookmarkMembershipDates({
   }
   final dates = <int, DateTime>{};
   for (final group in state.groups) {
-    if (view.kind == BookmarkViewKind.all && state.mirrors.isReceived(group.id))
+    if (view.kind == BookmarkViewKind.all &&
+        state.mirrors.isReceived(group.id)) {
       continue;
+    }
     for (final id in group.bookmarkIds) {
       final date =
           group.addedAt[id] ??

@@ -43,7 +43,7 @@ part 'unified_bookmark_organization.dart';
 class BookmarkHiveRepository extends BookmarkRepository<Post>
     implements UnifiedBookmarkStore, BookmarkMirrorStore {
   BookmarkHiveRepository(
-    this._posts, {
+    Box<BookmarkHiveObject> posts, {
     required Box<dynamic> groupPayloadBox,
     required Box<dynamic> metadataBox,
     required this.coordinator,
@@ -54,7 +54,8 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     this.logger,
     this.fs = const IoFileSystem(),
     Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? syncBoxes,
-  }) : _groups = groupPayloadBox,
+  }) : _posts = posts,
+       _groups = groupPayloadBox,
        _metadata = metadataBox,
        _syncOverride = syncBoxes,
        _codec = StoredBookmarkCodec(
@@ -68,6 +69,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   final Box<BookmarkHiveObject> _posts;
   final Box<dynamic> _groups;
   final Box<dynamic> _metadata;
+  @override
   final DataMutationCoordinator coordinator;
   final AppFileSystem fs;
   final Logger? logger;
@@ -659,8 +661,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   @override
   Bookmark normalizeRecord(Bookmark record, {Bookmark? previous}) {
     final normalized = _codec.decode(_codec.encode(record));
-    if (previous != null)
+    if (previous != null) {
       _compatible(_header(previous), _header(normalized), normalized);
+    }
     return normalized;
   }
 
@@ -776,8 +779,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     if (upserts.isEmpty &&
         deletes.isEmpty &&
         organization == null &&
-        mirrorState == null)
+        mirrorState == null) {
       return;
+    }
     final revision = _metadata.get(_revision) as int;
     final plan = <String, Object?>{
       'upserts': upserts,
@@ -871,8 +875,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     final deletes = (plan['deletes']! as List).map(contentMap).toList();
     final restoredIds = <int>{};
     if (plan['restoredIds'] case final raw?) {
-      if (raw is! List)
+      if (raw is! List) {
         throw const FormatException('Invalid local recovery IDs');
+      }
       for (final value in raw) {
         if (!restoredIds.add(_localId(value))) {
           throw const FormatException('Duplicate local recovery ID');

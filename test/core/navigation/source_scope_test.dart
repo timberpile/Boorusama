@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -87,7 +89,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      router.push('${DestinationId.favorites(second.id).location}/action');
+      unawaited(
+        router.push('${DestinationId.favorites(second.id).location}/action'),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();

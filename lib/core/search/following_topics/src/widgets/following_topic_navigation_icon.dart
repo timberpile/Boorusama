@@ -14,7 +14,7 @@ class FollowingTopicNavigationIcon extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bool showBadge =
+    final showBadge =
         hasNewPosts ??
         ref.watch<bool>(
           followingTopicHasNewPostsProvider,

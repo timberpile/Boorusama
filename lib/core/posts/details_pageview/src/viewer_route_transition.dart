@@ -113,9 +113,7 @@ class _ViewerRouteTransitionState extends State<ViewerRouteTransition>
                   _closeFrom,
                   constraints.maxHeight,
                   Curves.easeOutCubic.transform(
-                    (1 - value / _closeAnimationValue)
-                        .clamp(0.0, 1.0)
-                        .toDouble(),
+                    (1 - value / _closeAnimationValue).clamp(0.0, 1.0),
                   ),
                 )!,
               )

@@ -72,7 +72,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
   var _preloadScheduled = false;
   Object? _currentCoverKey;
   Object? _sequenceKey;
-  Object _pagerIdentity = Object();
+  var _pagerIdentity = Object();
   ({GroupLoadKey key, int generation})? _reindex;
   Object? _completedCoverKey;
 
@@ -200,8 +200,9 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
     ref.read(groupReadingProvider(widget.entry).notifier).cancelOrder();
     final key = state.loadKey;
     if (key == null) {
-      if (state.access case final access?)
+      if (state.access case final access?) {
         ref.invalidate(contentGroupSourceProvider(access.key));
+      }
       return;
     }
     if (state.failed) {

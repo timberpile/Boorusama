@@ -115,7 +115,7 @@ class _WorkCreatorAvatarState extends State<_WorkCreatorAvatar> {
     final url = pixivFollowingImageUrl(widget.creator?.avatar?.toString());
     final mountedImage = _mountedImage;
     _mountedImage = null;
-    Widget image = widget.placeholder;
+    var image = widget.placeholder;
     if (access != null &&
         config != null &&
         config.auth.booruType == BooruType.pixiv &&

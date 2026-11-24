@@ -11,17 +11,17 @@ import 'helpers/error_screen_helpers.dart';
 
 void main() {
   group('isMaterialApp', () {
-    testWidgets('returns [true] when MaterialApp is present', (WidgetTester tester) async {
+    testWidgets('returns [true] when MaterialApp is present', (tester) async {
       final key = GlobalKey<_DummyStatefulWidgetState>();
       await tester.pumpWidget(MaterialApp(home: DummyStatefulWidget(key: key)));
-      final bool isMaterial = isMaterialApp(key.currentContext! as Element);
+      final isMaterial = isMaterialApp(key.currentContext! as Element);
       expect(isMaterial, true);
     });
 
-    testWidgets('returns [false] when CupertinoApp is present', (WidgetTester tester) async {
+    testWidgets('returns [false] when CupertinoApp is present', (tester) async {
       final key = GlobalKey<_DummyStatefulWidgetState>();
       await tester.pumpWidget(CupertinoApp(home: DummyStatefulWidget(key: key)));
-      final bool isMaterial = isMaterialApp(key.currentContext! as Element);
+      final isMaterial = isMaterialApp(key.currentContext! as Element);
       expect(isMaterial, false);
     });
   });
@@ -32,7 +32,7 @@ void main() {
     const arguments = 'arguments';
     const restorationId = 'restorationId';
     const child = DummyStatefulWidget();
-    final MaterialPage<void> page = pageBuilderForMaterialApp(
+    final page = pageBuilderForMaterialApp(
       key: key,
       name: name,
       arguments: arguments,

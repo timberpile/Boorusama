@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../support/legacy_material_test_scope.dart';
+
 void main() {
   testWidgets(
     'long original name remains reachable with enlarged text and keyboard',
@@ -21,8 +23,7 @@ void main() {
       await tester.pumpWidget(
         BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) =>
-                MaterialUiCompatibilityBridge(child: child!),
+            builder: (context, child) => LegacyMaterialTestScope(child: child!),
             home: Builder(
               builder: (context) => TextButton(
                 onPressed: () async {

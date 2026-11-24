@@ -33,10 +33,11 @@ BooruGroupCapability createSzurubooruGroupCapability(
       access: access,
       consumeMembers: (posts) async {
         final repo = ref.read(szurubooruPostRepoProvider(config.search));
-        if (repo is ForegroundPostConsumer<Post>)
+        if (repo is ForegroundPostConsumer<Post>) {
           await (repo as ForegroundPostConsumer<Post>).consumePreparedPosts(
             posts,
           );
+        }
       },
       fetchPool: (id) =>
           ref.read(szurubooruPoolRepoProvider(config.auth)).getPool(id),

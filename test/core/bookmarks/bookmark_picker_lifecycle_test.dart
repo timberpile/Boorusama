@@ -40,7 +40,7 @@ final _related = RelatedCollectionBookmark(
   localId: poolGroupB,
   createdAt: DateTime.utc(2026),
   observedAt: DateTime.utc(2026),
-  groupIds: {},
+  groupIds: const {},
 );
 
 BookmarkPickerRequest _request(String kind) => kind == 'Related'
@@ -265,7 +265,7 @@ _mount(
     overrides: [
       bookmarkProvider.overrideWith(() => library),
       booruConfigProvider.overrideWith(() => profiles),
-      recentBookmarkGroupsProvider.overrideWith((ref) async => []),
+      recentBookmarkGroupsProvider.overrideWith((ref) => Future.sync(() => [])),
       poolBookmarkDraftProvider.overrideWith((ref, request) => gate.future),
       relatedBookmarkDraftProvider.overrideWith((ref, request) => gate.future),
     ],
@@ -317,7 +317,7 @@ _mount(
 }
 
 Future<void> _finish(WidgetTester tester) async {
-  dismissAllToast(showAnim: false);
+  dismissAllToast();
   await tester.pump(const Duration(seconds: 6));
   expect(tester.takeException(), isNull);
 }
@@ -339,9 +339,9 @@ class _Library extends BookmarkLibraryNotifier {
   final toggles = <CollectionBookmark>[];
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
-    bookmarks: [],
+    bookmarks: const [],
     groups: [
-      BookmarkGroup(id: poolGroupA, name: 'Destination', bookmarkIds: {}),
+      BookmarkGroup(id: poolGroupA, name: 'Destination', bookmarkIds: const {}),
     ],
   );
   @override
@@ -375,7 +375,7 @@ class _Library extends BookmarkLibraryNotifier {
       group: BookmarkGroup(
         id: poolGroupB,
         name: name,
-        bookmarkIds: {},
+        bookmarkIds: const {},
         parentGroupId: parent,
       ),
       addedCount: posts.length + pools.length,

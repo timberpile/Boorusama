@@ -45,7 +45,7 @@ class BookmarkGroupNameDialog extends StatefulWidget {
 class _BookmarkGroupNameDialogState extends State<BookmarkGroupNameDialog> {
   late final _controller = TextEditingController(text: widget.initialName);
   var _saving = false;
-  bool get _active => mounted && (ModalRoute.of(context)?.isCurrent ?? false);
+  bool get _isCurrent => ModalRoute.of(context)?.isCurrent ?? false;
   @override
   void dispose() {
     _controller.dispose();
@@ -54,17 +54,18 @@ class _BookmarkGroupNameDialogState extends State<BookmarkGroupNameDialog> {
 
   Future<void> _save() async {
     final name = _controller.text.trim();
-    if (_saving || name.isEmpty || !_active) return;
+    if (_saving || name.isEmpty || !mounted || !_isCurrent) return;
     setState(() => _saving = true);
     try {
       await widget.onSave?.call(name);
-      if (_active) Navigator.pop(context, name);
+      if (mounted && _isCurrent) Navigator.pop(context, name);
     } catch (_) {
-      if (_active)
+      if (mounted && _isCurrent) {
         Kurumi.showErrorToast(
           context,
           context.t.bookmark.groups.operation_failed,
         );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

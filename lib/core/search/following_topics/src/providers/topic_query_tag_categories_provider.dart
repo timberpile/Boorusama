@@ -40,7 +40,6 @@ final topicQueryTagCategoriesProvider = FutureProvider.autoDispose
       if (disposed) return const {};
       ref.cacheFor(const Duration(minutes: 5));
       return {
-        for (final name in names)
-          if (cached[name.toLowerCase()] case final category?) name: category,
+        for (final name in names) name: ?cached[name.toLowerCase()],
       };
     });

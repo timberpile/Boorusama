@@ -47,7 +47,7 @@ void main() {
             builder: (context) => MediaQuery(
               data: MediaQuery.of(
                 context,
-              ).copyWith(textScaler: TextScaler.linear(2)),
+              ).copyWith(textScaler: const TextScaler.linear(2)),
               child: const FollowingTopicsPage(),
             ),
           ),
@@ -108,7 +108,6 @@ void main() {
             id: 'z',
             name: 'Zebra',
             query: 'zebra',
-            position: 0,
             unreadCount: 0,
           ),
           topicFixture(
@@ -122,7 +121,11 @@ void main() {
         await harness.repository.replaceOrganization(
           TopicOrganization(
             folders: [
-              TopicFolder(id: 'root', name: 'Root', searchIds: ['z', 'a']),
+              TopicFolder(
+                id: 'root',
+                name: 'Root',
+                searchIds: const ['z', 'a'],
+              ),
               TopicFolder(id: 'child-z', name: 'Z child', parentId: 'root'),
               TopicFolder(
                 id: 'child-a',

@@ -29,8 +29,9 @@ final class BookmarkReadProjection {
       final owner = state.mirrors.owners[id];
       if (owner == null ||
           owner.publisher != publisher ||
-          owner.reading.isEmpty)
+          owner.reading.isEmpty) {
         continue;
+      }
       final reading = SyncGroupReadingState.fromJson(owner.reading);
       final unread = reading.unreadMembers;
       for (final recordId in state.groupsById[id]?.bookmarkIds ?? <int>{}) {

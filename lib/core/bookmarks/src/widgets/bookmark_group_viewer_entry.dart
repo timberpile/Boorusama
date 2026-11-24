@@ -41,8 +41,9 @@ ViewerEntry groupViewerEntryForBookmark(
       ref
               .read(anonymousSourcePolicyProvider)
               .resolve(reference.engine, reference.site) ==
-          null)
+          null) {
     binding = null;
+  }
   return GroupViewerEntry(
     summary: pool.loadedDetails?.summary.reference == reference
         ? pool.loadedDetails!.summary

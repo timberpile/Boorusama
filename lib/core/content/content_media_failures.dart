@@ -30,8 +30,9 @@ void reportContentMediaOutcome(
                 ?.container !=
             container ||
         container.read(currentContentAccessKeyProvider) != key ||
-        container.read(currentContentBookmarkIdProvider) != id)
+        container.read(currentContentBookmarkIdProvider) != id) {
       return;
+    }
     container
         .read(contentMediaFailuresProvider.notifier)
         .record(
@@ -136,19 +137,21 @@ class _ContentMediaOutcomeState extends State<ContentMediaOutcome> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.failed != widget.failed ||
         oldWidget.reason != widget.reason ||
-        oldWidget.video != widget.video)
+        oldWidget.video != widget.video) {
       _report();
+    }
   }
 
   void _report() {
     final failed = widget.failed;
-    if (failed != null)
+    if (failed != null) {
       reportContentMediaOutcome(
         context,
         failed: failed,
         reason: widget.reason,
         video: widget.video,
       );
+    }
   }
 
   @override

@@ -66,9 +66,9 @@ void main() {
     next(offset: '0'),
     next(offset: '-1'),
     next(offset: 'x'),
-    next() + '&offset=60',
+    '${next()}&offset=60',
     next().replaceFirst('https:', 'http:'),
-    next() + '#fragment',
+    '${next()}#fragment',
   ]) {
     test('rejects invalid or non-advancing continuation $url', () {
       expect(

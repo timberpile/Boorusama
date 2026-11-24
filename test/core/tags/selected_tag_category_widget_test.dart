@@ -15,6 +15,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/legacy_material_test_scope.dart';
+
 void main() {
   for (final brightness in Brightness.values) {
     for (final harmonize in [false, true]) {
@@ -36,7 +38,7 @@ void main() {
               overrides: [booruChipColorsProvider.overrideWithValue(palette)],
               child: MaterialApp(
                 theme: ThemeData(colorScheme: scheme),
-                builder: (context, child) => MaterialUiCompatibilityBridge(
+                builder: (context, child) => LegacyMaterialTestScope(
                   child: KurumiTheme(
                     data: KurumiThemeData.fromMaterial(Theme.of(context)),
                     child: child!,
@@ -160,10 +162,12 @@ void main() {
       final lookups = <(BooruConfigAuth, String)>[];
       final container = ProviderContainer(
         overrides: [
-          booruTagTypeProvider.overrideWith((ref, key) async {
-            lookups.add(key);
-            return 'artist';
-          }),
+          booruTagTypeProvider.overrideWith(
+            (ref, key) => Future.sync(() {
+              lookups.add(key);
+              return 'artist';
+            }),
+          ),
           tagColorProvider.overrideWith(
             (ref, key) => key.$1 == first ? Colors.red : Colors.blue,
           ),
@@ -182,7 +186,7 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp(
-              builder: (context, child) => MaterialUiCompatibilityBridge(
+              builder: (context, child) => LegacyMaterialTestScope(
                 child: KurumiTheme(
                   data: KurumiThemeData.fromMaterial(Theme.of(context)),
                   child: child!,
@@ -252,10 +256,12 @@ void main() {
     testWidgets('missing/failing cache stays neutral ($fail)', (tester) async {
       final container = ProviderContainer(
         overrides: [
-          booruTagTypeProvider.overrideWith((ref, _) async {
-            if (fail) throw StateError('cache unavailable');
-            return null;
-          }),
+          booruTagTypeProvider.overrideWith(
+            (ref, _) => Future.sync(() {
+              if (fail) throw StateError('cache unavailable');
+              return null;
+            }),
+          ),
           tagColorProvider.overrideWith(
             (ref, _) => throw StateError('no category to color'),
           ),
@@ -266,7 +272,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
-            builder: (context, child) => MaterialUiCompatibilityBridge(
+            builder: (context, child) => LegacyMaterialTestScope(
               child: KurumiTheme(
                 data: KurumiThemeData.fromMaterial(Theme.of(context)),
                 child: child!,

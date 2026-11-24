@@ -130,10 +130,12 @@ void main() {
       'unified-library-service-',
     );
     Hive.init(directory.path);
-    if (!Hive.isAdapterRegistered(4))
+    if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(5))
+    }
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    }
     await openBoxes();
     final firstCreated = DateTime.utc(2010, 4, 5);
     final defaultCreated = DateTime.utc(2011, 6, 7);
@@ -704,7 +706,7 @@ void main() {
         .single;
     final groupADates = before.groupsById[poolGroupA]!.addedAt;
     final groupBDates = before.groupsById[poolGroupB]!.addedAt;
-    final description = const GroupDescription(
+    const description = GroupDescription(
       text: 'Cached details',
       format: GroupTextFormat.plainText,
     );

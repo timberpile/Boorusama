@@ -43,12 +43,15 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('following_mirror_');
     Hive.init(root.path);
-    if (!Hive.isAdapterRegistered(6))
+    if (!Hive.isAdapterRegistered(6)) {
       Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(7))
+    }
+    if (!Hive.isAdapterRegistered(7)) {
       Hive.registerAdapter(SearchPostPreviewHiveObjectAdapter());
-    if (!Hive.isAdapterRegistered(8))
+    }
+    if (!Hive.isAdapterRegistered(8)) {
       Hive.registerAdapter(RecentSearchPostHiveObjectAdapter());
+    }
     await open();
   });
   tearDown(() async {
@@ -117,7 +120,6 @@ void main() {
         const FolderPlacement(
           itemId: localTopic,
           folderId: localFolder,
-          position: 0,
         ),
       ],
     );
@@ -131,10 +133,10 @@ void main() {
           localFolder: owner(sourceFolder, FollowingMirrorKind.folder),
         },
         checkpoints: before.mirrors.checkpoints,
-        subscriptions: {
+        subscriptions: const {
           publisher: {sourceFolder},
         },
-        publisherNames: {publisher: 'Source device'},
+        publisherNames: const {publisher: 'Source device'},
       ),
       topics: [topic],
       organization: organization,
@@ -150,12 +152,14 @@ void main() {
     await receive();
     final before = await repository.readMirrorSnapshot();
     for (final operation in <Future<void> Function()>[
-      () async => repository.rename(localTopic, 'Renamed'),
-      () async => repository.edit(
-        localTopic,
-        profileId: profile,
-        query: 'wolf',
-        name: 'Changed',
+      () => Future.sync(() => repository.rename(localTopic, 'Renamed')),
+      () => Future.sync(
+        () => repository.edit(
+          localTopic,
+          profileId: profile,
+          query: 'wolf',
+          name: 'Changed',
+        ),
       ),
       () => repository.delete(localTopic),
       () => repository.deleteSharedFolderAndTopics(localFolder),
@@ -171,17 +175,19 @@ void main() {
           placements: [
             for (final p in before.organization.placements)
               p.itemId == localTopic
-                  ? const FolderPlacement(itemId: localTopic, position: 0)
+                  ? const FolderPlacement(itemId: localTopic)
                   : p,
           ],
         ),
       ),
-      () async => repository.saveTopicInNewFolder(
-        profileId: profile,
-        query: 'dog',
-        name: 'Local',
-        folderName: 'Mixed',
-        parentFolderId: localFolder,
+      () => Future.sync(
+        () => repository.saveTopicInNewFolder(
+          profileId: profile,
+          query: 'dog',
+          name: 'Local',
+          folderName: 'Mixed',
+          parentFolderId: localFolder,
+        ),
       ),
       () => repository.restoreForProfile(
         profile,
@@ -196,7 +202,6 @@ void main() {
       SearchRefreshCommit(
         topicId: localTopic,
         expectedCreatedAt: created,
-        expectedRevision: 0,
         expectedCheckpoint: null,
         startedAt: created.add(const Duration(hours: 1)),
         baseline: true,
@@ -330,7 +335,7 @@ void main() {
     expect((await repository.getById(importedId))!.query, 'cat');
     expect(await repository.getById(localTopic), remote);
     await importer.replace(
-      FollowingTopicBackupData(records: const []),
+      const FollowingTopicBackupData(records: []),
       profiles: [config],
     );
     expect(await repository.getById(importedId), isNull);
@@ -388,7 +393,7 @@ void main() {
           epoch: before.mirrors.epoch + 1,
           owners: owners,
           checkpoints: before.mirrors.checkpoints,
-          subscriptions: {
+          subscriptions: const {
             publisher: {sourceFolder, otherSource},
           },
         ),
@@ -479,7 +484,7 @@ void main() {
 class _InterruptedStorage extends IoFileSystem {
   _InterruptedStorage(this.applied);
   final bool Function() applied;
-  bool interrupted = false;
+  var interrupted = false;
   @override
   Future<void> syncFile(String path) async {
     if (!interrupted && applied() && path.endsWith('topics.hive')) {

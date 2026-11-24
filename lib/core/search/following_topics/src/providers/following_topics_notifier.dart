@@ -118,7 +118,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   var _disposed = false;
   List<TopicFeed> _feeds = const [];
   var _organization = TopicOrganization(folders: const []);
-  FollowingMirrorState _mirrors = const FollowingMirrorState.empty();
+  var _mirrors = const FollowingMirrorState.empty();
 
   @override
   Future<FollowingTopicsState> build() async {
@@ -769,8 +769,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     int newIndex,
   ) => _mutate((repository) async {
     final organization = await repository.getOrganization();
-    if (folderId != null && _mirrors.isReceived(folderId))
+    if (folderId != null && _mirrors.isReceived(folderId)) {
       throw const FollowingMirrorReadOnly();
+    }
     final ids =
         (folderId == null
                 ? organization.homeSearchIds.toList()
@@ -852,8 +853,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     String? parentId,
   }) => _mutate((repository) async {
     final organization = await repository.getOrganization();
-    if (parentId != null && _mirrors.isReceived(parentId))
+    if (parentId != null && _mirrors.isReceived(parentId)) {
       throw const FollowingMirrorReadOnly();
+    }
     final siblings = organization.tree
         .children(parentId)
         .where((f) => !_mirrors.isReceived(f.id));
@@ -1629,7 +1631,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       state = AsyncData(
         _snapshot([
           for (final topic in current.topics)
-            if (topic.id != id) topic else if (stored != null) stored,
+            if (topic.id != id) topic else ?stored,
         ]),
       );
     });
@@ -1835,12 +1837,14 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     FollowingTopicRepository repository,
     TopicOrganization next,
   ) async {
-    if (repository is! FollowingMirrorStore)
+    if (repository is! FollowingMirrorStore) {
       return repository.replaceOrganization(next);
+    }
     final snapshot = await (repository as FollowingMirrorStore)
         .readMirrorSnapshot();
-    if (snapshot.mirrors.owners.isEmpty)
+    if (snapshot.mirrors.owners.isEmpty) {
       return repository.replaceOrganization(next);
+    }
     final folders = {for (final f in snapshot.organization.folders) f.id: f};
     final placements = {
       for (final p in snapshot.organization.placements) p.itemId: p,
@@ -1855,15 +1859,17 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             old.name != proposed.name ||
             old.parentId != proposed.parentId ||
             old.feedEnabled != proposed.feedEnabled ||
-            old.feedMaxPosts != proposed.feedMaxPosts)
+            old.feedMaxPosts != proposed.feedMaxPosts) {
           throw const FollowingMirrorReadOnly();
+        }
       } else {
         final proposed = next.placements
             .where((p) => p.itemId == entry.key)
             .firstOrNull;
         if (proposed == null ||
-            placements[entry.key]!.folderId != proposed.folderId)
+            placements[entry.key]!.folderId != proposed.folderId) {
           throw const FollowingMirrorReadOnly();
+        }
       }
     }
     // Local builders compact their own sibling lists. Received definitions keep

@@ -46,7 +46,6 @@ import '../providers/bookmark_profile_availability.dart';
 import '../services/bookmark_series_projection.dart';
 import 'bookmark_pool_card.dart';
 import 'bookmark_native_group_card.dart';
-import '../types/content_group_bookmark.dart';
 import '../types/bookmark_record_fields.dart';
 import '../../../posts/listing/widgets.dart';
 import '../../../posts/post/types.dart';
@@ -104,8 +103,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   var _seenFilter = BookmarkSeenFilter.all;
   BookmarkReadProjection? _reading;
   Object? _unavailableInputs;
-  BookmarkUnavailableSummary _unavailableSummary =
-      const BookmarkUnavailableSummary();
+  var _unavailableSummary = const BookmarkUnavailableSummary();
   Map<int, PostPresentationFallbackReason> _activeUnavailableFailures =
       const {};
 
@@ -323,8 +321,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 previous?.valueOrNull,
                 next.valueOrNull,
                 widget.view,
-              ))
+              )) {
                 return;
+              }
               if (_refreshGate.onLibraryChanged()) {
                 _scheduleRefresh(controller);
               }
@@ -367,8 +366,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                         miteMiteServiceProvider.future,
                       );
                       if (!context.mounted ||
-                          !isCurrentSyncService(context, service))
+                          !isCurrentSyncService(context, service)) {
                         return;
+                      }
                       await service.markReadTargets(targets);
                       if (mounted) _selectionModeController.disable();
                     }),
@@ -503,13 +503,15 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         ContentGroupBookmark() => nativeBookmarkGroupOrigin(record),
         _ => null,
       };
-      if (origin == null || availability.unavailableReasons.containsKey(id))
+      if (origin == null || availability.unavailableReasons.containsKey(id)) {
         continue;
+      }
       if (ref
               .watch(bookmarkReadAccessProvider(BookmarkReaderRequest(origin)))
               ?.key !=
-          failure.key.access)
+          failure.key.access) {
         continue;
+      }
       activeFailures.putIfAbsent(id, () => failure.value);
     }
     final tags = widget.searchController.text;
@@ -667,7 +669,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           final native = item is BookmarkNativeGroupEntry
               ? item.bookmark
               : null;
-          final Widget child = native != null
+          final child = native != null
               ? BookmarkNativeGroupCard(
                   bookmark: native,
                   index: index,
@@ -677,8 +679,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   onOpen: () {
                     if (_hasUnavailableEntries(
                       ref.read(bookmarkReadProfilesProvider),
-                    ))
+                    )) {
                       return;
+                    }
                     _endLocalGroupSelection();
                     goToBookmarkDetailsPage(
                       ref,
@@ -774,8 +777,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   }
 
   Map<Object, BookmarkReadTarget> _viewerReadingTargets() => Map.unmodifiable({
-    for (final entry in _entries)
-      if (_reading?.target(entry) case final target?) entry.key: target,
+    for (final entry in _entries) entry.key: ?_reading?.target(entry),
   });
 
   Widget _buildItem(
