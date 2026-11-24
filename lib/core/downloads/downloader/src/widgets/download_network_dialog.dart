@@ -10,13 +10,36 @@ import '../types/download_network_policy.dart';
 Future<DownloadNetworkPromptResult?> showDownloadNetworkDialog(
   BuildContext context, {
   required bool wifiDownloadConstraintSupported,
-}) {
-  return showDialog<DownloadNetworkPromptResult>(
+}) async {
+  final promptOwner = Object();
+  PopupRoute<dynamic>? promptRoute;
+  final result = await showDialog<DownloadNetworkPromptResult>(
     context: context,
-    builder: (_) => DownloadNetworkDialog(
-      wifiDownloadConstraintSupported: wifiDownloadConstraintSupported,
+    routeSettings: RouteSettings(
+      name: 'download-network-prompt',
+      arguments: promptOwner,
     ),
+    builder: (context) {
+      final route = ModalRoute.of(context);
+      // Native window presenters may expose an unrelated inner page route.
+      if (route is PopupRoute &&
+          identical(route.settings.arguments, promptOwner)) {
+        promptRoute = route;
+      }
+      return DownloadNetworkDialog(
+        wifiDownloadConstraintSupported: wifiDownloadConstraintSupported,
+      );
+    },
   );
+  // A pop result precedes popup disposal and the deferred activity rebuild.
+  // Resume the caller only after the surface handoff; it still checks its actor.
+  if (promptRoute case final route?) await route.completed;
+  await WidgetsBinding.instance.endOfFrame;
+  if (promptRoute == null) {
+    // Native windows have no owned PopupRoute animation to advance that rebuild.
+    await WidgetsBinding.instance.endOfFrame;
+  }
+  return result;
 }
 
 class DownloadNetworkDialog extends StatefulWidget {

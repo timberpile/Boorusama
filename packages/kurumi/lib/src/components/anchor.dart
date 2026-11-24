@@ -49,10 +49,11 @@ class KurumiAnchor extends StatefulWidget {
 }
 
 class _KurumiAnchorState extends State<KurumiAnchor>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _animationController;
   final _overlayScope = FocusScopeNode(debugLabel: 'KurumiAnchorOverlay');
   FocusNode? _opener;
+  var _recalculationScheduled = false;
 
   @override
   void initState() {
@@ -65,6 +66,7 @@ class _KurumiAnchorState extends State<KurumiAnchor>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animationController.dispose();
     _overlayScope.dispose();
     super.dispose();
@@ -72,6 +74,11 @@ class _KurumiAnchorState extends State<KurumiAnchor>
 
   void _handleShowRequested(VoidCallback showOverlay) {
     _opener = FocusManager.instance.primaryFocus;
+    if (widget.constrainToViewport) {
+      WidgetsBinding.instance
+        ..removeObserver(this)
+        ..addObserver(this);
+    }
     showOverlay();
     _animationController.forward();
     // Autofocus, like a selected option's, applies in a microtask after the
@@ -86,6 +93,7 @@ class _KurumiAnchorState extends State<KurumiAnchor>
   }
 
   void _handleHideRequested(VoidCallback hideOverlay) {
+    WidgetsBinding.instance.removeObserver(this);
     final opener = _opener;
     _opener = null;
     // Only when the menu still holds focus, so a route opened from a menu
@@ -101,8 +109,24 @@ class _KurumiAnchorState extends State<KurumiAnchor>
   }
 
   @override
+  void didChangeMetrics() {
+    if (!mounted || _recalculationScheduled) return;
+    _recalculationScheduled = true;
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _recalculationScheduled = false;
+      if (mounted && widget.controller.isShowing) {
+        widget.controller.recalculate();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDesktop = kurumiIsDesktopPlatform();
+    final viewPadding =
+        widget.viewPadding ?? EdgeInsets.all(isDesktop ? 4 : 12);
+    final view = View.of(context);
 
     return ListenableBuilder(
       listenable: widget.controller,
@@ -115,14 +139,17 @@ class _KurumiAnchorState extends State<KurumiAnchor>
         controller: widget.controller,
         placement: widget.placement,
         middlewares: [
+          if (widget.constrainToViewport)
+            _KeyboardInsetMiddleware(
+              view.viewInsets.bottom / view.devicePixelRatio +
+                  viewPadding.bottom,
+            ),
           OffsetMiddleware(mainAxis: OffsetValue.value(widget.spacing ?? 4)),
           const FlipMiddleware(),
           const ShiftMiddleware(),
           if (widget.constrainToViewport) const _ViewportFitMiddleware(),
         ],
-        viewPadding:
-            widget.viewPadding ??
-            (isDesktop ? const EdgeInsets.all(4) : const EdgeInsets.all(12)),
+        viewPadding: viewPadding,
         onShowRequested: _handleShowRequested,
         onHideRequested: _handleHideRequested,
         backdropBuilder: (context) => FadeTransition(
@@ -177,6 +204,35 @@ class _KurumiAnchorState extends State<KurumiAnchor>
       ),
     };
   }
+}
+
+class _KeyboardInsetMiddleware implements PositioningMiddleware<Object?> {
+  const _KeyboardInsetMiddleware(this.bottom);
+
+  final double bottom;
+
+  @override
+  (PositionState, Object?) run(PositionState state) {
+    final config = state.config;
+    // Use RawAnchor's overlay insets when they already include the keyboard.
+    // The opener's MediaQuery may differ from the overlay's MediaQuery.
+    if (config.padding.bottom >= bottom) return (state, null);
+    return (
+      state.copyWith(
+        config: config.copyWith(
+          padding: config.padding.copyWith(bottom: bottom),
+        ),
+      ),
+      null,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _KeyboardInsetMiddleware && other.bottom == bottom;
+
+  @override
+  int get hashCode => bottom.hashCode;
 }
 
 /// Flip/Shift alone cannot keep a tall vertical popup inside both vertical

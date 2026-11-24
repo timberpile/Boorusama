@@ -110,7 +110,7 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
               : button),
     );
 
-    return KurumiAnchor(
+    final anchor = KurumiAnchor(
       controller: _controller,
       constrainToViewport: true,
       overlayBuilder: (context) => Container(
@@ -135,6 +135,9 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
         null => trigger,
       },
     );
+    // An enclosing Tooltip has its own OverlayPortal. Give the anchor a
+    // separate traversal boundary so the popup keeps its semantic actions.
+    return Semantics(container: true, explicitChildNodes: true, child: anchor);
   }
 }
 
@@ -144,7 +147,12 @@ BoxConstraints popupMenuViewportConstraints(
 }) {
   final media = MediaQuery.of(context);
   final margin = kurumiIsDesktopPlatform() ? 4.0 : 12.0;
-  final bottom = max(media.padding.bottom, media.viewInsets.bottom);
+  final view = View.of(context);
+  final keyboard = max(
+    media.viewInsets.bottom,
+    view.viewInsets.bottom / view.devicePixelRatio,
+  );
+  final bottom = max(media.padding.bottom, keyboard);
   return BoxConstraints(
     maxWidth: min(
       max(0.0, media.size.width - media.padding.horizontal - margin * 2),

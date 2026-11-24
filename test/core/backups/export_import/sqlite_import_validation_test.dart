@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/sources/sqlite_source.dart';
+import 'package:boorusama/core/bulk_downloads/providers.dart';
+import 'package:boorusama/core/bulk_downloads/src/data/repo_empty.dart';
 import 'package:boorusama/core/bulk_downloads/src/data/repo_sqlite.dart';
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/core/search/histories/src/data/repo_sqlite.dart';
@@ -29,6 +31,11 @@ void main() {
     container = ProviderContainer(
       overrides: [
         appFileSystemProvider.overrideWithValue(_FileSystem(root.path)),
+        // The tests reopen the imported SQLite file directly. A background
+        // repository open after import must not outlive that fixture.
+        internalDownloadRepositoryProvider.overrideWith(
+          (_) => DownloadRepositoryEmpty(),
+        ),
         loggerProvider.overrideWithValue(AppLogger()),
         deviceInfoProvider.overrideWithValue(const DeviceInfo()),
       ],

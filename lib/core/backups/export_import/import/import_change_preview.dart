@@ -50,15 +50,39 @@ List<ImportChangeDetail> importQueryChanges(
   List<String> before,
   List<String> after,
 ) {
-  final removed = List.of(before);
-  final added = <String>[];
-  for (final query in after) {
-    if (!removed.remove(query)) added.add(query);
+  Map<String, int> frequencies(List<String> queries) {
+    final counts = <String, int>{};
+    for (final query in queries) {
+      counts.update(query, (count) => count + 1, ifAbsent: () => 1);
+    }
+    return counts;
   }
-  final oldCommon = List.of(before);
-  final newCommon = List.of(after);
-  removed.forEach(oldCommon.remove);
-  added.forEach(newCommon.remove);
+
+  List<String> withoutFirstOccurrences(
+    List<String> queries,
+    Map<String, int> omitted,
+  ) {
+    final remaining = Map.of(omitted);
+    final retained = <String>[];
+    for (final query in queries) {
+      final count = remaining[query] ?? 0;
+      if (count == 0) {
+        retained.add(query);
+      } else {
+        remaining[query] = count - 1;
+      }
+    }
+    return retained;
+  }
+
+  final oldCounts = frequencies(before);
+  final newCounts = frequencies(after);
+  final removed = withoutFirstOccurrences(before, newCounts);
+  final added = withoutFirstOccurrences(after, oldCounts);
+  // List.remove consumed the first surplus occurrences when deriving retained
+  // order. Keep that duplicate behavior without repeated scans or list shifts.
+  final oldCommon = withoutFirstOccurrences(before, frequencies(removed));
+  final newCommon = withoutFirstOccurrences(after, frequencies(added));
   return [
     for (final query in removed)
       ImportChangeDetail(
