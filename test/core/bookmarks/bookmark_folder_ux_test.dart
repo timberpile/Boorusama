@@ -43,6 +43,7 @@ import 'package:boorusama/core/images/providers.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/material.dart' as legacy;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -53,6 +54,58 @@ import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
+  testWidgets('folder grid keeps its children on scroll and adapts to width', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _Library(
+        _state(
+          groups: [
+            for (var index = 0; index < 16; index++)
+              _group('grid-$index', 'Folder $index'),
+          ],
+        ),
+      ),
+      size: const Size(499, 700),
+    );
+    final allCard = find.widgetWithText(BookmarkLocalGroupCard, 'All');
+    final initialCard = tester.widget<BookmarkLocalGroupCard>(allCard);
+    final initialTop = tester.getTopLeft(allCard).dy;
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(32);
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(allCard).dy, closeTo(initialTop - 32, .01));
+    expect(tester.widget<BookmarkLocalGroupCard>(allCard), same(initialCard));
+
+    position.jumpTo(0);
+    for (final (width, columns) in [(499, 2), (500, 3), (849, 3), (850, 4)]) {
+      tester.view.physicalSize = Size(width.toDouble(), 700);
+      await tester.pumpAndSettle();
+      final expectedWidth = (width - 24 - 12 * (columns - 1)) / columns;
+      expect(tester.getSize(allCard).width, closeTo(expectedWidth, .01));
+    }
+  });
+
+  testWidgets('navigation cards check the selection modifier when tapped', (
+    tester,
+  ) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await _pump(tester, _Library(_state()));
+    final all = find.text('All');
+    await tester.tap(all);
+    await tester.pumpAndSettle();
+    expect(all, findsOneWidget);
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.tap(all);
+    await tester.pumpAndSettle();
+    expect(find.text('opened all'), findsOneWidget);
+  });
+
   testWidgets(
     'received device links expose only safe actions at narrow enlarged text',
     (tester) async {

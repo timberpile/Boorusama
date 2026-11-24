@@ -5,6 +5,8 @@ import '../../../backups/mitemite/collection_alias_ui.dart';
 import '../../../backups/mitemite/mitemite_icon.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/rendering.dart'
+    show SliverConstraints, SliverGridLayout;
 import 'package:flutter/services.dart';
 
 import 'dart:async';
@@ -547,98 +549,85 @@ class _BookmarkGroupBrowserPageState
       for (final group in children)
         (_groupLabel(state, group), BookmarkView.group(group.id), group),
     ];
-    return SliverLayoutBuilder(
-      builder: (context, constraints) => SliverPadding(
-        padding: const EdgeInsets.all(12),
-        sliver: SliverGrid.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: switch (constraints.crossAxisExtent) {
-              < 500 => 2,
-              < 850 => 3,
-              _ => 4,
-            },
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: cards.length,
-          itemBuilder: (context, index) {
-            final (title, view, group) = cards[index];
-            final previewView =
+    return SliverPadding(
+      padding: _BookmarkFolderGridDelegate.padding,
+      sliver: SliverGrid.builder(
+        gridDelegate: const _BookmarkFolderGridDelegate(),
+        itemCount: cards.length,
+        itemBuilder: (context, index) {
+          final (title, view, group) = cards[index];
+          final previewView =
+              group != null &&
+                  group.bookmarkIds.isEmpty &&
+                  state.groupTree.childrenOf(group.id).isNotEmpty
+              ? BookmarkView.subtree(group.id)
+              : view;
+          final availability = _previewInputs!.$2;
+          final previews = _previews.putIfAbsent(
+            previewView,
+            () => selectBookmarkMosaicEntries(
+              state: state,
+              view: previewView,
+              availablePostIds: availability?.postIds ?? const {},
+              availableCollectionIds: availability?.collectionIds ?? const {},
+              availableNativeGroupIds: availability?.nativeGroupIds ?? const {},
+            ),
+          );
+          final editable =
+              group != null &&
+              !group.isDefault &&
+              !state.mirrors.isReceived(group.id);
+          final card = BookmarkLocalGroupCard(
+            key: ValueKey(('bookmark-card', group?.id ?? 'all')),
+            title: title,
+            syncActions: group == null || _selection.isActive
+                ? const []
+                : _syncActions(state, group),
+            readOnly: group != null && state.mirrors.isReceived(group.id),
+            syncIndicator:
                 group != null &&
-                    group.bookmarkIds.isEmpty &&
-                    state.groupTree.childrenOf(group.id).isNotEmpty
-                ? BookmarkView.subtree(group.id)
-                : view;
-            final availability = _previewInputs!.$2;
-            final previews = _previews.putIfAbsent(
-              previewView,
-              () => selectBookmarkMosaicEntries(
-                state: state,
-                view: previewView,
-                availablePostIds: availability?.postIds ?? const {},
-                availableCollectionIds: availability?.collectionIds ?? const {},
-                availableNativeGroupIds:
-                    availability?.nativeGroupIds ?? const {},
-              ),
-            );
-            final editable =
-                group != null &&
-                !group.isDefault &&
-                !state.mirrors.isReceived(group.id);
-            final card = BookmarkLocalGroupCard(
-              key: ValueKey(('bookmark-card', group?.id ?? 'all')),
-              title: title,
-              syncActions: group == null || _selection.isActive
-                  ? const []
-                  : _syncActions(state, group),
-              readOnly: group != null && state.mirrors.isReceived(group.id),
-              syncIndicator:
-                  group != null &&
-                      isPublished(group) &&
-                      !state.mirrors.isReceived(group.id)
-                  ? Tooltip(
-                      message: context.t.mitemite.published,
-                      child: const MiteMiteIcon(color: Colors.white, size: 20),
-                    )
-                  : null,
-              unseenCount: group == null
-                  ? 0
-                  : syncBookmarkUnseenMembers(state, group.id).length,
-              mosaicCandidates: previews,
-              selected: group != null && selected.contains(group.id),
-              onTap:
-                  !editable && (_selection.isActive || selectionModifierPressed)
-                  ? null
-                  : () {
-                      if (editable &&
-                          (_selection.isActive || selectionModifierPressed)) {
-                        _select(group.id);
-                        return;
-                      }
-                      if (group == null) {
-                        goToBookmarkGroupPage(ref, view, title: title);
-                      } else {
-                        _open(group.id);
-                      }
-                    },
-              onSelect: editable && !_selection.isActive
-                  ? () => _select(group.id)
-                  : null,
-              onRename: editable ? () => _rename(group) : null,
-              onMove: editable ? () => _move({group.id}, id) : null,
-              onDuplicate: editable ? () => _duplicate([group]) : null,
-              onDelete: editable ? () => _delete({group.id}) : null,
-            );
-            return !editable
-                ? card
-                : CollectionSelectable(
-                    key: ValueKey(group.id),
-                    controller: _selection,
-                    itemKey: (CollectionSelectionKind.group, group.id),
-                    child: card,
-                  );
-          },
-        ),
+                    isPublished(group) &&
+                    !state.mirrors.isReceived(group.id)
+                ? Tooltip(
+                    message: context.t.mitemite.published,
+                    child: const MiteMiteIcon(color: Colors.white, size: 20),
+                  )
+                : null,
+            unseenCount: group == null
+                ? 0
+                : syncBookmarkUnseenMembers(state, group.id).length,
+            mosaicCandidates: previews,
+            selected: group != null && selected.contains(group.id),
+            onTap: !editable && _selection.isActive
+                ? null
+                : () {
+                    if (_selection.isActive || selectionModifierPressed) {
+                      if (editable) _select(group.id);
+                      return;
+                    }
+                    if (group == null) {
+                      goToBookmarkGroupPage(ref, view, title: title);
+                    } else {
+                      _open(group.id);
+                    }
+                  },
+            onSelect: editable && !_selection.isActive
+                ? () => _select(group.id)
+                : null,
+            onRename: editable ? () => _rename(group) : null,
+            onMove: editable ? () => _move({group.id}, id) : null,
+            onDuplicate: editable ? () => _duplicate([group]) : null,
+            onDelete: editable ? () => _delete({group.id}) : null,
+          );
+          return !editable
+              ? card
+              : CollectionSelectable(
+                  key: ValueKey(group.id),
+                  controller: _selection,
+                  itemKey: (CollectionSelectionKind.group, group.id),
+                  child: card,
+                );
+        },
       ),
     );
   }
@@ -961,4 +950,28 @@ class _BookmarkGroupBrowserPageState
         );
     }
   }
+}
+
+class _BookmarkFolderGridDelegate extends SliverGridDelegate {
+  const _BookmarkFolderGridDelegate();
+
+  static const padding = EdgeInsets.all(12);
+
+  @override
+  SliverGridLayout getLayout(SliverConstraints constraints) {
+    // Use the viewport width before padding to keep the existing breakpoints.
+    final viewportWidth = constraints.crossAxisExtent + padding.horizontal;
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: switch (viewportWidth) {
+        < 500 => 2,
+        < 850 => 3,
+        _ => 4,
+      },
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+    ).getLayout(constraints);
+  }
+
+  @override
+  bool shouldRelayout(_BookmarkFolderGridDelegate oldDelegate) => false;
 }
