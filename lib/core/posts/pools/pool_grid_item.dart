@@ -6,6 +6,8 @@ import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../listing/src/widgets/grid_card_title.dart';
+
 enum PoolGridItemKind { series, collection, related }
 
 extension on PoolGridItemKind {
@@ -126,15 +128,7 @@ class PoolGridItem extends ConsumerWidget {
                 ),
               ),
               if (name case final name? when name.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    name.replaceAll('_', ' '),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+                GridCardTitle(name),
             ],
           ),
           PositionedDirectional(

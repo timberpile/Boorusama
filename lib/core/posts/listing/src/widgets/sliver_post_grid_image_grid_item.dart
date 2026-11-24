@@ -108,7 +108,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
           ImageGridItem(
             leadingIcons: leadingIcons,
             borderRadius: BorderRadius.circular(imageBorderRadius),
-            isGif: post.isGif,
+            isGif: post.showsGifBadge,
             isAI: post.isAI,
             hideOverlay: hideOverlay,
             quickActionButton: quickActionButton,

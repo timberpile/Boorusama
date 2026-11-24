@@ -57,11 +57,15 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
     this.onDisplayed,
     this.onImageUnavailable,
     this.placeholderMediaBuilder,
+    this.detailsImageBuilder,
+    this.presentationConfig,
     this.allowOriginalImage = true,
     super.key,
   });
 
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
+  final PostDetailsImageBuilder? detailsImageBuilder;
+  final BooruConfig? presentationConfig;
   final bool allowOriginalImage;
   final Size? contentSize;
   final ValueChanged<Size>? onImageSize;
@@ -537,6 +541,8 @@ class _PostDetailsItemState<T extends Post>
                                 : null),
                         controller: pageViewController,
                         isPageSettled: _isPageSettled,
+                        detailsImageBuilder: widget.detailsImageBuilder,
+                        presentationConfig: widget.presentationConfig,
                       );
                     },
                   );

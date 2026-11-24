@@ -5,6 +5,8 @@ import 'package:boorusama/core/posts/listing/src/widgets/sliver_post_grid_image_
 import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
 import 'package:boorusama/core/posts/details/src/widgets/group_reading_controls.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/media_preload/providers.dart';
+import 'package:boorusama/core/posts/media_preload/types.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_item.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid.dart';
 import 'package:boorusama/core/posts/details/src/providers/group_reading_provider.dart';
@@ -56,6 +58,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart' as flutter show RawImage;
 import 'package:flutter/services.dart'
     show
         FontLoader,
@@ -91,6 +94,13 @@ import 'package:boorusama/boorus/e621/e621_builder.dart';
 import 'package:boorusama/boorus/e621/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/pixiv_builder.dart';
+import 'package:boorusama/boorus/pixiv/ugoira/ugoira_archive.dart';
+import 'package:boorusama/boorus/pixiv/ugoira/ugoira_frames.dart';
+import 'package:boorusama/boorus/pixiv/ugoira/ugoira_player.dart';
+import 'package:boorusama/boorus/pixiv/ugoira/ugoira_preparation.dart';
+import 'package:boorusama/boorus/pixiv/ugoira/ugoira_source.dart';
+import 'package:boorusama/foundation/utils/file_utils.dart'
+    show clearImageCache;
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
@@ -155,6 +165,189 @@ import '../../../support/fakes/memory_repositories.dart'
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  for (final preparedBeforeSwipe in [true, false]) {
+    testWidgets(
+      'adjacent Ugoira shares preparation across the swipe ($preparedBeforeSwipe)',
+      (tester) async {
+        _mobileViewport(tester);
+        final config = _configs[2];
+        final access = ContentAccessContext.profile(
+          config: config,
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final posts = [
+          pixivWorkPagePosts(works.work(id: 120, pageCount: 1), access).single,
+          pixivWorkPagePosts(
+            works.work(id: 121, pageCount: 1, type: 'ugoira'),
+            access,
+          ).single,
+        ];
+        final loads = <int>[];
+        final preparation = Completer<PreparedPixivUgoira>();
+        late ValueChanged<double?> reportProgress;
+        var networkAllowed = true;
+        final harness = _Harness(
+          posts: const [],
+          entries: [
+            for (final post in posts)
+              PostViewerEntry(
+                post: post,
+                occurrenceId: post.id,
+                source: ViewerSourceBinding(config),
+              ),
+          ],
+          overrides: [
+            contentPreloadManagerProvider.overrideWith((ref, _) {
+              final manager = PreloadManager(
+                preloader: (_, _) => Future.value(),
+              );
+              ref.onDispose(manager.dispose);
+              return manager;
+            }),
+            pixivUgoiraLoaderProvider.overrideWith((ref, key) {
+              expect(key.profileId, config.id);
+              return (id, _, onDownloadProgress) {
+                loads.add(id);
+                if (!networkAllowed) {
+                  return Future.error(StateError('No network'));
+                }
+                reportProgress = onDownloadProgress;
+                return preparation.future;
+              };
+            }),
+          ],
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.pump();
+          final pager = _pageViewController(tester);
+          expect(pager.page, 0);
+          expect(loads, [121]);
+          reportProgress(0.25);
+
+          void finishPreparation() {
+            final picture = ui.PictureRecorder();
+            ui.Canvas(picture)
+                .drawColor(const ui.Color(0xff2299ff), ui.BlendMode.src);
+            final drawing = picture.endRecording();
+            preparation.complete(
+              PreparedPixivUgoira(
+                PixivUgoiraAnimation([Uint8List(1)], [100]),
+                [drawing.toImageSync(2, 2)],
+              ),
+            );
+            drawing.dispose();
+          }
+
+          if (preparedBeforeSwipe) {
+            finishPreparation();
+            await tester.pump();
+            expect(pager.page, 0);
+          }
+          networkAllowed = false;
+
+          await tester.flingFrom(
+            const Offset(300, 400),
+            const Offset(-275, 0),
+            5000,
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          await tester.pump();
+          expect(pager.page, 1);
+          final player = find.byWidgetPredicate(
+            (widget) => widget is PixivUgoiraPlayer && widget.active,
+          );
+          expect(player, findsOneWidget);
+          final rendered = find.descendant(
+            of: player,
+            matching: find.byType(flutter.RawImage),
+          );
+          final spinner = find.descendant(
+            of: player,
+            matching: find.byType(CircularProgressIndicator),
+          );
+          if (!preparedBeforeSwipe) {
+            expect(rendered, findsNothing);
+            expect(
+              tester.widget<CircularProgressIndicator>(spinner).value,
+              0.25,
+            );
+            expect(loads, [121]);
+            reportProgress(0.75);
+            await tester.pump();
+            expect(
+              tester.widget<CircularProgressIndicator>(spinner).value,
+              0.75,
+            );
+            reportProgress(null);
+            await tester.pump();
+            expect(
+              tester.widget<CircularProgressIndicator>(spinner).value,
+              isNull,
+            );
+            finishPreparation();
+            await tester.pump();
+          }
+          final painting = tester.widget<PixivUgoiraPlayer>(player);
+          final key = harness.container
+              .read(contentProfileAccessProvider(config.id))!
+              .key;
+          final state = harness.container.read(
+            pixivUgoiraPreparationProvider((access: key, illustId: 121)),
+          );
+          expect(
+            painting.prepared,
+            isNotNull,
+            reason: '$state (loads: $loads)',
+          );
+          expect(rendered, findsOneWidget);
+          expect(spinner, findsNothing);
+          expect(loads, [121]);
+
+          // A new viewer occurrence gets the prepared frame without a request.
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await tester.pumpWidget(harness.build());
+          await tester.pump();
+          await tester.flingFrom(
+            const Offset(300, 400),
+            const Offset(-275, 0),
+            5000,
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          await tester.pump();
+          expect(rendered, findsOneWidget);
+          expect(spinner, findsNothing);
+          expect(loads, [121]);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          expect(
+            await clearImageCache(
+              harness.container.read(defaultImageCacheManagerProvider),
+            ),
+            isTrue,
+          );
+          await expectLater(
+            harness.container.read(
+              pixivUgoiraPreparationProvider((access: key, illustId: 121))
+                  .future,
+            ),
+            throwsStateError,
+          );
+          expect(loads, [121, 121]);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pump();
+        }
+      },
+    );
+  }
+
   testWidgets(
     'member More opens normal Share and leaves Pool sort in the header',
     (
@@ -8627,6 +8820,9 @@ final class _NoImageCache implements ImageCacheManager {
 
   @override
   Future<void> saveFile(String key, Uint8List bytes) async {}
+
+  @override
+  Future<void> clearAllCache() async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -30,6 +30,7 @@ import '../../widgets/viewport_bottom_insets.dart';
 import '../../posts/listing/src/types/timeline_continuation_controller.dart';
 import '../../posts/listing/src/widgets/post_grid_prefetch.dart';
 import '../../posts/listing/src/widgets/post_grid_item.dart';
+import '../../posts/listing/src/widgets/grid_card_title.dart';
 import '../../posts/pools/pool_grid_item.dart';
 import '../../posts/post/types.dart';
 import '../../selection/ordered_selection_controller.dart';
@@ -416,31 +417,18 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         summary.cover!.width! / summary.cover!.height!,
       _ => fallbackRatio,
     };
+    final title = switch (entry) {
+      PostContentEntry(:final title) => title,
+      GroupContentEntry(:final summary) => summary.title,
+    };
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        var captionHeight = 0.0;
-        if (entry
-            case GroupContentEntry(
-              summary: ContentGroupSummary(title: final title?),
-            )
-            when title.isNotEmpty) {
-          // PoolGridItem keeps its two-line caption outside the cover. Reserve
-          // its measured height so narrow/enlarged text cannot squeeze the image.
-          final painter = TextPainter(
-            text: TextSpan(
-              text: title.replaceAll('_', ' '),
-              style: DefaultTextStyle.of(context).style
-                  .merge(const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            maxLines: 2,
-            ellipsis: '…',
-            textDirection: Directionality.of(context),
-            textScaler: MediaQuery.textScalerOf(context),
-          )..layout(maxWidth: (width - 12).clamp(0, double.infinity));
-          captionHeight = painter.height;
-          painter.dispose();
-        }
+        // Titles sit below the cover, so reserve their measured height as
+        // part of the masonry card's extent.
+        final captionHeight = title == null || title.isEmpty
+            ? 0.0
+            : GridCardTitle.measureHeight(context, title, width - 4);
         return SizedBox(
           height: width / (ratio > 0 ? ratio : 1) + captionHeight + 4,
           child: _card(context, index),
@@ -470,8 +458,8 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
               gridThumbnailSettingsProvider(widget.access.config!.auth),
             ),
           );
-    if (post != null) {
-      return PostGridItem(
+    if (entry case PostContentEntry(:final post, :final title)) {
+      final tile = PostGridItem(
         post: post,
         index: index,
         useHero: false,
@@ -479,6 +467,17 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         selectionEnabled: false,
         config: widget.access.config!.auth,
         onTap: (media) => _open(index, media.url, occurrence: occurrence),
+      );
+      if (title == null || title.isEmpty) return tile;
+      return Padding(
+        padding: const EdgeInsets.all(2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: tile),
+            GridCardTitle(title),
+          ],
+        ),
       );
     }
     void tap() {

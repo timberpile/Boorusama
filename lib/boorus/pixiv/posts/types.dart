@@ -88,8 +88,8 @@ class PixivPostRecord extends CommonPostRecord {
 
   final String? seriesTitle;
 
-  /// True when [illustType] is [PixivIllustType.ugoira]. Playback of the full
-  /// animation is out of scope — only the first frame renders.
+  /// True when [illustType] is [PixivIllustType.ugoira]. Image URLs identify
+  /// the poster; the Viewer resolves the animation separately.
   final bool isUgoira;
 
   /// True when the resolved image is one of Pixiv's placeholder images

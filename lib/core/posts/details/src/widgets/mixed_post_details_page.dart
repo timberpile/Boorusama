@@ -1119,6 +1119,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       builder: (context, ref, presentation) {
         final config = presentation.effectiveConfig;
         final resolver = ref.watch(mediaUrlResolverProvider(config.auth));
+        final engine = presentation.context.presentation;
         return PostDetailsItem<Post>(
           index: index,
           post: post,
@@ -1127,6 +1128,10 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           isInitPageListenable: _isInitPage,
           authConfig: config.auth,
           viewerConfig: config.viewer,
+          detailsImageBuilder: engine is TypedBooruPostPresentation
+              ? engine.detailsImageBuilder
+              : null,
+          presentationConfig: presentation.config,
           gestureConfig: config.postGestures,
           imageCacheManager: null,
           onDisplayed: widget.onEntryDisplayed == null

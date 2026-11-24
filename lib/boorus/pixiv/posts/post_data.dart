@@ -6,7 +6,11 @@ import '../../../core/posts/post/types.dart';
 import 'types.dart';
 
 final class PixivPostData extends Equatable
-    implements BooruPostData, StableBookmarkPostKeyData, SitePostIdData {
+    implements
+        BooruPostData,
+        StableBookmarkPostKeyData,
+        SitePostIdData,
+        GifPreviewPostData {
   const PixivPostData({
     required this.illustId,
     required this.pageIndex,
@@ -43,6 +47,9 @@ final class PixivPostData extends Equatable
   final String? seriesTitle;
   final bool isUgoira;
   final bool isRestricted;
+
+  @override
+  bool get isGifPreview => isUgoira;
 
   @override
   String get typeKey => 'pixiv';

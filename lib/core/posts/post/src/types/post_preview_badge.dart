@@ -6,7 +6,19 @@ abstract interface class VideoPreviewPostData {
   bool get isVideoPreview;
 }
 
+/// A source animation whose grid image is a static poster.
+abstract interface class GifPreviewPostData {
+  bool get isGifPreview;
+}
+
 extension PostPreviewBadgeX on Post {
+  bool get showsGifBadge =>
+      isGif ||
+      switch (booruData) {
+        GifPreviewPostData(isGifPreview: true) => true,
+        _ => false,
+      };
+
   bool get showsAnimatedBadge =>
       isAnimated ||
       switch (booruData) {

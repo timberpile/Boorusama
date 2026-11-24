@@ -20,6 +20,7 @@ ContentAccessContext workAccess({
 
 PixivIllustDto work({
   int id = 120,
+  String? title,
   int width = 1200,
   int height = 1800,
   int? pageCount = 3,
@@ -37,7 +38,7 @@ PixivIllustDto work({
   ],
 }) => PixivIllustDto.fromJson({
   'id': id,
-  'title': 'Work $id',
+  'title': title ?? 'Work $id',
   'type': type,
   'caption': '<p>Work caption</p>',
   'user': {

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:disk_space_2/disk_space_2.dart';
@@ -137,16 +139,23 @@ Future<void> clearCache(AppFileSystem fs) async {
   }
 }
 
+final _imageCacheClearGeneration = ValueNotifier(0);
+ValueListenable<int> get imageCacheClearGeneration =>
+    _imageCacheClearGeneration;
+
 Future<bool> clearImageCache(ImageCacheManager? cacheManager) async {
   if (cacheManager != null) {
     try {
-      await cacheManager.clearAllCache();
+      final clearing = cacheManager.clearAllCache();
+      _imageCacheClearGeneration.value++;
+      await clearing;
       return true;
     } catch (e) {
       return false;
     }
   }
 
+  _imageCacheClearGeneration.value++;
   return clearDiskCachedImages();
 }
 

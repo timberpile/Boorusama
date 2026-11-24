@@ -13,6 +13,7 @@ import 'configs/widgets.dart';
 import 'home/custom_home.dart';
 import 'favorites/page.dart';
 import 'posts/types.dart';
+import 'ugoira/ugoira_media.dart';
 import 'works/search_page.dart';
 import 'works/work_information.dart';
 import 'works/page_parent_work_section.dart';
@@ -32,6 +33,7 @@ class PixivBuilder extends BaseBooruBuilder {
   late final postPresentation = TypedBooruPostPresentation<PixivPostData>(
     typeKey: 'pixiv',
     uiBuilder: postDetailsUIBuilder,
+    detailsImageBuilder: buildPixivUgoiraMedia,
   );
 
   @override

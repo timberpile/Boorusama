@@ -1,5 +1,7 @@
 import '../../../../boorus/booru/types.dart';
 import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
+import '../../../../../boorus/pixiv/ugoira/ugoira_media.dart';
+import '../../../../../boorus/pixiv/ugoira/ugoira_preparation.dart';
 import '../../../../content/groups/group_metadata.dart';
 
 import 'dart:async';
@@ -96,6 +98,7 @@ class _MixedPostDetailsImagePreloaderState
   int? _lastPage;
   bool _wasActive = false;
   bool _refreshScheduled = false;
+  PixivUgoiraRequest? _preparingNeighbor;
   late int _lastItemCount = widget.pageCount;
 
   PostDetailsPageViewController get _controller => _pageViewController!;
@@ -164,6 +167,49 @@ class _MixedPostDetailsImagePreloaderState
       ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
+  }
+
+  PixivUgoiraRequest? _ugoiraRequestAt(int index) {
+    if (index < 0 || index >= widget.pageCount) return null;
+    final post = widget.postAt(index);
+    if (post == null || pixivUgoiraIllustId(post) == null) return null;
+    final binding = widget.sequence?.entries[index].source;
+    final access = binding != null
+        ? ref.watch(viewerSourceAccessProvider(binding))
+        : switch (const PostOriginResolver().resolve(
+            post.origin,
+            ref.watch(booruConfigProvider),
+            allowProfileHintFallback: false,
+          )) {
+            ResolvedPostOrigin(:final config) => ref.watch(
+              contentProfileAccessProvider(config.id),
+            ),
+            _ => null,
+          };
+    return watchPixivUgoiraRequest(ref, post, access);
+  }
+
+  void _watchUgoiraWindow(int page) {
+    final current = _ugoiraRequestAt(page);
+    if (current != null) ref.watch(pixivUgoiraPreparationProvider(current));
+
+    final direction = _directionHistory.directions.lastOrNull?.$1 ?? 1;
+    final neighbors = {
+      ?_ugoiraRequestAt(page + direction),
+      ?_ugoiraRequestAt(page - direction),
+    }..remove(current);
+    final pending = _preparingNeighbor;
+    _preparingNeighbor = null;
+    // Keep a still-relevant preparation running when the direction changes.
+    for (final neighbor in [
+      if (pending != null && neighbors.remove(pending)) pending,
+      ...neighbors,
+    ]) {
+      if (ref.watch(pixivUgoiraPreparationProvider(neighbor)).isLoading) {
+        _preparingNeighbor = neighbor;
+        break;
+      }
+    }
   }
 
   void _preloadAdjacentPages(int currentPage) {
@@ -407,6 +453,18 @@ class _MixedPostDetailsImagePreloaderState
     if (_pageViewController != null &&
         NavigationActivity.of(context) &&
         ref.watch(automaticMediaLoadingEnabledProvider)) {
+      final hasPixiv = ref.watch(
+        booruConfigProvider.select(
+          (profiles) => profiles.any(
+            (profile) => profile.auth.booruType == BooruType.pixiv,
+          ),
+        ),
+      );
+      if (hasPixiv && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _watchUgoiraWindow(_controller.page);
+      } else {
+        _preparingNeighbor = null;
+      }
       // Keep only the current and immediately adjacent native Work manifests
       // alive. They share the foreground's source/envelope and actor lifetime.
       for (final index in [
@@ -431,6 +489,8 @@ class _MixedPostDetailsImagePreloaderState
           )) {
         _scheduleRefresh();
       }
+    } else {
+      _preparingNeighbor = null;
     }
     if (_pageViewController != null) {
       final indices =

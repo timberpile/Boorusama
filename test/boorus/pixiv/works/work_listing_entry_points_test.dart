@@ -32,6 +32,8 @@ import '../../../core/search/following_topics/following_topic_test_utils.dart';
 import '../../../support/fakes/memory_repositories.dart';
 import 'work_test_fixtures.dart';
 
+const _ugoiraTitle = 'A long animation title from Pixiv';
+
 void main() {
   test(
     'legacy position counts usable projected Pages instead of declared counts',
@@ -122,6 +124,59 @@ void main() {
     }
   }
   for (final layout in [ImageListType.standard, ImageListType.masonry]) {
+    testWidgets('Ugoira shows its title below the thumbnail in $layout', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final config = workAccess().config!;
+      final client = _Client();
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          imageListType: layout,
+        ),
+        overrides: [
+          pixivClientProvider.overrideWith((ref, _) => client),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, _) => createPixivGroupCapability(ref),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(2),
+            ),
+            child: PixivWorkGrid(
+              config: config,
+              queryIdentity: 'ranking',
+              fetchPage: (page) => client.getRanking(page: page),
+            ),
+          ),
+        ),
+      );
+      await drain(tester);
+      final thumbnail = find.byWidgetPredicate(
+        (widget) => widget is PostGridItem && widget.post.showsGifBadge,
+      );
+      expect(thumbnail, findsOneWidget);
+      final title = find.text(_ugoiraTitle);
+      expect(title, findsOneWidget);
+      expect(
+        tester.getTopLeft(title).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(thumbnail).dy),
+      );
+      expect(client.calls, [('ranking', '', 1)]);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('route restores legacy Page position to one Work in $layout', (
       tester,
     ) async {
@@ -655,7 +710,7 @@ class _Client extends PixivClient {
           : [
               work(pageCount: pageCount),
               work(id: 121),
-              work(id: 122, type: 'ugoira'),
+              work(id: 122, title: _ugoiraTitle, type: 'ugoira'),
             ],
     );
   }

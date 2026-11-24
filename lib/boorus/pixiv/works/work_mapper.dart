@@ -57,6 +57,7 @@ List<ContentEntry> pixivWorkListingEntries(
               post.pageIndex,
             ),
             post: post,
+            title: dto.title,
           )
       else
         GroupContentEntry(summary: pixivWorkSummary(dto, access)),

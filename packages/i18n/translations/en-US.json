@@ -2433,6 +2433,10 @@
       "unpin_toast": "Window unpinned from top"
     }
   },
+  "ugoira": {
+    "loading": "Loading animation…",
+    "unavailable": "Animation could not be played."
+  },
   "video_player": {
     "playback_speed": "Playback Speed",
     "lock_screen": "Lock Screen",

@@ -192,10 +192,12 @@ class PixivClient {
 
   Future<PixivUgoiraMetadataDto?> getUgoiraMetadata({
     required int illustId,
+    CancelToken? cancelToken,
   }) async {
     final body = await _get(
       '/v1/ugoira/metadata',
       queryParameters: {'illust_id': illustId},
+      cancelToken: cancelToken,
     );
 
     final metadata = body['ugoira_metadata'];

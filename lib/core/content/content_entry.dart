@@ -13,6 +13,7 @@ final class PostContentEntry extends ContentEntry {
   PostContentEntry({
     required this.reference,
     required this.post,
+    this.title,
     ContentKeyCodec? keyCodec,
   }) {
     final codec = keyCodec ?? BooruContentKeyCodec(reference.engine);
@@ -27,8 +28,12 @@ final class PostContentEntry extends ContentEntry {
   @override
   final ContentReference reference;
   final Post post;
+
+  /// Title supplied by the listing for this card.
+  final String? title;
+
   @override
-  List<Object?> get props => [reference, post];
+  List<Object?> get props => [reference, post, title];
 }
 
 final class GroupContentEntry extends ContentEntry {

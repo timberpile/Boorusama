@@ -16,6 +16,7 @@ import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../../images/booru_image.dart' show ErrorPlaceholder;
+import '../../../../navigation/destination_activity.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../videos/cache/providers.dart';
@@ -49,6 +50,8 @@ class PostMedia<T extends Post> extends ConsumerWidget {
     this.onImageSize,
     super.key,
     this.isPageSettled = false,
+    this.detailsImageBuilder,
+    this.presentationConfig,
   });
 
   final T post;
@@ -67,6 +70,8 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   final Size? contentSize;
   final ValueChanged<Size>? onImageSize;
   final bool isPageSettled;
+  final PostDetailsImageBuilder? detailsImageBuilder;
+  final BooruConfig? presentationConfig;
 
   void _openSettings(WidgetRef ref) {
     openImageViewerSettingsPage(ref);
@@ -216,19 +221,35 @@ class PostMedia<T extends Post> extends ConsumerWidget {
               ),
             ],
           )
-        : PostDetailsImage(
-            heroTag: heroTag,
-            imageUrlBuilder: imageUrlBuilder,
-            mediaAspectRatioBuilder: mediaAspectRatioBuilder,
-            placeholderMediaBuilder: placeholderMediaBuilder,
-            imageCacheManager: imageCacheManager,
-            imageController: imageController,
-            onRepresentationChanged: onRepresentationChanged,
-            onTerminalFailure: onTerminalFailure,
-            contentSize: contentSize,
-            onImageSize: onImageSize,
-            post: post,
-            config: config,
-          );
+        : _buildImage(context, heroTag);
+  }
+
+  Widget _buildImage(BuildContext context, String heroTag) {
+    final poster = PostDetailsImage(
+      heroTag: heroTag,
+      imageUrlBuilder: imageUrlBuilder,
+      mediaAspectRatioBuilder: mediaAspectRatioBuilder,
+      placeholderMediaBuilder: placeholderMediaBuilder,
+      imageCacheManager: imageCacheManager,
+      imageController: imageController,
+      onRepresentationChanged: onRepresentationChanged,
+      onTerminalFailure: onTerminalFailure,
+      contentSize: contentSize,
+      onImageSize: onImageSize,
+      post: post,
+      config: config,
+    );
+    final builder = detailsImageBuilder;
+    final source = presentationConfig;
+    if (builder == null || source == null) return poster;
+    return builder(
+      post: post,
+      config: source,
+      active:
+          isPageSettled &&
+          NavigationActivity.of(context) &&
+          (ModalRoute.of(context)?.isCurrent ?? true),
+      poster: poster,
+    );
   }
 }
