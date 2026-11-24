@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -48,6 +48,7 @@ class BooruImage extends ConsumerWidget {
     this.forceFill = false,
     this.forceLoadPlaceholder = false,
     this.hideMismatchedPlaceholder = false,
+    this.retainThumbnailOnUpgradeFailure = false,
     this.placeholderWidget,
     this.errorWidget,
     this.controller,
@@ -74,6 +75,7 @@ class BooruImage extends ConsumerWidget {
   final bool forceFill;
   final bool forceLoadPlaceholder;
   final bool hideMismatchedPlaceholder;
+  final bool retainThumbnailOnUpgradeFailure;
   final Widget? placeholderWidget;
   final Widget? errorWidget;
   final ExtendedImageController? controller;
@@ -193,28 +195,40 @@ class BooruImage extends ConsumerWidget {
         .where((url) => permitted(url) && url != imageUrl)
         .toSet()
         .toList();
+    final overrideDio =
+        access.key == null &&
+            (imageRequest.overridden ||
+                (safePlaceholder != null && placeholderRequest.overridden) ||
+                (safeFallback != null && fallbackRequest.overridden))
+        ? ref.watch(mediaOverrideDioProvider(config))
+        : dio;
+    final primaryDio = imageRequest.overridden ? overrideDio : dio;
+    final thumbnailDio = placeholderRequest.overridden ? overrideDio : dio;
+    final retainThumbnail =
+        retainThumbnailOnUpgradeFailure &&
+        safePlaceholder != null &&
+        safePlaceholder == safeFallback &&
+        alternates.isEmpty;
 
     return BooruRawImage(
-      key: ValueKey((access.key, imageUrl)),
-      dio: imageRequest.overridden && access.key == null
-          ? ref.watch(mediaOverrideDioProvider(config))
-          : dio,
+      key: retainThumbnail
+          ? _ThumbnailRequestKey((
+              config,
+              access.key,
+              imageRequest,
+              placeholderRequest,
+              primaryDio,
+              thumbnailDio,
+              scopedManager,
+            ))
+          : ValueKey((access.key, imageUrl)),
+      dio: primaryDio,
       imageUrl: imageRequest.url,
       placeholderUrl: safePlaceholder == null ? null : placeholderRequest.url,
-      placeholderDio:
-          safePlaceholder != null &&
-              placeholderRequest.overridden &&
-              access.key == null
-          ? ref.watch(mediaOverrideDioProvider(config))
-          : dio,
+      placeholderDio: thumbnailDio,
       placeholderHeaders: placeholderRequest.headers,
       fallbackUrl: safeFallback == null ? null : fallbackRequest.url,
-      fallbackDio:
-          safeFallback != null &&
-              fallbackRequest.overridden &&
-              access.key == null
-          ? ref.watch(mediaOverrideDioProvider(config))
-          : dio,
+      fallbackDio: fallbackRequest.overridden ? overrideDio : dio,
       fallbackHeaders: fallbackRequest.headers,
       fallbackWidget: alternates.isEmpty
           ? null
@@ -251,6 +265,7 @@ class BooruImage extends ConsumerWidget {
       isLargeImage: imageQualitySettings != ImageQuality.low,
       forceLoadPlaceholder: forceLoadPlaceholder,
       hideMismatchedPlaceholder: hideMismatchedPlaceholder,
+      retainThumbnailOnUpgradeFailure: retainThumbnail,
       headers: imageRequest.headers,
       placeholderWidget: placeholderWidget,
       errorWidget: errorWidget,
@@ -262,6 +277,14 @@ class BooruImage extends ConsumerWidget {
           : null,
     );
   }
+}
+
+class _ThumbnailRequestKey extends ValueKey<Object> {
+  const _ThumbnailRequestKey(super.value);
+
+  // Profile credentials and resolved headers must stay out of diagnostics.
+  @override
+  String toString() => '[thumbnail request]';
 }
 
 class BooruRawImage extends StatelessWidget {
@@ -289,6 +312,7 @@ class BooruRawImage extends StatelessWidget {
     this.isLargeImage = false,
     this.forceLoadPlaceholder = false,
     this.hideMismatchedPlaceholder = false,
+    this.retainThumbnailOnUpgradeFailure = false,
     this.gaplessPlayback = false,
     this.placeholderWidget,
     this.errorWidget,
@@ -322,6 +346,7 @@ class BooruRawImage extends StatelessWidget {
   final bool isLargeImage;
   final bool forceLoadPlaceholder;
   final bool hideMismatchedPlaceholder;
+  final bool retainThumbnailOnUpgradeFailure;
   final bool gaplessPlayback;
   final Widget? placeholderWidget;
   final Widget? errorWidget;
@@ -338,11 +363,7 @@ class BooruRawImage extends StatelessWidget {
 
     return _ImageRetryControllerScope(
       controller: controller,
-      beforeRetry: () async {
-        await imageCacheManager?.clearCache(
-          imageCacheManager!.generateCacheKey(imageUrl),
-        );
-      },
+      beforeRetry: () => _clearFailedCache(imageUrl),
       builder: (effectiveController, retry) => _ContentMediaImageState(
         controller: effectiveController,
         child: NullableAspectRatio(
@@ -380,117 +401,155 @@ class BooruRawImage extends StatelessWidget {
                 );
               }
 
-              return imageUrl.isNotEmpty
-                  ? ExtendedImage.network(
-                      imageUrl,
-                      dio: dio,
-                      headers: headers,
-                      borderRadius: borderRadius,
-                      width: width,
-                      height: height,
-                      fit: fit,
-                      gaplessPlayback: gaplessPlayback,
-                      fetchStrategy: _fetchStrategy,
-                      controller: effectiveController,
-                      platform: Kurumi.themeOf(context).platform,
-                      androidVersion: androidVersion,
-                      cacheManager: imageCacheManager,
-                      placeholderWidget:
-                          placeholderWidget ??
-                          placeholderUrl.toOption().fold(
-                            () => imagePlaceHolder,
-                            (url) => Builder(
-                              builder: (context) {
-                                final hasNetworkPlaceholder =
-                                    _shouldLoadPlaceholderUrl(
-                                      placeholderUrl: url,
-                                      imageUrl: imageUrl,
-                                      isLargeImage: isLargeImage,
-                                      forceLoadPlaceholder:
-                                          forceLoadPlaceholder,
-                                    );
-                                final hasMismatchedPlaceholder =
-                                    hideMismatchedPlaceholder &&
-                                    _hasAspectRatioMismatch(
-                                      placeholderAspectRatio,
-                                      aspectRatio,
-                                    );
+              if (imageUrl.isEmpty) return imagePlaceHolder;
 
-                                return hasNetworkPlaceholder &&
-                                        !hasMismatchedPlaceholder
-                                    ? _wrapPlaceholderAspectRatio(
-                                        ExtendedImage.network(
-                                          url,
-                                          dio: placeholderDio ?? dio,
-                                          headers:
-                                              placeholderHeaders ?? headers,
-                                          borderRadius: borderRadius,
-                                          width: placeholderAspectRatio == null
-                                              ? width
-                                              : null,
-                                          height: placeholderAspectRatio == null
-                                              ? height
-                                              : null,
-                                          fit: placeholderFit ?? fit,
-                                          fetchStrategy: _fetchStrategy,
-                                          placeholderWidget: imagePlaceHolder,
-                                          platform: Kurumi.themeOf(
-                                            context,
-                                          ).platform,
-                                          androidVersion: androidVersion,
-                                          cacheManager: imageCacheManager,
-                                        ),
-                                      )
-                                    : imagePlaceHolder;
-                              },
-                            ),
+              final platform = Kurumi.themeOf(context).platform;
+              final thumbnailUrl = placeholderUrl;
+              final hasNetworkThumbnail =
+                  thumbnailUrl != null &&
+                  _shouldLoadPlaceholderUrl(
+                    placeholderUrl: thumbnailUrl,
+                    imageUrl: imageUrl,
+                    isLargeImage: isLargeImage,
+                    forceLoadPlaceholder: forceLoadPlaceholder,
+                  ) &&
+                  !(hideMismatchedPlaceholder &&
+                      _hasAspectRatioMismatch(
+                        placeholderAspectRatio,
+                        aspectRatio,
+                      ));
+              final retainThumbnail =
+                  retainThumbnailOnUpgradeFailure &&
+                  hasNetworkThumbnail &&
+                  thumbnailUrl.isNotEmpty &&
+                  thumbnailUrl != imageUrl &&
+                  thumbnailUrl == fallbackUrl &&
+                  placeholderWidget == null &&
+                  fallbackWidget == null &&
+                  errorWidget == null &&
+                  identical(placeholderDio ?? dio, fallbackDio ?? dio) &&
+                  mapEquals(
+                    placeholderHeaders ?? headers,
+                    fallbackHeaders ?? headers,
+                  );
+
+              Widget networkThumbnail(
+                String url, {
+                ExtendedImageController? thumbnailController,
+                Widget? thumbnailError,
+              }) => _wrapPlaceholderAspectRatio(
+                ExtendedImage.network(
+                  url,
+                  dio: placeholderDio ?? dio,
+                  headers: placeholderHeaders ?? headers,
+                  borderRadius: borderRadius,
+                  width: placeholderAspectRatio == null ? width : null,
+                  height: placeholderAspectRatio == null ? height : null,
+                  fit: placeholderFit ?? fit,
+                  fetchStrategy: _fetchStrategy,
+                  placeholderWidget: imagePlaceHolder,
+                  errorWidget: thumbnailError,
+                  controller: thumbnailController,
+                  platform: platform,
+                  androidVersion: androidVersion,
+                  cacheManager: imageCacheManager,
+                ),
+              );
+
+              // ExtendedImage swaps loading and error children in the same
+              // slot. Keep the thumbnail's element and image stream there.
+              Widget retainedThumbnail(String url, {required bool showRetry}) =>
+                  _ImageRetryControllerScope(
+                    key: ValueKey(url),
+                    beforeRetry: () => _clearFailedCache(url),
+                    builder: (thumbnailController, retryThumbnail) =>
+                        _ContentMediaImageState(
+                          controller: thumbnailController,
+                          child: networkThumbnail(
+                            url,
+                            thumbnailController: thumbnailController,
+                            thumbnailError: showRetry
+                                ? ErrorPlaceholder(
+                                    borderRadius: borderRadius,
+                                    onRetry: retryThumbnail,
+                                  )
+                                : imagePlaceHolder,
                           ),
-                      errorWidget:
-                          errorWidget ??
-                          fallbackWidget ??
-                          switch (fallbackUrl) {
-                            final String url
-                                when url.isNotEmpty && url != imageUrl =>
-                              _ImageRetryControllerScope(
-                                beforeRetry: () async {
-                                  await imageCacheManager?.clearCache(
-                                    imageCacheManager!.generateCacheKey(url),
-                                  );
-                                },
-                                builder: (fallbackController, retryFallback) =>
-                                    ExtendedImage.network(
-                                      url,
-                                      dio: fallbackDio ?? dio,
-                                      controller: fallbackController,
-                                      headers: fallbackHeaders ?? headers,
-                                      borderRadius: borderRadius,
-                                      width: width,
-                                      height: height,
-                                      fit: fit,
-                                      fetchStrategy: _fetchStrategy,
-                                      platform: Kurumi.themeOf(context)
-                                          .platform,
-                                      androidVersion: androidVersion,
-                                      cacheManager: imageCacheManager,
-                                      placeholderWidget: imagePlaceHolder,
-                                      errorWidget: ErrorPlaceholder(
-                                        borderRadius: borderRadius,
-                                        onRetry: retryFallback,
-                                      ),
-                                    ),
+                        ),
+                  );
+
+              return ExtendedImage.network(
+                imageUrl,
+                dio: dio,
+                headers: headers,
+                borderRadius: borderRadius,
+                width: width,
+                height: height,
+                fit: fit,
+                gaplessPlayback: gaplessPlayback,
+                fetchStrategy: _fetchStrategy,
+                controller: effectiveController,
+                platform: platform,
+                androidVersion: androidVersion,
+                cacheManager: imageCacheManager,
+                placeholderWidget:
+                    placeholderWidget ??
+                    switch (thumbnailUrl) {
+                      final String url when retainThumbnail =>
+                        retainedThumbnail(url, showRetry: false),
+                      final String url when hasNetworkThumbnail => Builder(
+                        builder: (_) => networkThumbnail(url),
+                      ),
+                      _ => imagePlaceHolder,
+                    },
+                errorWidget:
+                    errorWidget ??
+                    fallbackWidget ??
+                    switch (fallbackUrl) {
+                      final String url when retainThumbnail =>
+                        retainedThumbnail(url, showRetry: true),
+                      final String url when url.isNotEmpty && url != imageUrl =>
+                        _ImageRetryControllerScope(
+                          beforeRetry: () => _clearFailedCache(url),
+                          builder: (fallbackController, retryFallback) =>
+                              ExtendedImage.network(
+                                url,
+                                dio: fallbackDio ?? dio,
+                                controller: fallbackController,
+                                headers: fallbackHeaders ?? headers,
+                                borderRadius: borderRadius,
+                                width: width,
+                                height: height,
+                                fit: fit,
+                                fetchStrategy: _fetchStrategy,
+                                platform: platform,
+                                androidVersion: androidVersion,
+                                cacheManager: imageCacheManager,
+                                placeholderWidget: imagePlaceHolder,
+                                errorWidget: ErrorPlaceholder(
+                                  borderRadius: borderRadius,
+                                  onRetry: retryFallback,
+                                ),
                               ),
-                            _ => ErrorPlaceholder(
-                              onRetry: retry,
-                              borderRadius: borderRadius,
-                            ),
-                          },
-                    )
-                  : imagePlaceHolder;
+                        ),
+                      _ => ErrorPlaceholder(
+                        onRetry: retry,
+                        borderRadius: borderRadius,
+                      ),
+                    },
+              );
             },
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _clearFailedCache(String url) async {
+    final manager = imageCacheManager;
+    if (manager != null) {
+      await manager.clearCache(manager.generateCacheKey(url));
+    }
   }
 
   Widget _wrapPlaceholderAspectRatio(Widget child) {
@@ -653,6 +712,7 @@ class ImageRetryButton extends StatelessWidget {
 class _ImageRetryControllerScope extends StatefulWidget {
   const _ImageRetryControllerScope({
     required this.builder,
+    super.key,
     this.controller,
     this.beforeRetry,
   });

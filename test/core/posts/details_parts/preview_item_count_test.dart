@@ -1,7 +1,12 @@
 import 'package:boorusama/core/configs/manage/providers.dart';
 
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:booru_clients/src/gelbooru_v2/parsers/rb_parsers.dart';
+import 'package:dio/dio.dart';
+import 'package:extended_image/extended_image.dart';
+import 'package:extended_image/src/image/raw_image.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,11 +15,18 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'package:boorusama/boorus/gelbooru_v2/posts/grid_thumbnail_url.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/parser.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/types.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/widgets.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
@@ -30,6 +42,9 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/tags/tag/providers.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+
+import '../details/progressive_image_test_utils.dart';
 
 void main() {
   const viewportCases = [
@@ -59,6 +74,138 @@ void main() {
   ];
 
   VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+  const realbooruSections = {
+    'Artist': DefaultInheritedArtistPostsSection<Post>(),
+    'Uploader': GelbooruV2UploaderPostsSection(),
+  };
+  for (final section in realbooruSections.entries) {
+    testWidgets(
+      'Realbooru ${section.key} keeps the visible thumbnail after its poster fails',
+      (tester) async {
+        await _withRealbooruPreview(tester, section.value, video: true, (
+          media,
+        ) async {
+          await media.waitForRequest(tester, _realbooruThumbnail);
+          media.adapter.complete(_realbooruThumbnail, lowerPng);
+          await waitForPixel(tester, _red);
+
+          final images = find.byType(ExtendedImage);
+          final thumbnail = tester.widgetList<ExtendedImage>(images).last;
+          await media.cache.clearCache(_realbooruThumbnail);
+          expect(await thumbnail.image.evict(), isTrue);
+          final poster = tester.widgetList<ExtendedImage>(images).first;
+          await media.fail(tester, '$_realbooruImage.jpg');
+          await pumpUntil(
+            tester,
+            () => poster.controller!.loadState.value == LoadState.failed,
+            reason: 'poster failure',
+          );
+          await tester.pump();
+
+          expect(find.byType(ExtendedRawImage), findsOneWidget);
+          await waitForPixel(tester, _red);
+          expect(
+            media.requests,
+            unorderedEquals([
+              _realbooruThumbnail,
+              '$_realbooruImage.jpg',
+            ]),
+          );
+          expect(find.byType(ImageRetryButton), findsNothing);
+        });
+      },
+    );
+  }
+
+  testWidgets('Realbooru Artist uses an alternate format for a still image', (
+    tester,
+  ) async {
+    await _withRealbooruPreview(tester, realbooruSections['Artist']!, (
+      media,
+    ) async {
+      await media.waitForRequest(tester, _realbooruThumbnail);
+      media.adapter.complete(_realbooruThumbnail, lowerPng);
+      await waitForPixel(tester, _red);
+      await media.fail(tester, '$_realbooruImage.jpg');
+      await media.waitForRequest(tester, '$_realbooruImage.jpeg');
+      media.adapter.complete('$_realbooruImage.jpeg', targetPng);
+      await waitForPixel(tester, _blue);
+      expect(find.byType(ImageRetryButton), findsNothing);
+      expect(
+        media.requests.where((url) => url == _realbooruThumbnail),
+        hasLength(1),
+      );
+    });
+  });
+
+  testWidgets('Realbooru Uploader keeps its thumbnail when every probe fails', (
+    tester,
+  ) async {
+    await _withRealbooruPreview(tester, realbooruSections['Uploader']!, (
+      media,
+    ) async {
+      await media.waitForRequest(tester, _realbooruThumbnail);
+      media.adapter.complete(_realbooruThumbnail, lowerPng);
+      await waitForPixel(tester, _red);
+      for (final extension in ['jpg', 'jpeg', 'png', 'webp', 'avif']) {
+        await media.fail(tester, '$_realbooruImage.$extension');
+      }
+      await tester.pump();
+      await waitForPixel(tester, _red);
+      expect(find.byType(ImageRetryButton), findsNothing);
+      expect(
+        media.requests.where((url) => url == _realbooruThumbnail),
+        hasLength(1),
+      );
+    });
+  });
+
+  testWidgets('Realbooru Uploader can retry when neither image loads', (
+    tester,
+  ) async {
+    await _withRealbooruPreview(
+      tester,
+      realbooruSections['Uploader']!,
+      video: true,
+      (media) async {
+        await media.fail(tester, _realbooruThumbnail);
+        await media.fail(tester, '$_realbooruImage.jpg');
+        final retry = find.byType(ImageRetryButton);
+        await pumpUntil(
+          tester,
+          () => retry.evaluate().isNotEmpty,
+          reason: 'Retry',
+        );
+        media.adapter.pending.remove(_realbooruThumbnail);
+        await tester.tap(retry);
+        await media.waitForRequest(tester, _realbooruThumbnail);
+        media.adapter.complete(_realbooruThumbnail, lowerPng);
+        await waitForPixel(tester, _red);
+        expect(retry, findsNothing);
+        expect(
+          media.requests.where((url) => url == _realbooruThumbnail),
+          hasLength(2),
+        );
+      },
+    );
+  });
+
+  testWidgets('Realbooru Artist at Low quality requests only the thumbnail', (
+    tester,
+  ) async {
+    await _withRealbooruPreview(
+      tester,
+      realbooruSections['Artist']!,
+      quality: ImageQuality.low,
+      (media) async {
+        await media.waitForRequest(tester, _realbooruThumbnail);
+        media.adapter.complete(_realbooruThumbnail, lowerPng);
+        await waitForPixel(tester, _red);
+        expect(media.requests, [_realbooruThumbnail]);
+      },
+    );
+  });
 
   for (final section in sections) {
     for (final viewport in viewportCases) {
@@ -354,9 +501,14 @@ class _PreviewHarness {
     required this.width,
     required this.section,
     this.keepPostsLoading = false,
+    this.realbooruMedia,
   }) : config = BooruConfig.defaultConfig(
-         booruType: BooruType.danbooru,
-         url: 'https://danbooru.example',
+         booruType: realbooruMedia == null
+             ? BooruType.danbooru
+             : BooruType.gelbooruV2,
+         url: realbooruMedia == null
+             ? 'https://danbooru.example'
+             : _realbooruSite,
          customDownloadFileNameFormat: null,
        ) {
     container = ProviderContainer(
@@ -368,17 +520,36 @@ class _PreviewHarness {
         colorSchemeProvider.overrideWithValue(
           ColorScheme.fromSeed(seedColor: Colors.blue),
         ),
-        automaticMediaLoadingEnabledProvider.overrideWithValue(false),
-        booruRepoProvider.overrideWith((ref, config) => null),
-        gridThumbnailSettingsProvider.overrideWith(
-          (ref, config) => const GridThumbnailSettings(
-            imageQuality: ImageQuality.low,
-            animatedPostsDefaultState: AnimatedPostsDefaultState.static,
-            gridSize: GridSize.small,
-          ),
+        automaticMediaLoadingEnabledProvider.overrideWithValue(
+          realbooruMedia != null,
         ),
+        booruRepoProvider.overrideWith((ref, config) => null),
+        if (realbooruMedia case final media?) ...[
+          imageListingSettingsProvider.overrideWithValue(
+            Settings.defaultSettings.listing.copyWith(
+              imageQuality: media.quality,
+              animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+              gridSize: GridSize.small,
+            ),
+          ),
+          dioForWidgetProvider(config.auth).overrideWithValue(media.dio),
+          httpHeadersProvider(config.auth).overrideWithValue(const {}),
+          defaultImageCacheManagerProvider.overrideWithValue(media.cache),
+          deviceInfoProvider.overrideWithValue(const DeviceInfo()),
+        ] else
+          gridThumbnailSettingsProvider.overrideWith(
+            (ref, config) => const GridThumbnailSettings(
+              imageQuality: ImageQuality.low,
+              animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+              gridSize: GridSize.small,
+            ),
+          ),
         gridThumbnailUrlGeneratorProvider.overrideWith(
-          (ref, config) => const DefaultGridThumbnailUrlGenerator(),
+          (ref, config) => realbooruMedia == null
+              ? const DefaultGridThumbnailUrlGenerator()
+              : const DefaultGridThumbnailUrlGenerator(
+                  mediaMapper: gelbooruV2ThumbnailOnlyGridThumbnailMedia,
+                ),
         ),
         artistCharacterGroupProvider.overrideWith(
           () => _ArtistTagNotifier(artistTags),
@@ -396,6 +567,7 @@ class _PreviewHarness {
   final double width;
   final Widget section;
   final bool keepPostsLoading;
+  final _RealbooruMedia? realbooruMedia;
   final BooruConfig config;
   late final ProviderContainer container;
 
@@ -403,10 +575,20 @@ class _PreviewHarness {
     container: container,
     child: BooruLocalization(
       child: MaterialApp(
-        builder: (context, child) => KurumiTheme(
-          data: KurumiThemeData.fromMaterial(Theme.of(context)),
-          child: child!,
-        ),
+        builder: (context, child) {
+          final themed = KurumiTheme(
+            data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            child: child!,
+          );
+          return realbooruMedia == null
+              ? themed
+              : MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: const TextScaler.linear(2),
+                  ),
+                  child: themed,
+                );
+        },
         home: CurrentBooruConfigScope(
           config: config,
           child: InheritedPost(
@@ -438,7 +620,7 @@ class _ArtistTagNotifier extends ArtistCharacterNotifier {
       ArtistCharacterGroup(characterTags: const {}, artistTags: tags);
 }
 
-Post _post(int id) => Post(
+Post _post(int id, {String? uploaderName}) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.danbooru,
     booruId: BooruType.danbooru.id,
@@ -464,6 +646,88 @@ Post _post(int id) => Post(
     hasParentOrChildren: false,
     source: PostSource.none(),
     score: 0,
+    uploaderName: uploaderName,
   ),
   booruData: const EmptyPostData(typeKey: 'test'),
 );
+
+const _realbooruSite = 'https://realbooru.test';
+const _realbooruHash = '0123456789abcdef0123456789abcdef';
+const _realbooruThumbnail =
+    '$_realbooruSite/thumbnails/01/23/thumbnail_$_realbooruHash.jpg';
+const _realbooruImage = '$_realbooruSite/images/01/23/$_realbooruHash';
+const _red = [255, 0, 0, 255];
+const _blue = [0, 0, 255, 255];
+
+Future<void> _withRealbooruPreview(
+  WidgetTester tester,
+  Widget section,
+  Future<void> Function(_RealbooruMedia) verify, {
+  bool video = false,
+  ImageQuality quality = ImageQuality.high,
+}) async {
+  final media = _RealbooruMedia(quality);
+  final dto = parseRbPostsHtml(
+    Response<String>(
+      requestOptions: RequestOptions(path: '/index.php?page=post&s=list'),
+      data:
+          '''
+        <div class="col thumb"><a id="p1">
+          <img src="$_realbooruThumbnail" title="scenery"
+              ${video ? 'style="border: 2px solid blue"' : ''} />
+        </a></div>
+        ''',
+    ),
+    const {},
+  ).posts.single;
+  final post = gelbooruV2PostDtoToGelbooruPostNoMetadata(
+    dto,
+    const GelbooruV2ImageUrlResolver(),
+  );
+  final harness = _PreviewHarness(
+    posts: [post],
+    artistTags: const {'artist'},
+    width: 320,
+    section: section,
+    realbooruMedia: media,
+  );
+  _setViewport(tester, 320, 1);
+  try {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        harness.build(post: _post(99, uploaderName: 'artist')),
+      );
+      await verify(media);
+      expect(tester.takeException(), isNull);
+    });
+  } finally {
+    await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
+    media.dio.close(force: true);
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+}
+
+class _RealbooruMedia {
+  _RealbooruMedia(this.quality);
+
+  final ImageQuality quality;
+  final adapter = ControlledImageAdapter();
+  final cache = TestImageCache({});
+  late final dio = Dio()..httpClientAdapter = adapter;
+
+  Iterable<String> get requests =>
+      adapter.requests.map((request) => request.uri.toString());
+
+  Future<void> waitForRequest(WidgetTester tester, String url) => pumpUntil(
+    tester,
+    () => adapter.pending.containsKey(url),
+    reason: 'request for $url',
+  );
+
+  Future<void> fail(WidgetTester tester, String url) async {
+    await waitForRequest(tester, url);
+    adapter.complete(url, Uint8List(0), status: 404);
+  }
+}

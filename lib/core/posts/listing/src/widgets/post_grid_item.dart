@@ -419,6 +419,14 @@ class PostGridImage extends ConsumerWidget {
       imageUrl: url,
       fallbackUrl: fallback ? null : media.fallbackUrl,
       fallbackUrls: fallback ? const [] : media.fallbackUrls,
+      retainThumbnailOnUpgradeFailure:
+          !fallback &&
+          !media.probeImageFormats &&
+          cachedImageBytes == null &&
+          media.fallbackUrls.isEmpty &&
+          (media.fallbackUrl?.isNotEmpty ?? false) &&
+          media.fallbackUrl == media.placeholderUrl &&
+          media.fallbackUrl != url,
       borderRadius: borderRadius,
       forceCover: cover,
       fit: fit,

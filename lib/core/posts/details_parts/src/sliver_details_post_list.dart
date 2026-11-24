@@ -13,6 +13,7 @@ import '../../details/routes.dart';
 import '../../details/types.dart';
 import '../../details/widgets.dart';
 import '../../listing/types.dart';
+import '../../listing/widgets.dart';
 import '../../post/tags.dart';
 import '../../post/types.dart';
 import '../../post/widgets.dart';
@@ -88,15 +89,27 @@ class SliverDetailsPostList extends ConsumerWidget {
 class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
   const SliverPreviewPostGrid({
     required this.posts,
-    required this.imageUrl,
+    required String Function(T item) imageUrl,
     required this.auth,
     this.limit,
     this.onShowAll,
     super.key,
-  });
+  }) : _imageUrl = imageUrl,
+       _thumbnailMedia = null;
+
+  const SliverPreviewPostGrid.withThumbnailMedia({
+    required this.posts,
+    required GridThumbnailMedia Function(T item) thumbnailMedia,
+    required this.auth,
+    this.limit,
+    this.onShowAll,
+    super.key,
+  }) : _thumbnailMedia = thumbnailMedia,
+       _imageUrl = null;
 
   final List<T> posts;
-  final String Function(T item) imageUrl;
+  final String Function(T item)? _imageUrl;
+  final GridThumbnailMedia Function(T item)? _thumbnailMedia;
   final BooruConfigAuth auth;
   final PreviewLimit? limit;
   final VoidCallback? onShowAll;
@@ -151,6 +164,7 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
     final post = posts[index];
 
     return ImageGridItem(
+      allowImageActions: _thumbnailMedia != null,
       isGif: post.isGif,
       isAI: post.isAI,
       onTap: () => goToPostDetailsPageFromPosts(
@@ -161,13 +175,31 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
       ),
       isAnimated: post.isAnimated,
       isTranslated: post.isTranslated,
-      image: BooruImage(
-        config: auth,
-        forceCover: true,
-        imageUrl: imageUrl(post),
-        placeholderUrl: post.thumbnailImageUrl,
-        fit: BoxFit.cover,
-      ),
+      image: switch (_thumbnailMedia?.call(post)) {
+        final media? => PostGridImage(
+          config: auth,
+          post: post,
+          // These previews crop every rendition to the same square tile.
+          media: GridThumbnailMedia(
+            url: media.url,
+            aspectRatio: null,
+            fallbackUrl: media.fallbackUrl,
+            fallbackUrls: media.fallbackUrls,
+            probeImageFormats: media.probeImageFormats,
+            placeholderUrl: media.placeholderUrl ?? post.thumbnailImageUrl,
+          ),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+          forceCover: true,
+          fit: BoxFit.cover,
+        ),
+        null => BooruImage(
+          config: auth,
+          forceCover: true,
+          imageUrl: _imageUrl!(post),
+          placeholderUrl: post.thumbnailImageUrl,
+          fit: BoxFit.cover,
+        ),
+      },
     );
   }
 }

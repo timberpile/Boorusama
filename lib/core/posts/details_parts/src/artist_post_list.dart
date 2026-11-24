@@ -100,16 +100,15 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                       )
                                       .maybeWhen(
                                         data: (data) => data.isNotEmpty
-                                            ? SliverPreviewPostGrid(
+                                            ? SliverPreviewPostGrid.withThumbnailMedia(
                                                 auth: auth,
                                                 posts: data,
                                                 limit: previewLimit,
-                                                imageUrl: (p) => thumbUrlBuilder
-                                                    .resolve(
+                                                thumbnailMedia: (p) =>
+                                                    thumbUrlBuilder.resolve(
                                                       p,
                                                       settings: thumbSettings,
-                                                    )
-                                                    .url,
+                                                    ),
                                                 onShowAll: () =>
                                                     _goToArtistPage(tag),
                                               )

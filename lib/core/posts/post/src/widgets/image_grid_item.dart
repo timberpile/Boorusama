@@ -43,6 +43,7 @@ class ImageGridItem extends StatelessWidget {
     this.borderRadius,
     this.leadingIcons,
     this.splashColor,
+    this.allowImageActions = false,
   });
 
   final AutoScrollOptions? autoScrollOptions;
@@ -63,6 +64,7 @@ class ImageGridItem extends StatelessWidget {
   final BorderRadius? borderRadius;
   final List<Widget>? leadingIcons;
   final Color? splashColor;
+  final bool allowImageActions;
 
   @override
   Widget build(BuildContext context) {
@@ -204,25 +206,26 @@ class ImageGridItem extends StatelessWidget {
   }
 
   Widget _buildImage(BuildContext context) {
-    return Stack(
-      children: [
-        image,
-        Positioned.fill(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              focusColor: Kurumi.themeOf(
-                context,
-              ).colorScheme.primary.withAlpha(50),
-              highlightColor: Colors.transparent,
-              splashFactory: FasterInkSplash.splashFactory,
-              splashColor: splashColor ?? Colors.black38,
-              onTap: onTap,
-            ),
-          ),
-        ),
-      ],
+    final tapTarget = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        focusColor: Kurumi.themeOf(context).colorScheme.primary.withAlpha(50),
+        highlightColor: Colors.transparent,
+        splashFactory: FasterInkSplash.splashFactory,
+        splashColor: splashColor ?? Colors.black38,
+        onTap: onTap,
+        child: allowImageActions ? image : null,
+      ),
     );
+    // A child action such as Retry needs to receive taps before navigation.
+    return allowImageActions
+        ? tapTarget
+        : Stack(
+            children: [
+              image,
+              Positioned.fill(child: tapTarget),
+            ],
+          );
   }
 }
 

@@ -94,16 +94,12 @@ class _UploaderPostsSectionState<T extends Post>
                         )
                         .maybeWhen(
                           data: (data) => data.isNotEmpty
-                              ? SliverPreviewPostGrid(
+                              ? SliverPreviewPostGrid.withThumbnailMedia(
                                   posts: data,
                                   auth: auth,
                                   limit: previewLimit,
-                                  imageUrl: (p) => thumbUrlBuilder
-                                      .resolve(
-                                        p,
-                                        settings: thumbSettings,
-                                      )
-                                      .url,
+                                  thumbnailMedia: (p) => thumbUrlBuilder
+                                      .resolve(p, settings: thumbSettings),
                                   onShowAll: () => _goToUploaderPage(q),
                                 )
                               : const SliverSizedBox(),
