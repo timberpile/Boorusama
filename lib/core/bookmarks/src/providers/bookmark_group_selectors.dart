@@ -277,8 +277,11 @@ List<PostBookmark> filterBookmarks({
   if (sortType != BookmarkSortType.random) return sorted;
   final activeShuffleState = shuffleState?.seed != null
       ? shuffleState!
-      : const BookmarkShuffleState().withNewShuffle();
-  return activeShuffleState.applyShuffleToList(sorted);
+      : BookmarkShuffleState.sessionDefault;
+  return activeShuffleState.applyShuffleToList(
+    sorted,
+    key: (item) => ('post', item.localId).toString(),
+  );
 }
 
 /// The same source/tag scope without sorting or shuffling, for summary counts.

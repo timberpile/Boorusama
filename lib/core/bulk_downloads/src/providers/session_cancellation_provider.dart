@@ -40,15 +40,11 @@ class SessionCancellationNotifier extends Notifier<SessionCancellationState> {
 
   Future<void> cancelToken(String sessionId) async {
     final cancelToken = state.cancelTokens[sessionId];
-    if (cancelToken != null && !cancelToken.isCancelled) {
-      cancelToken.cancel();
-
-      state = state.copyWith(
-        cancelTokens: {
-          ...state.cancelTokens..remove(sessionId),
-        },
-      );
-    }
+    if (cancelToken == null) return;
+    if (!cancelToken.isCancelled) cancelToken.cancel();
+    state = state.copyWith(
+      cancelTokens: {...state.cancelTokens}..remove(sessionId),
+    );
   }
 
   CancelToken? getToken(String sessionId) {

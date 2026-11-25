@@ -22,9 +22,15 @@ class SettingsBackupSource extends JsonBackupSource<Settings> {
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async => ref.read(settingsProvider),
         executor: (settings, _) async {
-          await ref
+          final saved = await ref
               .read(settingsNotifierProvider.notifier)
-              .replaceSettings(settings);
+              .updateWith(
+                (current) => settings.copyWith(
+                  appLockType: current.appLockType,
+                  appLockTimeoutSeconds: current.appLockTimeoutSeconds,
+                ),
+              );
+          if (!saved) throw StateError('Restored settings could not be saved');
         },
         handler: SingleHandler<Settings>(
           parser: Settings.fromJson,

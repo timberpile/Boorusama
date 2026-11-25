@@ -30,15 +30,21 @@ class BookmarkShuffleState extends Equatable {
     return const BookmarkShuffleState();
   }
 
-  List<T> applyShuffleToList<T>(List<T> items) {
-    if (seed == null || items.isEmpty) {
-      return items;
-    }
+  static final sessionDefault = const BookmarkShuffleState().withNewShuffle();
 
-    final shuffled = [...items];
-    final random = Random(seed);
-    shuffled.shuffle(random);
-    return shuffled;
+  List<T> applyShuffleToList<T>(
+    List<T> items, {
+    required String Function(T) key,
+  }) {
+    if (seed == null) return items;
+    final ranked = [
+      for (final item in items) (item: item, key: key(item)),
+    ];
+    ranked.sort((a, b) {
+      final rank = Object.hash(seed, a.key).compareTo(Object.hash(seed, b.key));
+      return rank != 0 ? rank : a.key.compareTo(b.key);
+    });
+    return [for (final row in ranked) row.item];
   }
 
   bool get shouldShowAsActive => seed != null;

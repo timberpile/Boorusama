@@ -519,8 +519,16 @@ void main() {
     final second = container.read(bookmarkShuffleProvider);
     expect(second.seed, isNot(first.seed));
     expect(
-      second.applyShuffleToList(List.generate(40, (i) => i)),
-      isNot(first.applyShuffleToList(List.generate(40, (i) => i))),
+      second.applyShuffleToList(
+        List.generate(40, (i) => i),
+        key: (i) => i.toString(),
+      ),
+      isNot(
+        first.applyShuffleToList(
+          List.generate(40, (i) => i),
+          key: (i) => i.toString(),
+        ),
+      ),
     );
     expect(container.read(selectedBooruUrlProvider), 'one.example');
     await _tapFilter(tester, 'Random');
@@ -620,7 +628,19 @@ void main() {
     for (var i = 0; i < 100; i++) {
       final next = state.withNewShuffle();
       expect(next.seed, isNot(state.seed));
-      expect(next.applyShuffleToList(items), next.applyShuffleToList(items));
+      expect(
+        next.applyShuffleToList(items, key: (i) => i.toString()),
+        next.applyShuffleToList(items, key: (i) => i.toString()),
+      );
+      final remaining = items.skip(2).toList()..add(100);
+      expect(
+        next
+            .applyShuffleToList(remaining, key: (i) => i.toString())
+            .where((i) => i != 100),
+        next
+            .applyShuffleToList(items, key: (i) => i.toString())
+            .where((i) => i >= 2),
+      );
       state = next;
     }
   });

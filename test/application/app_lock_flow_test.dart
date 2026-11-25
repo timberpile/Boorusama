@@ -56,6 +56,72 @@ void main() {
     expect(await pinStore.get('pin_credential'), isNotNull);
   });
 
+  testWidgets('missing PIN stays locked and retry reads restored credentials', (
+    tester,
+  ) async {
+    final store = MemoryPinCredentialStore();
+    final factory = _FastPinCredentialRepositoryFactory(store);
+    final backend = FakeBooruBackend();
+    final harness = HeadlessAppHarness(
+      runtime: backend.createRuntime(
+        settings: Settings.defaultSettings.copyWith(
+          appLockType: AppLockType.pin,
+        ),
+        pinCredentialRepositoryFactory: factory,
+      ),
+    );
+    addTearDown(() => harness.teardown(tester));
+    await harness.pump(tester);
+    await harness.pumpUntilFound(tester, find.text('Retry'));
+    await factory.repository.setPin('1234');
+    await tester.tap(find.text('Retry'));
+    await harness.pumpUntilFound(tester, find.text('Unlock Boorusama'));
+    await _enterPin(tester, '1234');
+    await harness.settle(tester);
+    expect(find.text('Unlock Boorusama'), findsNothing);
+  });
+
+  testWidgets(
+    'missing PIN permits device unlock only after successful verification',
+    (tester) async {
+      final auth = _ControlledDeviceUnlock();
+      final backend = FakeBooruBackend();
+      final harness = HeadlessAppHarness(
+        runtime: backend.createRuntime(
+          settings: Settings.defaultSettings.copyWith(
+            appLockType: AppLockType.pin,
+          ),
+          pinCredentialRepositoryFactory: _FastPinCredentialRepositoryFactory(
+            MemoryPinCredentialStore(),
+          ),
+        ),
+        additionalOverrides: [
+          deviceAuthenticatorProvider.overrideWithValue(auth),
+          appLockCapabilitiesProvider.overrideWithValue(
+            const AppLockCapabilities(
+              deviceAuthentication: true,
+              nativePrivacyCover: false,
+            ),
+          ),
+        ],
+      );
+      addTearDown(() => harness.teardown(tester));
+      await harness.pump(tester);
+      final button = find.text('Use Device Unlock');
+      await harness.pumpUntilFound(tester, button);
+      await tester.tap(button);
+      await harness.pumpUntilFound(
+        tester,
+        find.text('Device authentication failed'),
+      );
+      expect(find.text('Boorusama is locked'), findsOneWidget);
+      auth.allow = true;
+      await tester.tap(button);
+      await harness.settle(tester);
+      expect(find.text('Boorusama is locked'), findsNothing);
+    },
+  );
+
   testWidgets('configures, uses, and disables PIN locking through the UI', (
     tester,
   ) async {
@@ -186,4 +252,12 @@ Future<void> _enterPin(WidgetTester tester, String pin) async {
     await tester.pump();
   }
   await tester.pump();
+}
+
+final class _ControlledDeviceUnlock implements DeviceAuthenticator {
+  var allow = false;
+  @override
+  Future<bool> isDeviceSupported() async => true;
+  @override
+  Future<bool> authenticate({required String localizedReason}) async => allow;
 }

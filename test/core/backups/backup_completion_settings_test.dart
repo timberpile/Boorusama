@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:boorusama/core/analytics/providers.dart';
+import 'package:boorusama/core/backups/sources/settings_source.dart';
+import 'package:boorusama/core/settings/src/types/settings_repository.dart';
+import 'package:boorusama/foundation/applock/applock.dart';
+import 'package:boorusama/foundation/info/package_info.dart';
 
 import 'package:boorusama/core/backups/auto/providers.dart';
 import 'package:boorusama/core/backups/auto/service.dart';
@@ -19,6 +23,51 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
 void main() {
+  test(
+    'restore sees the preceding queued lock edit and propagates a failed save',
+    () async {
+      final repository = _ControlledSettings();
+      final container = ProviderContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(null),
+          analyticsProvider.overrideWith((ref) => null),
+          loggerProvider.overrideWithValue(const _Logger()),
+          settingsRepoProvider.overrideWithValue(repository),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final source = container.read(Provider(SettingsBackupSource.new));
+      final lockEdit = container
+          .read(settingsNotifierProvider.notifier)
+          .updateWith(
+            (s) => s.copyWith(
+              appLockType: AppLockType.pin,
+              appLockTimeoutSeconds: 61,
+            ),
+          );
+      await repository.started.future;
+      final incoming = Settings.defaultSettings.copyWith(
+        downloadPath: '/restored',
+      );
+      final restore = source.executor(incoming, null);
+      repository.release.complete();
+      expect(await lockEdit, isTrue);
+      await restore;
+      final saved = container.read(settingsProvider);
+      expect(saved.appLockType, AppLockType.pin);
+      expect(saved.appLockTimeoutSeconds, 61);
+      expect(saved.downloadPath, '/restored');
+      repository.fail = true;
+      await expectLater(
+        source.executor(Settings.defaultSettings, null),
+        throwsStateError,
+      );
+      expect(container.read(settingsProvider), saved);
+    },
+  );
   // These assertions exercise the production completion selector. Restoring
   // its captured `settings.copyWith` must overwrite a real newer preference
   // and fail, independently of package/filesystem details.
@@ -171,4 +220,21 @@ class _Logger implements Logger {
   }) {}
   @override
   void warn(String serviceName, String message, {String? sensitiveMessage}) {}
+}
+
+class _ControlledSettings implements SettingsRepository {
+  final started = Completer<void>();
+  final release = Completer<void>();
+  var fail = false;
+
+  @override
+  Future<bool> save(Settings setting) async {
+    if (!started.isCompleted) started.complete();
+    await release.future;
+    return !fail;
+  }
+
+  @override
+  SettingsOrError load() =>
+      throw UnsupportedError('Settings were initialized directly');
 }

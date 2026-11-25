@@ -300,6 +300,44 @@ void main() {
     });
   });
 
+  for (final challenge in [
+    (status: 403, body: _turnstileCaptchaPage, cookie: 'cf_clearance'),
+    (
+      status: 200,
+      body: '<html>click the checkbox challenge_id challenge_generated</html>',
+      cookie: 'verification',
+    ),
+  ]) {
+    testWidgets(
+      'a retry rate limit reaches the caller after a ${challenge.status} challenge',
+      (tester) async {
+        final site = _Site(
+          blockedBody: challenge.body,
+          blockedStatus: challenge.status,
+          rateLimitRetry: true,
+        );
+        final harness = await _Harness.pump(
+          tester,
+          site: site,
+          browserCookies: [
+            BrowserCookie(
+              name: challenge.cookie,
+              value: 'fixture',
+              domain: 'example.com',
+              path: '/',
+            ),
+          ],
+        );
+
+        final sent = await harness.send(tester, '/post');
+
+        expect(sent.result, 'HTTP 429');
+        expect(site.appRequests, 2);
+        expect(site.browserPaths, ['/post']);
+      },
+    );
+  }
+
   testWidgets('a challenge shown to the browser is revealed to the user', (
     tester,
   ) async {
@@ -372,6 +410,32 @@ void main() {
       expect(site.appRequests, 5);
     },
   );
+
+  for (final c in [
+    (protocolOverridden: true, hints: ['example.com']),
+    (protocolOverridden: false, hints: <String>[]),
+  ]) {
+    testWidgets(
+      'a solve that leaves the app blocked ${c.protocolOverridden ? 'suggests the automatic protocol once' : 'does not mention the protocol'} when the profile ${c.protocolOverridden ? 'forces' : 'does not force'} one',
+      (tester) async {
+        var now = DateTime.utc(2026, 10, 4);
+        final site = _Site(blockedBody: _turnstileCaptchaPage);
+        final harness = await _Harness.pump(
+          tester,
+          site: site,
+          clock: Clock(() => now),
+          protocolOverridden: c.protocolOverridden,
+        );
+
+        await harness.send(tester, _readPath);
+        now = now.add(const Duration(seconds: 30));
+        final again = await harness.send(tester, _readPath);
+
+        expect(again.challengeShown, isTrue);
+        expect(harness.protocolHints, c.hints);
+      },
+    );
+  }
 }
 
 List<ProtectionDetector> _detectors() => [
@@ -383,7 +447,7 @@ List<ProtectionDetector> _detectors() => [
 typedef _Sent = ({String? result, bool challengeShown, bool challengeVisible});
 
 class _Harness {
-  _Harness._(this.dio);
+  _Harness._(this.dio, this.protocolHints);
 
   static Future<_Harness> pump(
     WidgetTester tester, {
@@ -392,7 +456,9 @@ class _Harness {
     List<BrowserCookie>? initialBrowserCookies,
     List<Cookie> requestCookies = const [],
     Clock clock = const Clock(),
+    bool protocolOverridden = false,
   }) async {
+    final protocolHints = <String>[];
     late BuildContext pageContext;
     await tester.pumpWidget(
       BooruLocalization(
@@ -425,6 +491,7 @@ class _Harness {
     BuildContext? contextProvider() => pageContext;
     final handler = HttpProtectionHandler(
       clock: clock,
+      onBlockedWithProtocolOverride: (uri) => protocolHints.add(uri.host),
       orchestrator: ProtectionOrchestrator(
         detectors: _detectors(),
         solvers: [
@@ -452,12 +519,17 @@ class _Harness {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.com'))
       ..httpClientAdapter = site;
     dio.interceptors.add(
-      DioProtectionInterceptor(protectionHandler: handler, dio: dio),
+      DioProtectionInterceptor(
+        protectionHandler: handler,
+        dio: dio,
+        protocolOverridden: protocolOverridden,
+      ),
     );
-    return _Harness._(dio);
+    return _Harness._(dio, protocolHints);
   }
 
   final Dio dio;
+  final List<String> protocolHints;
 
   Future<_Sent> sendAction(WidgetTester tester) =>
       send(tester, _actionPath, stateChanging: true);
@@ -519,9 +591,17 @@ class _Harness {
 /// cookie header carries [unblockedBy]. The fixture browser is already logged in
 /// and is never challenged unless [browserBody] contains a challenge page.
 class _Site implements HttpClientAdapter {
-  _Site({required this.blockedBody, this.unblockedBy, this.browserBody});
+  _Site({
+    required this.blockedBody,
+    this.blockedStatus = 403,
+    this.rateLimitRetry = false,
+    this.unblockedBy,
+    this.browserBody,
+  });
 
   final String blockedBody;
+  final int blockedStatus;
+  final bool rateLimitRetry;
 
   /// What the browser sees instead of the requested page, if anything.
   final String? browserBody;
@@ -553,6 +633,9 @@ class _Site implements HttpClientAdapter {
         .map((e) => '${e.value}')
         .firstOrNull;
     cookieHeaders.add(cookie ?? '');
+    if (rateLimitRetry && appRequests > 1) {
+      return ResponseBody.fromString('Too many requests', 429);
+    }
     final unblocked =
         options.uri.path == _openPath ||
         switch ((unblockedBy, cookie)) {
@@ -563,7 +646,7 @@ class _Site implements HttpClientAdapter {
       true => ResponseBody.fromString('done', 200),
       false => ResponseBody.fromString(
         blockedBody,
-        403,
+        blockedStatus,
         headers: {
           Headers.contentTypeHeader: ['text/html'],
         },

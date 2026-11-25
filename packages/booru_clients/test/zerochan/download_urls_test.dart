@@ -5,6 +5,57 @@ import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
 void main() {
+  for (final status in [200, 500]) {
+    test('recovers a complete warning-wrapped list on $status', () async {
+      final client = _client(
+        _FakeAdapter(
+          (_) => _response(
+            'warning {"items":[{"id":7,"tag":"}"}]} footer',
+            status: status,
+          ),
+        ),
+      );
+      expect((await client.getPosts()).single.id, 7);
+    });
+  }
+  test(
+    'recovers the complete list inside the extra opening brace from Zerochan',
+    () async {
+      final client = _client(
+        _FakeAdapter(
+          (_) => _response(
+            '{\n{\n  "items": [{"id": "42", "tag": "brace }"}]\n}\n<ul id="thumbs2">\n}',
+            status: 500,
+          ),
+        ),
+      );
+      expect((await client.getPosts()).single.id, 42);
+    },
+  );
+
+  for (final body in [
+    '{\n{"items":[{"id":42} <ul>}',
+    'error',
+    '{} warning "items":[]}',
+    '{"error":{"items":[]}',
+    '{"items":[',
+    '{"items":[null]}',
+    '{"items":[{}]}',
+  ]) {
+    test('retains HTTP 500 for invalid payload $body', () async {
+      final client = _client(_FakeAdapter((_) => _response(body, status: 500)));
+      await expectLater(
+        client.getPosts(),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'status',
+            500,
+          ),
+        ),
+      );
+    });
+  }
   test('uses a valid detail JSON full URL without requesting HTML', () async {
     final adapter = _FakeAdapter((request) {
       expect(request.uri.query, 'json');

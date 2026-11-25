@@ -121,6 +121,7 @@
 
     sites:
       - url: https://rule34.xxx/
+        protocol: https_1
         auth:
           required: true
           instructions-key: "booru.api_key_instructions.variants_1"

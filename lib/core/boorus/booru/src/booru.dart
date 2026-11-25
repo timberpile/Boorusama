@@ -16,7 +16,29 @@ abstract class Booru extends Equatable {
 
   Map<String, dynamic>? get headers => config.headers;
 
-  NetworkProtocol? getSiteProtocol(String url) => config.protocol;
+  NetworkProtocol? getSiteProtocol(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasAuthority) return config.protocol;
+    for (final site in config.sites) {
+      final base = Uri.tryParse(site.url);
+      if (base == null ||
+          base.scheme != uri.scheme ||
+          base.host != uri.host ||
+          base.port != uri.port) {
+        continue;
+      }
+      final path = base.path.endsWith('/') ? base.path : '${base.path}/';
+      if (uri.path != base.path &&
+          '${uri.path}/' != path &&
+          !uri.path.startsWith(path)) {
+        continue;
+      }
+      if (site.metadata['protocol'] case final String protocol) {
+        return parseProtocol(protocol);
+      }
+    }
+    return config.protocol;
+  }
 
   String? getLoginUrl() => config.loginUrl;
 

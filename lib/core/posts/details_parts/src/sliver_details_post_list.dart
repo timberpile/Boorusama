@@ -170,6 +170,7 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
       image: switch (_thumbnailMedia?.call(post)) {
         final media? => PostGridImage(
           config: auth,
+          decodeAtLayoutSize: true,
           post: post,
           // These previews crop every rendition to the same square tile.
           media: GridThumbnailMedia(
@@ -186,8 +187,11 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
         ),
         null => BooruImage(
           config: auth,
+          decodeAtLayoutSize: true,
           forceCover: true,
           imageUrl: _imageUrl!(post),
+          imageWidth: post.width,
+          imageHeight: post.height,
           placeholderUrl: post.thumbnailImageUrl,
           fit: BoxFit.cover,
         ),

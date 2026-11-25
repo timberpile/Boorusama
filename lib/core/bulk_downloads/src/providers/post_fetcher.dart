@@ -35,6 +35,8 @@ class PostResult extends Equatable {
   const PostResult({
     required this.posts,
     required this.isFiltered,
+    this.nextCursor,
+    this.hasMore,
   });
 
   const PostResult.empty() : this(posts: const [], isFiltered: false);
@@ -44,11 +46,13 @@ class PostResult extends Equatable {
 
   final List<Post> posts;
   final bool isFiltered;
+  final int? nextCursor;
+  final bool? hasMore;
 
-  bool get isEmpty => !isFiltered && posts.isEmpty;
+  bool get isEmpty => !isFiltered && posts.isEmpty && nextCursor == null;
 
   @override
-  List<Object> get props => [posts, isFiltered];
+  List<Object?> get props => [posts, isFiltered, nextCursor, hasMore];
 }
 
 class PostFetcher
@@ -76,6 +80,7 @@ class PostFetcher
     required SearchTagSet tags,
     required int page,
     required DownloadTask task,
+    int? cursor,
   }) async {
     final currentState = await future;
 
@@ -85,25 +90,37 @@ class PostFetcher
           tags,
           page,
           limit: task.perPage,
-          options: PostFetchOptions.raw,
+          options: PostFetchOptions(
+            cascadeRequest: false,
+            useCursor: true,
+            cursor: cursor,
+          ),
         )
         .run();
 
     return result.fold(
-      (_) => const PostResult.empty(),
+      (error) => throw error,
       (r) {
         final posts = r.posts;
-        if (posts.isEmpty) return const PostResult.empty();
-
         final taskPatterns = _parsePatterns(queryAsList(task.blacklistedTags));
         final effectivePatterns = [
           ...taskPatterns,
           ...currentState.blacklistedPatterns,
         ];
 
-        return _filter(
+        final filtered = _filter(
           posts,
           effectivePatterns,
+        );
+
+        return PostResult(
+          posts: filtered.posts,
+          isFiltered:
+              filtered.isFiltered ||
+              (posts.isEmpty &&
+                  ((r.rawPostCount ?? 0) > 0 || (r.hasMore ?? false))),
+          nextCursor: r.nextCursor,
+          hasMore: r.hasMore,
         );
       },
     );

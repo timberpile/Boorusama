@@ -15,7 +15,12 @@ import 'types/types.dart';
 
 const _kGelbooruUrl = 'https://gelbooru.com/';
 
-typedef GelbooruPosts = ({List<PostDto> posts, int? count});
+typedef GelbooruPosts = ({
+  List<PostDto> posts,
+  int? count,
+  int? lastId,
+  List<int?> rawIds,
+});
 
 class GelbooruClient
     with GelbooruClientFavorites, RequestDeduplicator<GelbooruPosts> {
@@ -91,7 +96,7 @@ class GelbooruClient
     List<String>? tags,
   }) async {
     final baseUrl = _dio.options.baseUrl;
-    final key = '${baseUrl}_getPosts_${tags?.join(' ')}_${page ?? 1}';
+    final key = '${baseUrl}_getPosts_${tags?.join(' ')}_${page ?? 1}_$limit';
 
     return deduplicate(
       key,
@@ -114,19 +119,36 @@ class GelbooruClient
         final data = response.data;
 
         final result = switch (data) {
+          {'success': false} => throw const FormatException(
+            'Gelbooru post request failed',
+          ),
           final Map m => () {
-            final count = m['@attributes']['count'] as int?;
+            final count = switch (m['@attributes']) {
+              {'count': final int n} when n >= 0 => n,
+              {'count': final String n} => int.tryParse(n),
+              _ => null,
+            };
 
-            return (
-              posts: m.containsKey('post')
-                  ? (m['post'] as List)
-                        .map((item) => PostDto.fromJson(item, baseUrl))
-                        .toList()
-                  : <PostDto>[],
-              count: count,
-            );
+            final posts = switch (m) {
+              {'post': final List items} =>
+                items.map((item) => PostDto.fromJson(item, baseUrl)).toList(),
+              _
+                  when !m.containsKey('post') &&
+                      count != null &&
+                      count >= 0 &&
+                      ((page ?? 1) - 1) * (limit ?? 100) >= count =>
+                <PostDto>[],
+              _ => throw const FormatException(
+                'Invalid Gelbooru list response',
+              ),
+            };
+            return (posts: posts, count: count);
           }(),
-          _ => (posts: <PostDto>[], count: null),
+          final List list when list.isEmpty => (
+            posts: <PostDto>[],
+            count: null,
+          ),
+          _ => throw const FormatException('Invalid Gelbooru list response'),
         };
 
         final filterNulls = result.posts.where((e) => e.md5 != null).toList();
@@ -134,6 +156,8 @@ class GelbooruClient
         return (
           posts: filterNulls,
           count: result.count,
+          lastId: result.posts.lastOrNull?.id,
+          rawIds: result.posts.map((post) => post.id).toList(),
         );
       },
     );

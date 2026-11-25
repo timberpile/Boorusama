@@ -385,10 +385,12 @@ class PostGridImage extends ConsumerWidget {
     this.cachedImageBytes,
     this.cachedImageAccessKey,
     this.post,
+    this.decodeAtLayoutSize = false,
   });
 
   final GridThumbnailMedia media;
   final Post? post;
+  final bool decodeAtLayoutSize;
   final BorderRadius? borderRadius;
   final bool? forceCover;
   final BoxFit? fit;
@@ -415,6 +417,9 @@ class PostGridImage extends ConsumerWidget {
         (imageListType == ImageListType.classic ? BoxFit.contain : null);
     Widget normal(String url, {bool fallback = false}) => BooruImage(
       config: config,
+      decodeAtLayoutSize: decodeAtLayoutSize,
+      imageWidth: decodeAtLayoutSize ? post?.width : null,
+      imageHeight: decodeAtLayoutSize ? post?.height : null,
       aspectRatio: media.aspectRatio,
       imageUrl: url,
       fallbackUrl: fallback ? null : media.fallbackUrl,
@@ -450,29 +455,43 @@ class PostGridImage extends ConsumerWidget {
         ref.watch(
           imageListingSettingsProvider.select((v) => v.imageGridAspectRatio),
         );
-    return BooruImageCandidates(
-      config: config,
-      urls: [media.url, ...media.fallbackUrls],
-      imageCacheManager: imageCacheManager,
-      placeholder: placeholder,
-      builder: (provider) {
-        // Preserve grid sizing while reusing the already decoded provider.
-        // Going through a second network provider would repeat decoding.
-        final image = LayoutBuilder(
-          builder: (context, constraints) => ExtendedImage(
-            image: provider,
-            width: constraints.maxWidth.roundToDouble(),
-            height: constraints.maxHeight.roundToDouble(),
-            fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
-            borderRadius: borderRadius,
-            placeholderWidget: placeholder,
-            errorWidget: placeholder,
-          ),
+    Widget candidates(({int? width, int? height})? size) =>
+        BooruImageCandidates(
+          decodeSize: size,
+          config: config,
+          urls: [media.url, ...media.fallbackUrls],
+          imageCacheManager: imageCacheManager,
+          placeholder: placeholder,
+          builder: (provider) {
+            // Preserve grid sizing while reusing the already decoded provider.
+            // Going through a second network provider would repeat decoding.
+            final image = LayoutBuilder(
+              builder: (context, constraints) => ExtendedImage(
+                image: provider,
+                width: constraints.maxWidth.roundToDouble(),
+                height: constraints.maxHeight.roundToDouble(),
+                fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
+                borderRadius: borderRadius,
+                placeholderWidget: placeholder,
+                errorWidget: placeholder,
+              ),
+            );
+            return cover || fit == BoxFit.contain || ratio == null
+                ? image
+                : AspectRatio(aspectRatio: ratio, child: image);
+          },
         );
-        return cover || fit == BoxFit.contain || ratio == null
-            ? image
-            : AspectRatio(aspectRatio: ratio, child: image);
-      },
+    if (!decodeAtLayoutSize) return candidates(null);
+    return LayoutBuilder(
+      builder: (context, constraints) => candidates(
+        layoutDecodeSize(
+          layout: constraints.biggest,
+          pixelRatio: MediaQuery.devicePixelRatioOf(context),
+          fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
+          imageWidth: post?.width,
+          imageHeight: post?.height,
+        ),
+      ),
     );
   }
 }

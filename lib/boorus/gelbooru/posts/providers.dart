@@ -11,18 +11,24 @@ import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
-
-const _gelbooruSearchDepthLimit = 40000;
+import 'pagination.dart';
 
 final gelbooruPostRepoProvider =
     Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(gelbooruClientProvider(config.auth));
         final tagComposer = ref.watch(gelbooruTagQueryComposerProvider(config));
+        final cursors = GelbooruPageCursors();
 
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
-          fetch: client.getPostResults,
+          fetch: (tags, page, {limit, options}) => client.getPostResults(
+            tags,
+            page,
+            limit: limit,
+            options: options,
+            cursors: cursors,
+          ),
           fetchSingle: (id, {options}) async {
             final numericId = id as NumericPostId?;
 
@@ -46,23 +52,54 @@ extension GelbooruClientX on GelbooruClient {
     int page, {
     int? limit,
     PostFetchOptions? options,
+    GelbooruPageCursors? cursors,
   }) async {
-    final maxPage = _gelbooruMaxAccessiblePage(limit);
+    if (page <= 0 || (limit != null && limit <= 0)) {
+      throw ArgumentError('Page and limit must be positive');
+    }
+    final useCursor = options?.useCursor ?? false;
+    if ((useCursor, cursors, GelbooruIdPagination.fromTags(tags)) case (
+      false,
+      final cursors?,
+      final pagination?,
+    )) {
+      return _getDeepPostResults(
+        tags,
+        page,
+        limit: limit ?? _kGelbooruDefaultLimit,
+        cursors: cursors,
+        pagination: pagination,
+      );
+    }
 
-    if (maxPage != null && page > maxPage) {
-      return <Post>[].toResult(maxPage: maxPage);
+    final pagination = useCursor ? GelbooruIdPagination.fromTags(tags) : null;
+    final cursor = options?.cursor;
+    if (pagination != null && page > 1 && cursor == null) {
+      throw const FormatException('Gelbooru cursor missing for continuation');
+    }
+    final requestTags = pagination != null && cursor != null
+        ? pagination.tagsAfter(cursor)
+        : tags;
+
+    if (requestTags == null) {
+      return <Post>[].toResult();
     }
 
     final value = await getPosts(
-      tags: tags,
-      page: page,
+      tags: requestTags,
+      page: pagination != null ? 1 : page,
       limit: limit,
     );
-    final total = value.count;
-    // Use the requested source stride, not the count after DTO filtering.
-    final hasMore = total != null && total >= 0 && limit != null && limit > 0
-        ? page * limit < total && (maxPage == null || page < maxPage)
-        : null;
+
+    final nextCursor = pagination != null ? value.lastId : null;
+    if (pagination != null) {
+      _validateIds(value, pagination, cursor: cursor);
+      if (value.rawIds.isEmpty && (value.count ?? 0) > 0) {
+        throw const FormatException(
+          'Gelbooru returned no posts for a nonempty cursor page',
+        );
+      }
+    }
 
     return value.posts
         .map(
@@ -77,18 +114,83 @@ extension GelbooruClientX on GelbooruClient {
         )
         .toList()
         .toResult(
-          total: total,
-          maxPage: maxPage,
-          hasMore: hasMore,
+          total: value.count,
+          nextCursor: nextCursor,
+          rawPostCount: value.rawIds.length,
+          rawUniquePostCount: value.rawIds.toSet().length,
+          hasMore: switch (value.count) {
+            null => null,
+            final count when pagination != null => value.rawIds.length < count,
+            final count when limit != null => page * limit < count,
+            _ => null,
+          },
+        );
+  }
+
+  Future<PostResult<Post>> _getDeepPostResults(
+    List<String> tags,
+    int page, {
+    required int limit,
+    required GelbooruPageCursors cursors,
+    required GelbooruIdPagination pagination,
+  }) async {
+    final target = await cursors.locate(
+      tags: tags,
+      pagination: pagination,
+      page: page,
+      limit: limit,
+      lastIdOf: (tags, page) async {
+        final value = await getPosts(tags: tags, page: page, limit: limit);
+        _validateIds(value, GelbooruIdPagination.fromTags(tags)!);
+        return value.lastId;
+      },
+      probe: (tags) async {
+        final value = await getPosts(tags: tags, page: 1, limit: 1);
+        return (
+          count:
+              value.count ??
+              (throw const FormatException('Gelbooru count unavailable')),
+          firstId: value.lastId,
+        );
+      },
+    );
+    if (target == null) return <Post>[].toResult();
+
+    final value = await getPosts(
+      tags: target.tags,
+      page: target.page,
+      limit: limit,
+    );
+    _validateIds(value, GelbooruIdPagination.fromTags(target.tags)!);
+    target.recordBoundary(value.lastId);
+
+    return value.posts
+        .map(
+          (e) => gelbooruPostDtoToGelbooruPost(
+            e,
+            PostMetadata(
+              page: page,
+              search: tags.join(' '),
+              limit: limit,
+            ),
+          ),
+        )
+        .toList()
+        .toResult(
+          rawPostCount: value.rawIds.length,
+          rawUniquePostCount: value.rawIds.toSet().length,
+          hasMore: value.count == null
+              ? null
+              : target.page * limit < value.count!,
+          total: switch (value.count) {
+            final count? => count + target.skipped,
+            null => null,
+          },
         );
   }
 }
 
-int? _gelbooruMaxAccessiblePage(int? limit) {
-  if (limit == null || limit <= 0) return null;
-
-  return (_gelbooruSearchDepthLimit - 1) ~/ limit;
-}
+const _kGelbooruDefaultLimit = 100;
 
 final gelbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
   ref,
@@ -99,3 +201,22 @@ final gelbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
     _ => null,
   };
 });
+
+void _validateIds(
+  GelbooruPosts value,
+  GelbooruIdPagination pagination, {
+  int? cursor,
+}) {
+  var previous = cursor;
+  for (final id in value.rawIds) {
+    final upper = pagination.upperBound;
+    if (id == null ||
+        id < pagination.lowerBound ||
+        (upper != null && id > upper) ||
+        (previous != null &&
+            (pagination.ascending ? id <= previous : id >= previous))) {
+      throw const FormatException('Gelbooru pagination did not advance');
+    }
+    previous = id;
+  }
+}

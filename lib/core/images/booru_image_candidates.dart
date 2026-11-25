@@ -31,6 +31,7 @@ class BooruImageCandidates extends ConsumerWidget {
     required this.placeholder,
     required this.builder,
     this.imageCacheManager,
+    this.decodeSize,
     super.key,
   });
 
@@ -39,6 +40,7 @@ class BooruImageCandidates extends ConsumerWidget {
   final Widget placeholder;
   final Widget Function(ImageProvider image) builder;
   final ImageCacheManager? imageCacheManager;
+  final ({int? width, int? height})? decodeSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,6 +98,7 @@ class BooruImageCandidates extends ConsumerWidget {
       manager,
       platform,
       androidVersion,
+      decodeSize,
     );
     final history = ref.watch(_candidateHistoryProvider);
     return ImageCandidatePicker(
@@ -122,6 +125,8 @@ class BooruImageCandidates extends ConsumerWidget {
             return ImageCandidate(
               image: ExtendedImage.network(
                 request.url,
+                cacheWidth: decodeSize?.width,
+                cacheHeight: decodeSize?.height,
                 dio: request.overridden ? overrideDio : dio,
                 headers: request.headers,
                 cancelToken: token,

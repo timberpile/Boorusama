@@ -301,12 +301,28 @@ void main() {
         final params = container.read(
           downloadNotifierParamsProvider((
             backend.config.auth,
-            backend.config.download,
+            const BooruConfigDownload(
+              fileNameFormat: 'selected.jpg',
+              bulkFileNameFormat: null,
+              location: null,
+            ),
           )),
         );
-        await container
-            .read(downloadNotifierProvider(params).notifier)
-            .download(backend.posts.first, overrideUrl: url);
+        final notifier = container.read(
+          downloadNotifierProvider(params).notifier,
+        );
+        final first = notifier.download(backend.posts.first, overrideUrl: url);
+        final second = url.isEmpty
+            ? null
+            : notifier.download(backend.posts.first, overrideUrl: url);
+        await first;
+        if (second != null) {
+          await second;
+          expect(
+            await notifier.download(backend.posts.first, overrideUrl: url),
+            isNull,
+          );
+        }
         if (url.isEmpty) {
           expect(service.requests, isEmpty);
           expect(

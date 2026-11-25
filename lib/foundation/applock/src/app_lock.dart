@@ -42,7 +42,7 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
     config: _config,
     now: DateTime.now,
   );
-  var _authenticating = false;
+  var _authenticationFailed = false;
   late var _buildProtectedContent = !_session.locked;
 
   AppLockSessionConfig get _config => AppLockSessionConfig(
@@ -59,6 +59,7 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
         .nativePrivacyCover;
     WidgetsBinding.instance.addObserver(this);
     unawaited(_syncNativePrivacyCover());
+    _schedulePendingBiometricPrompt();
   }
 
   @override
@@ -76,6 +77,7 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
         _buildProtectedContent = true;
       }
     });
+    _schedulePendingBiometricPrompt();
   }
 
   @override
@@ -89,7 +91,26 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _session.locked) {
+      ref.invalidate(biometricDeviceSupportProvider);
+    }
     setState(() => _session.didChangeAppLifecycleState(state));
+    _schedulePendingBiometricPrompt();
+  }
+
+  void _schedulePendingBiometricPrompt() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_session.takeBiometricPrompt()) return;
+
+      final canUse = await ref
+          .read(canUseBiometricLockProvider.future)
+          .catchError((_) => false);
+      if (!canUse || !mounted || !_session.locked || !widget.type.isBiometric) {
+        return;
+      }
+
+      await _authenticate(ref.read(deviceAuthenticatorProvider));
+    });
   }
 
   Future<void> _syncNativePrivacyCover() async {
@@ -101,21 +122,28 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
   }
 
   Future<void> _authenticate(DeviceAuthenticator deviceAuthenticator) async {
-    if (_authenticating) return;
+    if (_session.authenticating) return;
 
     final logger = ref.read(loggerProvider)
       ..info('Local Auth', 'Authenticating...');
 
-    setState(() => _authenticating = true);
+    setState(() {
+      _authenticationFailed = false;
+      _session.startAuthentication();
+    });
 
     try {
+      final lockType = widget.type;
       final didAuthenticate = await startAuthenticate(
         deviceAuthenticator,
         localizedReason:
             context.t.settings.privacy.app_lock.authenticate_reason,
       );
 
-      if (didAuthenticate && mounted) {
+      if (didAuthenticate &&
+          mounted &&
+          _session.locked &&
+          widget.type == lockType) {
         logger.info('Local Auth', 'Authenticated');
         setState(() {
           _session.unlock();
@@ -126,7 +154,10 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
       logger.error('Local Auth', 'Failed to authenticate: $e');
     } finally {
       if (mounted) {
-        setState(() => _authenticating = false);
+        setState(() {
+          _session.finishAuthentication();
+          _authenticationFailed = _session.locked;
+        });
       }
     }
   }
@@ -154,7 +185,8 @@ class _AppLockState extends ConsumerState<AppLock> with WidgetsBindingObserver {
           Positioned.fill(
             child: _LockSurface(
               type: widget.type,
-              authenticating: _authenticating,
+              authenticating: _session.authenticating,
+              authenticationFailed: _authenticationFailed,
               onBiometricUnlock: () =>
                   _authenticate(ref.read(deviceAuthenticatorProvider)),
               onPinUnlocked: _unlock,
@@ -171,12 +203,14 @@ class _LockSurface extends ConsumerWidget {
     required this.authenticating,
     required this.onBiometricUnlock,
     required this.onPinUnlocked,
+    required this.authenticationFailed,
   });
 
   final AppLockType type;
   final bool authenticating;
   final VoidCallback onBiometricUnlock;
   final VoidCallback onPinUnlocked;
+  final bool authenticationFailed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -199,20 +233,34 @@ class _LockSurface extends ConsumerWidget {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
-                    child: switch (type) {
-                      AppLockType.pin => _PinLockSurface(
-                        onUnlocked: onPinUnlocked,
-                        onDeviceUnlock: onBiometricUnlock,
-                      ),
-                      AppLockType.biometrics => ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 380),
-                        child: _BiometricLockSurface(
-                          authenticating: authenticating,
-                          onUnlock: onBiometricUnlock,
-                        ),
-                      ),
-                      AppLockType.none => const SizedBox.shrink(),
-                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (authenticationFailed)
+                          Text(
+                            context
+                                .t
+                                .settings
+                                .privacy
+                                .app_lock
+                                .biometric_failed,
+                          ),
+                        switch (type) {
+                          AppLockType.pin => _PinLockSurface(
+                            onUnlocked: onPinUnlocked,
+                            onDeviceUnlock: onBiometricUnlock,
+                          ),
+                          AppLockType.biometrics => ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 380),
+                            child: _BiometricLockSurface(
+                              authenticating: authenticating,
+                              onUnlock: onBiometricUnlock,
+                            ),
+                          ),
+                          AppLockType.none => const SizedBox.shrink(),
+                        },
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -239,10 +287,14 @@ class _PinLockSurface extends ConsumerStatefulWidget {
 
 class _PinLockSurfaceState extends ConsumerState<_PinLockSurface> {
   late final repository = ref.read(pinCredentialRepositoryProvider);
-  late final Future<bool> hasPin = repository.hasPin();
+  late Future<bool> hasPin = repository.hasPin();
 
   @override
   Widget build(BuildContext context) {
+    final deviceUnlock =
+        (ref.watch(canUseBiometricLockProvider).valueOrNull ?? false)
+        ? widget.onDeviceUnlock
+        : null;
     return FutureBuilder<bool>(
       future: hasPin,
       builder: (context, snapshot) {
@@ -251,7 +303,14 @@ class _PinLockSurfaceState extends ConsumerState<_PinLockSurface> {
         }
 
         if (snapshot.hasError || snapshot.data != true) {
-          return const _LockMessage(
+          return _LockMessage(
+            deviceUnlock: deviceUnlock,
+            retry: () {
+              final read = repository.hasPin();
+              setState(() {
+                hasPin = read;
+              });
+            },
             icon: Symbols.lock,
             title: null,
             message: null,
@@ -263,10 +322,7 @@ class _PinLockSurfaceState extends ConsumerState<_PinLockSurface> {
           title: context.t.settings.privacy.app_lock.unlock_app,
           onSubmit: repository.verifyPin,
           onUnlocked: widget.onUnlocked,
-          onDeviceUnlock:
-              (ref.watch(canUseBiometricLockProvider).valueOrNull ?? false)
-              ? widget.onDeviceUnlock
-              : null,
+          onDeviceUnlock: deviceUnlock,
         );
       },
     );
@@ -289,7 +345,8 @@ class _BiometricLockSurface extends ConsumerWidget {
         .when(
           data: (canUse) {
             if (!canUse) {
-              return const _LockMessage(
+              return _LockMessage(
+                retry: () => ref.invalidate(biometricDeviceSupportProvider),
                 icon: Symbols.lock,
                 title: null,
                 message: null,
@@ -314,10 +371,14 @@ class _BiometricLockSurface extends ConsumerWidget {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                if (authenticating) ...[
-                  const SizedBox(height: 16),
-                  const CircularProgressIndicator(),
-                ],
+                const SizedBox(height: 16),
+                // Reserved so the prompt opening doesn't shift the layout.
+                SizedBox.square(
+                  dimension: 36,
+                  child: authenticating
+                      ? const CircularProgressIndicator()
+                      : null,
+                ),
               ],
             );
           },
@@ -325,7 +386,8 @@ class _BiometricLockSurface extends ConsumerWidget {
             delay: Duration(milliseconds: 500),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (error, stack) => const _LockMessage(
+          error: (error, stack) => _LockMessage(
+            retry: () => ref.invalidate(biometricDeviceSupportProvider),
             icon: Symbols.lock,
             title: null,
             message: null,
@@ -369,9 +431,13 @@ class _LockMessage extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.retry,
+    this.deviceUnlock,
     this.messageType = _LockMessageType.custom,
   });
 
+  final VoidCallback? retry;
+  final VoidCallback? deviceUnlock;
   final IconData icon;
   final String? title;
   final String? message;
@@ -421,6 +487,16 @@ class _LockMessage extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(color: colorScheme.outline),
         ),
+        if (deviceUnlock != null)
+          TextButton(
+            onPressed: deviceUnlock,
+            child: Text(appLock.use_device_unlock),
+          ),
+        if (retry != null)
+          TextButton(
+            onPressed: retry,
+            child: Text(context.t.generic.action.retry),
+          ),
       ],
     );
   }

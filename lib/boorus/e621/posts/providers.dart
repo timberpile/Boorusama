@@ -9,6 +9,7 @@ import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/search/queries/providers.dart';
 import '../../../core/settings/providers.dart';
+import '../../../foundation/loggers.dart';
 import '../client_provider.dart';
 import '../configs/providers.dart';
 import 'parser.dart';
@@ -47,7 +48,7 @@ final e621PostRepoProvider =
               for (final post in posts) ?post.id: ?post.isFavorited,
             }, read);
           }
-          return posts
+          final converted = posts
               .map(
                 (post) => postDtoToPost(
                   post,
@@ -59,8 +60,24 @@ final e621PostRepoProvider =
                 ),
               )
               .nonNulls
-              .toList()
-              .toResult();
+              .toList();
+          if (converted.isEmpty &&
+              posts.any((dto) => !(dto.flags?.deleted ?? false))) {
+            ref
+                .read(loggerProvider)
+                .warn(
+                  'E621',
+                  'Could not read any of ${posts.length} posts on page $page',
+                );
+          }
+          return converted.toResult(
+            rawPostCount: posts.length,
+            rawUniquePostCount: posts
+                .map((post) => post.id)
+                .nonNulls
+                .toSet()
+                .length,
+          );
         },
         getSettings: () async =>
             ref.read(listingSettingsForAuthProvider(config.auth)),

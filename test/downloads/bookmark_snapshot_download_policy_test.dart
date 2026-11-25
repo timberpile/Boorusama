@@ -1,3 +1,7 @@
+import 'package:background_downloader/background_downloader.dart' as bg;
+
+import '../application/support/download_event_driver.dart';
+
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/app_scope.dart';
@@ -434,6 +438,28 @@ void main() {
                   ? '$stem.png'
                   : '${stem}_${quality.name}.jpg',
             );
+            await notifier.downloadBookmarks(
+              backend.configB.auth,
+              backend.configB.download,
+              selection,
+            );
+            expect(
+              downloads.requests,
+              hasLength(bulk ? 2 : 1),
+              reason: 'active duplicates are suppressed',
+            );
+            final events = DownloadEventDriver(container);
+            for (final active in downloads.requests) {
+              events.status(
+                bg.DownloadTask(
+                  taskId: active.filename,
+                  url: active.url,
+                  filename: active.filename,
+                  metaData: active.metadata!.toJsonString(),
+                ),
+                bg.TaskStatus.complete,
+              );
+            }
             await notifier.downloadBookmarks(
               backend.configB.auth,
               backend.configB.download,

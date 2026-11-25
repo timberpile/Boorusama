@@ -14,6 +14,7 @@ class DownloaderMetadata extends Equatable {
     this.profileIconUrl,
     this.isVideo = false,
     this.sidecarId,
+    this.admissionId,
     this.mediaHostOverridden = false,
   });
 
@@ -26,6 +27,10 @@ class DownloaderMetadata extends Equatable {
       profileIconUrl: json['profileIconUrl'],
       isVideo: json['isVideo'] ?? false,
       sidecarId: json['sidecarId'] as String?,
+      admissionId: switch (json['admissionId']) {
+        final String id => id,
+        _ => null,
+      },
       mediaHostOverridden: json['mediaHostOverridden'] as bool? ?? false,
     );
   }
@@ -44,6 +49,7 @@ class DownloaderMetadata extends Equatable {
   final String? profileIconUrl;
   final bool isVideo;
   final String? sidecarId;
+  final String? admissionId;
   final bool mediaHostOverridden;
 
   static const empty = DownloaderMetadata(
@@ -62,6 +68,7 @@ class DownloaderMetadata extends Equatable {
       'profileIconUrl': profileIconUrl,
       'isVideo': isVideo,
       if (sidecarId != null) 'sidecarId': sidecarId,
+      if (admissionId != null) 'admissionId': admissionId,
       if (mediaHostOverridden) 'mediaHostOverridden': true,
     };
   }
@@ -79,6 +86,7 @@ class DownloaderMetadata extends Equatable {
     profileIconUrl,
     isVideo,
     sidecarId,
+    admissionId,
     mediaHostOverridden,
   ];
 }

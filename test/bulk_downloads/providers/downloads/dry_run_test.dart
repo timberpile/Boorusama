@@ -656,12 +656,10 @@ void main() {
       );
       final notifier = container.read(bulkDownloadProvider.notifier);
 
-      unawaited(
-        notifier.downloadFromTaskId(
-          task.id,
-          downloadConfigs: DownloadTestConstants.defaultConfigs.copyWith(
-            delayBetweenRequests: const Duration(milliseconds: 200),
-          ),
+      final run = notifier.downloadFromTaskId(
+        task.id,
+        downloadConfigs: DownloadTestConstants.defaultConfigs.copyWith(
+          delayBetweenRequests: const Duration(milliseconds: 200),
         ),
       );
 
@@ -673,6 +671,7 @@ void main() {
 
       // Act
       await notifier.stopDryRun(sessions.first.id);
+      await run;
 
       // Assert
       final updatedSession = await repository.getSession(sessions.first.id);

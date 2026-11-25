@@ -16,8 +16,10 @@ class DioProtectionInterceptor extends Interceptor {
   DioProtectionInterceptor({
     required HttpProtectionHandler protectionHandler,
     required Dio dio,
+    bool protocolOverridden = false,
   }) : _protectionHandler = protectionHandler,
-       _dio = dio;
+       _dio = dio,
+       _protocolOverridden = protocolOverridden;
 
   static const _attemptKey = 'boorusama.protection_attempt';
 
@@ -35,6 +37,7 @@ class DioProtectionInterceptor extends Interceptor {
 
   final HttpProtectionHandler _protectionHandler;
   final Dio _dio;
+  final bool _protocolOverridden;
 
   @override
   Future<void> onRequest(
@@ -122,6 +125,10 @@ class DioProtectionInterceptor extends Interceptor {
           e.runtimeType.toString(),
         ),
       );
+      if (e is DioException && e.response?.statusCode == 429) {
+        handler.reject(e, true);
+        return;
+      }
       // Continue with normal response if handling fails
     }
 
@@ -145,6 +152,7 @@ class DioProtectionInterceptor extends Interceptor {
       _protectionHandler.observeRetryError(
         DioErrorAdapter(err),
         attempt: attempt,
+        protocolOverridden: _protocolOverridden,
       );
       return handler.next(err);
     }
@@ -267,8 +275,8 @@ class DioProtectionInterceptor extends Interceptor {
     }
     try {
       return await _retryAfterProtection(options);
-    } on DioException {
-      if (browserPage == null) rethrow;
+    } on DioException catch (error) {
+      if (browserPage == null || error.response?.statusCode == 429) rethrow;
       return useBrowserPage(browserPage);
     }
   }
@@ -299,7 +307,8 @@ class DioProtectionInterceptor extends Interceptor {
           await _protectionHandler.confirmRetry(options.uri, attempt);
           return response;
         } on DioException catch (error) {
-          if (attempt.retries >= _protectionHandler.maxRetries ||
+          if (error.response?.statusCode == 429 ||
+              attempt.retries >= _protectionHandler.maxRetries ||
               !_protectionHandler.selectAlternativeClearance(
                 DioErrorAdapter(error),
                 attempt,

@@ -73,28 +73,26 @@ class ZerochanClient {
         ),
       );
 
-      // return empty if response is HTML
-      if (response.data.toString().startsWith('<!DOCTYPE html>') && !strict) {
-        logger?.call(
-          'Response is HTML, returning empty list. Input tags: $tags',
-        );
-        return [];
+      return _readItems(response.data);
+    } on DioException catch (error) {
+      if (isDataRequestInterruption(error) ||
+          error.response?.statusCode != 500) {
+        rethrow;
       }
-
-      final json = _parsePostResponse(response.data);
-
-      if (json case final Map m) {
-        if (m.isEmpty) return [];
+      try {
+        return _logRecovered(_readItems(error.response?.data), 500);
+      } on FormatException {
+        throw error;
       }
-
-      final data = json['items'];
-
-      return (data as List).map((e) => PostDto.fromJson(e)).toList();
-    } catch (e, stackTrace) {
-      if (isDataRequestInterruption(e)) rethrow;
-      logger?.call('Zerochan Error: $e');
-      Error.throwWithStackTrace(e, stackTrace);
     }
+  }
+
+  List<PostDto> _logRecovered(List<PostDto> items, int? statusCode) {
+    logger?.call(
+      'Recovered ${items.length} posts from a malformed response '
+      '(status $statusCode)',
+    );
+    return items;
   }
 
   Future<PostDto?> getPost({
@@ -277,15 +275,27 @@ class ZerochanClient {
   }
 }
 
-dynamic _parsePostResponse(dynamic data) {
-  // parse json first if there is a FormatException then clean the html and parse again
-  try {
-    return jsonDecode(data);
-  } on FormatException {
-    final cleanned = _removeUnwantedHtmlElementFromJson(data);
-
-    return jsonDecode(cleanned);
+List<PostDto> _readItems(Object? data) {
+  Object? decoded = data;
+  if (data is String) {
+    try {
+      decoded = jsonDecode(data);
+    } on FormatException {
+      final object = _extractItemsObject(data);
+      if (object == null) rethrow;
+      decoded = object;
+    }
   }
+  if (decoded case {'items': final List items}) {
+    return items.map((item) {
+      if (item is Map<String, dynamic>) {
+        final dto = PostDto.fromJson(item);
+        if (dto.id != null) return dto;
+      }
+      throw const FormatException('Invalid Zerochan post');
+    }).toList();
+  }
+  throw const FormatException('Invalid Zerochan list');
 }
 
 String? _resolveHttpUrl(String? rawUrl, Uri pageUri) {
@@ -305,28 +315,55 @@ bool _looksLikePostFullImage(String url, int postId) {
   return path.contains(postId.toString()) && path.contains('full');
 }
 
-// This is a workaround for the fact that the Zerochan API returns HTML
-String _removeUnwantedHtmlElementFromJson(String jsonString) {
-  // Split the JSON string into lines
-  final lines = jsonString.split('\n');
+// The live list endpoint sometimes prints an extra opening brace before the
+// entire JSON object, followed by HTML. Two consecutive object starts cannot
+// introduce a valid JSON member.
+final _extraListBrace = RegExp(r'^\s*\{\s*(?=\{)');
 
-  var markerFound = false;
-
-  // Initialize a result string with the first line
-  final result = StringBuffer(lines.first);
-
-  // Iterate through the lines, starting from the second line
-  for (var i = 1; i < lines.length; i++) {
-    final line = lines[i];
-
-    // Check if the line contains the marker
-    if (line.contains('"items": [')) markerFound = true;
-
-    // If the marker is found, add the line to the result
-    if (markerFound) result.write('$line\n');
+// Some responses surround a complete list object with server warnings.
+Map<String, dynamic>? _extractItemsObject(String body) {
+  var start = -1;
+  var depth = 0;
+  var inString = false;
+  var escaped = false;
+  final offset = _extraListBrace.matchAsPrefix(body)?.end ?? 0;
+  for (var i = offset; i < body.length; i++) {
+    final char = body[i];
+    if (depth == 0) {
+      if (char != '{') continue;
+      start = i;
+    }
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char == '\\') {
+        escaped = true;
+      } else if (char == '"') {
+        inString = false;
+      }
+      continue;
+    }
+    switch (char) {
+      case '"':
+        inString = true;
+      case '{' || '[':
+        depth++;
+      case '}' || ']':
+        depth--;
+        if (depth == 0) {
+          try {
+            final value = jsonDecode(body.substring(start, i + 1));
+            if (value is Map<String, dynamic> && value.containsKey('items')) {
+              return value;
+            }
+          } on FormatException {
+            // Continue past balanced non-JSON text in the warning.
+          }
+        }
+    }
   }
 
-  return result.toString();
+  return null;
 }
 
 int? _clampPageLimit(int? limit) {

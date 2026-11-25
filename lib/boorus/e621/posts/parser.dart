@@ -24,14 +24,13 @@ Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
     for (final variant in videoVariantsList) variant.type: variant,
   };
   final videoUrl = extractSampleVideoUrl(videoVariants);
-  final videoFormat = videoUrl.isNotEmpty
-      ? extension(videoUrl).substring(1)
-      : '';
+  final videoFormat = extension(Uri.tryParse(videoUrl)?.path ?? '')
+      .replaceFirst('.', '');
 
   final format = videoFormat.isNotEmpty ? videoFormat : file.ext ?? '';
   final isGif = format.toLowerCase() == 'gif' || format.toLowerCase() == '.gif';
-  final previewUrl = dto.preview?.url ?? '';
-  final sampleUrl = dto.sample?.url;
+  final previewUrl = dto.preview?.url ?? dto.preview?.alt ?? '';
+  final sampleUrl = dto.sample?.url ?? dto.sample?.alt;
   final originalUrl = dto.file?.url ?? '';
 
   final record = E621PostRecord(
@@ -44,7 +43,8 @@ Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
     hasComment: dto.commentCount != null && dto.commentCount! > 0,
     isTranslated: dto.hasNotes ?? false,
     hasParentOrChildren:
-        dto.relationships?.hasChildren ?? (dto.relationships?.parentId != null),
+        (dto.relationships?.hasChildren ?? false) ||
+        dto.relationships?.parentId != null,
     format: format,
     videoUrl: videoUrl,
     width: file.width?.toDouble() ?? 0,

@@ -17,6 +17,7 @@ import 'package:shelf/shelf.dart' as shelf;
 
 // Project imports:
 import 'package:boorusama/core/app_scope.dart';
+import 'package:boorusama/foundation/applock/applock.dart';
 import 'package:boorusama/core/backups/preparation/version_checking.dart';
 import 'package:boorusama/core/backups/types/backup_data_source.dart';
 import 'package:boorusama/core/backups/widgets/backup_restore_tile.dart';
@@ -91,7 +92,11 @@ void main() {
       '/memory/settings.json',
       jsonEncode(
         Settings.defaultSettings
-            .copyWith(currentBooruConfigId: backend.config.id)
+            .copyWith(
+              currentBooruConfigId: backend.config.id,
+              appLockType: AppLockType.pin,
+              appLockTimeoutSeconds: 73,
+            )
             .toJson(),
       ),
     );
@@ -135,6 +140,15 @@ void main() {
       (runtime.dependencies.settingsRepository as MemorySettingsRepository)
           .savedSettings,
       isNotEmpty,
+    );
+    final restored =
+        (runtime.dependencies.settingsRepository as MemorySettingsRepository)
+            .savedSettings
+            .last;
+    expect(restored.appLockType, Settings.defaultSettings.appLockType);
+    expect(
+      restored.appLockTimeoutSeconds,
+      Settings.defaultSettings.appLockTimeoutSeconds,
     );
     final confirmation = find.text('Settings imported successfully');
     await harness.pumpUntilFound(tester, confirmation);

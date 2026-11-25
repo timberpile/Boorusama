@@ -63,6 +63,9 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
       ),
     );
 
+    var page = 1;
+    final allRecords = <DownloadRecord>[];
+    final records = <DownloadRecord>[];
     try {
       final config = ref.readConfig;
       final l = ref.read(loggerProvider);
@@ -95,10 +98,8 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
           downloadConfigs?.asyncTokenDelay ??
           const Duration(milliseconds: 1000);
 
-      var page = 1;
       final tags = SearchTagSet.fromString(task.tags);
       final sessionId = session.id;
-      final allRecords = <DownloadRecord>[];
       final destinations = <String>{};
 
       if (tags.isEmpty) {
@@ -112,11 +113,17 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
         task: task,
       );
 
+      if (cancelToken.isCancelled) {
+        await _setCancelledState(0, allRecords: allRecords);
+        return;
+      }
       if (firstResult.isEmpty) {
         await _setFailedState(const NoPostsFoundError().toString());
         return;
       }
 
+      var cursor = firstResult.nextCursor;
+      var hasMore = firstResult.hasMore;
       var rawPosts = firstResult.posts;
       var preloadResult = await _preload(
         fileNameBuilder,
@@ -138,7 +145,6 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
           return;
         }
 
-        final records = <DownloadRecord>[];
         l._log('Dry run page $page started for session $sessionId');
 
         await onPageProgress(page);
@@ -267,6 +273,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
         }
 
         allRecords.addAll(records);
+        records.clear();
 
         state = AsyncData(
           (await future).copyWith(
@@ -279,6 +286,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
           'Dry run page $page processed, found ${records.length} valid records',
         );
 
+        if (hasMore == false) break;
         page++;
 
         final delay = downloadConfigs?.delayBetweenRequests;
@@ -290,18 +298,29 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
 
         l._log('Fetching page $page for session $sessionId');
 
+        if (cancelToken.isCancelled) {
+          await _setCancelledState(page - 1, allRecords: allRecords);
+          return;
+        }
         final nextResult = await fetcher.getPosts(
+          cursor: cursor,
           tags: tags,
           page: page,
           task: task,
         );
 
+        if (cancelToken.isCancelled) {
+          await _setCancelledState(page - 1, allRecords: allRecords);
+          return;
+        }
         if (nextResult.isEmpty) {
           page--;
           l._log('No more items found, ending dry run for session $sessionId');
           break;
         }
 
+        hasMore = nextResult.hasMore;
+        cursor = nextResult.nextCursor;
         rawPosts = nextResult.posts;
       }
 
@@ -315,7 +334,11 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
         ),
       );
     } catch (e) {
-      await _setFailedState(e.toString());
+      if (cancelToken.isCancelled) {
+        await _setCancelledState(page, allRecords: [...allRecords, ...records]);
+      } else {
+        await _setFailedState(e.toString(), allRecords: allRecords);
+      }
     }
   }
 
@@ -363,11 +386,15 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
     return preloadResult;
   }
 
-  Future<void> _setFailedState(String error) async {
+  Future<void> _setFailedState(
+    String error, {
+    List<DownloadRecord>? allRecords,
+  }) async {
     final currentState = await future;
     state = AsyncData(
       currentState.copyWith(
         status: const DryRunStatusFailed(),
+        allRecords: allRecords,
         error: error,
       ),
     );

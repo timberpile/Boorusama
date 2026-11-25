@@ -87,6 +87,7 @@ Dio newDio({
     DioProtectionInterceptor(
       protectionHandler: options.ddosProtectionHandler,
       dio: dio,
+      protocolOverridden: options.networkProtocolInfo.customProtocol != null,
     ),
   );
 
@@ -109,6 +110,13 @@ HttpClientAdapter _createHttpClientAdapter({
     logger: logger,
     userAgent: userAgent,
     skipCertificateVerification: skipCertificateVerification,
+  );
+
+  logger?.info(
+    'Network',
+    'Adapter inputs protocol=${protocolInfo?.customProtocol?.name ?? 'auto'} '
+        'detected=${protocolInfo?.detectedProtocol?.name ?? 'unknown'} '
+        'cronetAvailable=${protocolInfo?.platform.cronetAvailable ?? false}',
   );
 
   return switch (config) {

@@ -731,7 +731,7 @@
     "errors": {
       "cannot_reach_server": "Cannot reach server, please check your connection",
       "failed_to_load_data": "Failed to load data from server, please try again later",
-      "handshake_failed": "Connection failed, server compatibility issue",
+      "handshake_failed": "Couldn't establish a secure connection. The site may be blocked on your network, or a VPN or proxy may be interfering.",
       "certificate_error": "Certificate error. The server may be using a self-signed certificate. Try using HTTP instead of HTTPS, or install the certificate on your device.",
       "tag_limit": "Maximum tag limit reached. Upgrade your account to search for more tags at once.",
       "database_timeout": "Your search took too long to execute and was cancelled.",
@@ -1078,6 +1078,7 @@
         "off": "Off",
         "tags": "Tags (.txt)",
         "json": "Metadata (.json)",
+        "skipped_for_folder": "The media download can continue, but its metadata could not be prepared in this folder.",
         "failures_title": "Metadata needs attention",
         "failures_description": "Some downloads were saved without their metadata. Retry metadata without downloading media again.",
         "retry_failed_error": "Metadata could not be saved. Check the folder permissions and existing metadata files, then retry."
@@ -1900,6 +1901,7 @@
       },
       "http": {
         "protocol": "HTTP Protocol",
+        "blocked_with_protocol_override": "This site still blocked the app after verification. Set the HTTP protocol to Auto in this profile’s network settings and try again.",
         "protocol_description": "Changing the HTTP protocol may help with compatibility or performance on certain sites or platforms.",
         "skip_cert_verification": "Skip Certificate Verification",
         "skip_cert_verification_description": "Enable for self-signed certificates (e.g., local servers)",

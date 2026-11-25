@@ -66,13 +66,8 @@ class OriginAwarePostRepository implements PostRepository<Post> {
 PostResult<Post> bindPostResultOrigin(
   PostResult<Post> result, {
   required PostOrigin origin,
-}) => PostResult(
+}) => result.copyWith(
   posts: bindPostsOrigin(result.posts, origin: origin),
-  total: result.total,
-  maxPage: result.maxPage,
-  hasMore: result.hasMore,
-  rawPostCount: result.rawPostCount,
-  rawUniquePostCount: result.rawUniquePostCount,
 );
 
 PostOrigin postOriginFromConfig(BooruConfig config) => PostOrigin.fromSource(

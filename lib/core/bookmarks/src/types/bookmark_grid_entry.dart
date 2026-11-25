@@ -263,9 +263,13 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     return entries;
   }
   if (sortType == BookmarkSortType.random) {
-    return (shuffleState ?? const BookmarkShuffleState()).applyShuffleToList(
-      entries,
-    );
+    return (shuffleState?.seed == null
+            ? BookmarkShuffleState.sessionDefault
+            : shuffleState!)
+        .applyShuffleToList(
+          entries,
+          key: (entry) => entry.key.toString(),
+        );
   }
   final oldest =
       sortType == BookmarkSortType.oldest ||

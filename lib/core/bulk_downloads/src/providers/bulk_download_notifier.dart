@@ -466,6 +466,10 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
 
     try {
       final cancelToken = _createSessionToken(sessionId);
+      bool ownsSession() =>
+          lifecycle == _lifecycle &&
+          ref.read(sessionCancellationProvider.notifier).getToken(sessionId) ==
+              cancelToken;
 
       if (downloadConfigs?.onDownloadStart != null) {
         downloadConfigs!.onDownloadStart!();
@@ -519,8 +523,16 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         dryRunNotifierProvider(sessionId).future,
       );
 
+      if (!ownsSession()) return;
+      // Batch create all records
+      if (dryRunState.allRecords.isNotEmpty) {
+        await _withRepo((repo) => repo.createRecords(dryRunState.allRecords));
+      }
+
+      if (!ownsSession()) return;
       // Handle dry run result
       if (dryRunState.status is DryRunStatusFailed) {
+        _cancelSessionToken(sessionId);
         await _updateSession(
           sessionId,
           status: DownloadSessionStatus.failed,
@@ -529,14 +541,6 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         return;
       }
 
-      // Batch create all records
-      if (dryRunState.allRecords.isNotEmpty) {
-        await _withRepo((repo) => repo.createRecords(dryRunState.allRecords));
-      }
-
-      // Cancel token right after dry run is done
-      _cancelSessionToken(sessionId);
-
       final pendingCount = await _withRepo(
         (repo) => repo.getRecordsCountBySessionId(
           sessionId,
@@ -544,7 +548,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         ),
       );
 
+      if (!ownsSession()) return;
       if (pendingCount == 0) {
+        _cancelSessionToken(sessionId);
         await _updateSession(
           sessionId,
           status: DownloadSessionStatus.allSkipped,
@@ -556,7 +562,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         (repo) => repo.getActiveSessionStats(sessionId),
       );
 
+      if (!ownsSession()) return;
       await _updateSessionWithState(sessionId, currentSession, stats: stats);
+      if (!ownsSession()) return;
 
       currentSession = await _updateSession(
         sessionId,
@@ -564,6 +572,8 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         totalPages: dryRunState.totalPages,
       );
 
+      if (!ownsSession()) return;
+      _cancelSessionToken(sessionId);
       await _downloadSessionPages(
         sessionId: sessionId,
         task: task,
@@ -935,7 +945,8 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
           (session.status != DownloadSessionStatus.running &&
               session.status != DownloadSessionStatus.paused &&
               session.status != DownloadSessionStatus.failed &&
-              session.status != DownloadSessionStatus.pending)) {
+              session.status != DownloadSessionStatus.pending &&
+              session.status != DownloadSessionStatus.dryRun)) {
         return;
       }
 
@@ -1031,12 +1042,12 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
 
     if (session?.status != DownloadSessionStatus.dryRun) return;
 
-    _cancelSessionToken(sessionId);
-
-    await _updateSession(
-      sessionId,
-      status: DownloadSessionStatus.running,
-    );
+    // Stop collecting, but keep the session's reservation so the owner can
+    // enqueue the records collected so far. Full cancellation removes it.
+    final token = ref
+        .read(sessionCancellationProvider.notifier)
+        .getToken(sessionId);
+    if (token != null && !token.isCancelled) token.cancel();
   }
 
   Future<void> tryCompleteSession(

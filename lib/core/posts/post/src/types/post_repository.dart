@@ -12,10 +12,14 @@ class PostFetchOptions {
   const PostFetchOptions({
     this.cascadeRequest = true,
     this.prepareGroupRows = false,
+    this.useCursor = false,
+    this.cursor,
   });
 
   final bool cascadeRequest;
   final bool prepareGroupRows;
+  final bool useCursor;
+  final int? cursor;
 
   static const defaults = PostFetchOptions();
   static const groupRows = PostFetchOptions(
@@ -56,6 +60,7 @@ class PostResult<T extends Post> extends Equatable {
     required this.posts,
     required this.total,
     this.maxPage,
+    this.nextCursor,
     this.hasMore,
     this.rawPostCount,
     this.rawUniquePostCount,
@@ -65,6 +70,7 @@ class PostResult<T extends Post> extends Equatable {
     : posts = <T>[],
       total = 0,
       maxPage = null,
+      nextCursor = null,
       hasMore = null,
       rawPostCount = null,
       rawUniquePostCount = null;
@@ -73,6 +79,7 @@ class PostResult<T extends Post> extends Equatable {
     List<T>? posts,
     int? Function()? total,
     int? Function()? maxPage,
+    int? Function()? nextCursor,
     bool? Function()? hasMore,
     int? Function()? rawPostCount,
     int? Function()? rawUniquePostCount,
@@ -80,6 +87,7 @@ class PostResult<T extends Post> extends Equatable {
     posts: posts ?? this.posts,
     total: total != null ? total() : this.total,
     maxPage: maxPage != null ? maxPage() : this.maxPage,
+    nextCursor: nextCursor != null ? nextCursor() : this.nextCursor,
     hasMore: hasMore != null ? hasMore() : this.hasMore,
     rawPostCount: rawPostCount != null ? rawPostCount() : this.rawPostCount,
     rawUniquePostCount: rawUniquePostCount != null
@@ -90,6 +98,7 @@ class PostResult<T extends Post> extends Equatable {
   final List<T> posts;
   final int? total;
   final int? maxPage;
+  final int? nextCursor;
   final bool? hasMore;
 
   /// Number returned by the source before repository visibility transforms.
@@ -102,6 +111,7 @@ class PostResult<T extends Post> extends Equatable {
     posts,
     total,
     maxPage,
+    nextCursor,
     hasMore,
     rawPostCount,
     rawUniquePostCount,
@@ -112,6 +122,7 @@ extension PostResultX<T extends Post> on List<T> {
   PostResult<T> toResult({
     int? total,
     int? maxPage,
+    int? nextCursor,
     bool? hasMore,
     int? rawPostCount,
     int? rawUniquePostCount,
@@ -119,6 +130,7 @@ extension PostResultX<T extends Post> on List<T> {
     posts: this,
     total: total,
     maxPage: maxPage,
+    nextCursor: nextCursor,
     hasMore: hasMore,
     rawPostCount: rawPostCount,
     rawUniquePostCount: rawUniquePostCount,

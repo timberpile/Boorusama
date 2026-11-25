@@ -1,3 +1,10 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
+import '../../../../download_manager/providers.dart';
+import '../../../../download_manager/types.dart';
+import 'pending_downloads_provider.dart';
 import '../../../../bookmarks/src/providers/bookmark_hydration_provider.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../content/content_access_provider.dart';
@@ -318,92 +325,134 @@ Future<DownloadTaskInfo?> _download(
           AppHttpHeaders.cookieHeader: urlData.cookie!,
       },
     );
-    final bypassHeaders = await ref.read(
-      bypassDdosHeadersProvider(request.url).future,
+    final destination = DownloadOptions.fromSettings(
+      params.settings,
+      config: downloadConfig,
+      customPath: downloadPath,
+      url: request.url,
+      filename: fileName,
     );
-    if (!(isCurrent?.call() ?? true)) return null;
+    final profileId =
+        downloadable.origin.profileIdHint ??
+        params.settings.currentBooruConfigId;
+    final admissionId = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              profileId,
+              params.auth.computeHash(),
+              request.url,
+              destination.path,
+              fileName,
+              urlData.resolvedQuality ?? effectiveQuality,
+            ]),
+          ),
+        )
+        .toString();
+    final claims = ref.read(pendingDownloadsProvider);
+    if (!claims.claim(admissionId)) return null;
+    try {
+      final bypassHeaders = await ref.read(
+        bypassDdosHeadersProvider(request.url).future,
+      );
+      if (!(isCurrent?.call() ?? true)) return null;
 
-    final result = await service.download(
-      DownloadOptions.fromSettings(
-        params.settings,
-        config: downloadConfig,
-        sidecar: params.settings.downloadSidecarFormat == SidecarFormat.off
-            ? null
-            : SidecarSnapshot.fromPost(
-                downloadable,
-                format: params.settings.downloadSidecarFormat,
-                quality: urlData.resolvedQuality ?? 'custom',
-                site: params.auth.url,
-                postUrl:
-                    postUrl ??
-                    ref
-                        .read(postLinkGeneratorProvider(params.auth))
-                        .getLink(downloadable),
-              ),
-        metadata: DownloaderMetadata(
-          mediaHostOverridden: request.overridden,
-          thumbnailUrl: downloadable.thumbnailImageUrl,
-          fileSize:
-              urlData.resolvedQuality == 'original' && downloadable.fileSize > 0
-              ? downloadable.fileSize
-              : null,
-          siteUrl: params.auth.url,
-          profileIconUrl: params.profileIconUrl,
-          group: group,
-          isVideo: downloadable.isVideo,
-        ),
-        url: request.url,
-        filename: fileName,
-        headers: {
-          ...request.headers,
-          ...bypassHeaders,
-          if (!request.overridden && urlData.cookie != null)
-            AppHttpHeaders.cookieHeader: urlData.cookie!,
-        },
-        customPath: downloadPath,
-        networkConstraint: resolvedNetworkConstraint,
-      ),
-    );
-
-    ref
-        .read(immediateDownloadActivitiesProvider.notifier)
-        .recordImmediateOutcome(
-          result,
-          label: fileName,
-          thumbnailUrl: downloadable.thumbnailImageUrl,
-        );
-
-    return switch (result) {
-      DownloadEnqueued(:final info) => () {
-        onStarted?.call();
-
-        return info;
-      }(),
-      DownloadCompleted(:final info) => () {
-        onStarted?.call();
-        return info;
-      }(),
-      DownloadSkipped(:final info) => () {
-        onStarted?.call();
-        return info;
-      }(),
-      final DownloadFailure e => () {
-        final cause = switch (e.error) {
-          HttpDownloadError(:final exception) => exception,
-          FileSystemDownloadError(:final error) => error,
-          final error => error,
-        };
-        logger.handledError(
-          'Single Download',
-          'save_media',
-          error: cause,
-          outcome: switch (e.error) {
-            FileSystemDownloadError(:final type) => type.name,
-            _ => 'download_failed',
+      final result = await service.download(
+        DownloadOptions.fromSettings(
+          params.settings,
+          config: downloadConfig,
+          sidecar: params.settings.downloadSidecarFormat == SidecarFormat.off
+              ? null
+              : SidecarSnapshot.fromPost(
+                  downloadable,
+                  format: params.settings.downloadSidecarFormat,
+                  quality: urlData.resolvedQuality ?? 'custom',
+                  site: params.auth.url,
+                  postUrl:
+                      postUrl ??
+                      ref
+                          .read(postLinkGeneratorProvider(params.auth))
+                          .getLink(downloadable),
+                ),
+          metadata: DownloaderMetadata(
+            admissionId: admissionId,
+            mediaHostOverridden: request.overridden,
+            thumbnailUrl: downloadable.thumbnailImageUrl,
+            fileSize:
+                urlData.resolvedQuality == 'original' &&
+                    downloadable.fileSize > 0
+                ? downloadable.fileSize
+                : null,
+            siteUrl: params.auth.url,
+            profileIconUrl: params.profileIconUrl,
+            group: group,
+            isVideo: downloadable.isVideo,
+          ),
+          url: request.url,
+          filename: fileName,
+          headers: {
+            ...request.headers,
+            ...bypassHeaders,
+            if (!request.overridden && urlData.cookie != null)
+              AppHttpHeaders.cookieHeader: urlData.cookie!,
           },
+          customPath: downloadPath,
+          networkConstraint: resolvedNetworkConstraint,
+        ),
+      );
+
+      if (result case DownloadEnqueued(:final info)) {
+        final updates = ref
+            .read(downloadTaskUpdatesProvider)
+            .tasks
+            .values
+            .expand((items) => items);
+        final finished = updates.any(
+          (item) =>
+              item.task.taskId == info.id && isTerminalDownloadUpdate(item),
         );
-      }(),
-    };
+        if (!finished) claims.observe(admissionId, info.id, terminal: false);
+      }
+      ref
+          .read(immediateDownloadActivitiesProvider.notifier)
+          .recordImmediateOutcome(
+            result,
+            label: fileName,
+            thumbnailUrl: downloadable.thumbnailImageUrl,
+          );
+
+      return switch (result) {
+        DownloadEnqueued(:final info) || DownloadCompleted(:final info) => () {
+          onStarted?.call();
+          if (info.metadataSkipped && bulkMetadata == null) {
+            _showMetadataSkippedToast(ref);
+          }
+          return info;
+        }(),
+        DownloadSkipped(:final info) => () {
+          onStarted?.call();
+          return info;
+        }(),
+        final DownloadFailure e => () {
+          final cause = switch (e.error) {
+            HttpDownloadError(:final exception) => exception,
+            FileSystemDownloadError(:final error) => error,
+            final error => error,
+          };
+          logger.handledError(
+            'Single Download',
+            'save_media',
+            error: cause,
+            outcome: switch (e.error) {
+              FileSystemDownloadError(:final type) => type.name,
+              _ => 'download_failed',
+            },
+          );
+        }(),
+      };
+    } finally {
+      claims.release(admissionId);
+    }
   }
 
   // Platform doesn't require permissions, just download it right away
@@ -432,6 +481,25 @@ Future<DownloadTaskInfo?> _download(
 
     return info;
   }
+}
+
+var _metadataSkippedToastShown = false;
+
+void _showMetadataSkippedToast(Ref ref) {
+  if (_metadataSkippedToastShown) return;
+  final context = ref
+      .read(appNavigationProvider)
+      .navigatorKey
+      .currentState
+      ?.context;
+  if (context == null || !context.mounted) return;
+  _metadataSkippedToastShown = true;
+
+  Kurumi.showErrorToast(
+    context,
+    duration: const Duration(seconds: 6),
+    context.t.settings.download.sidecar.skipped_for_folder,
+  );
 }
 
 void showDownloadErrorToast(

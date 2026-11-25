@@ -1,3 +1,4 @@
+import 'dart:io' show FileSystemException;
 // Dart imports:
 import 'dart:convert';
 
@@ -60,7 +61,11 @@ class SidecarStore {
   }
 
   Future<void> prepare(String id, String path, SidecarSnapshot snapshot) async {
-    await writer.checkDestination(path, snapshot);
+    try {
+      await writer.checkDestination(path, snapshot);
+    } on FileSystemException catch (error) {
+      throw SidecarDestinationException(error);
+    }
     await _save(id, {
       'path': path,
       'snapshot': snapshot.toJson(),
@@ -135,4 +140,9 @@ class SidecarStore {
       }
     }
   }
+}
+
+class SidecarDestinationException extends FileSystemException {
+  SidecarDestinationException(FileSystemException cause)
+    : super(cause.message, cause.path, cause.osError);
 }
