@@ -2,6 +2,7 @@
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -21,6 +22,7 @@ class SharePostButton extends ConsumerWidget {
     required this.download,
     this.filenameBuilder,
     this.imageCacheManager,
+    this.menuItem = false,
     super.key,
   });
 
@@ -30,6 +32,7 @@ class SharePostButton extends ConsumerWidget {
   final BooruConfigDownload download;
   final DownloadFilenameGenerator? filenameBuilder;
   final ImageCacheManager? imageCacheManager;
+  final bool menuItem;
 
   VoidCallback action(BuildContext context, WidgetRef ref) => () {
     if (!context.mounted) return;
@@ -50,10 +53,22 @@ class SharePostButton extends ConsumerWidget {
   };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => IconButton(
-    tooltip: context.t.post.action.share,
-    splashRadius: 16,
-    onPressed: action(context, ref),
-    icon: const Icon(Symbols.share),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label = context.t.post.action.share;
+    final share = action(context, ref);
+    const icon = Icon(Symbols.share);
+    if (menuItem) {
+      return KurumiPopupMenuItem(
+        title: Text(label),
+        icon: icon,
+        onTap: share,
+      );
+    }
+    return IconButton(
+      tooltip: label,
+      splashRadius: 16,
+      onPressed: share,
+      icon: icon,
+    );
+  }
 }

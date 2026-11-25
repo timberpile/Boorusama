@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/posts/details_parts/src/toolbars/viewer_toolbar_profile_actions.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
@@ -120,6 +121,11 @@ class SankakuUploaderPostsSection extends ConsumerWidget {
 }
 
 final kSankakuPostDetailsUIBuilder = PostDetailsUIBuilder(
+  viewerToolbarProfileActions: (ref, auth) => standardViewerToolbarActions(
+    ref,
+    auth,
+    favorite: ref.watch(sankakuCanFavoriteProvider(auth)),
+  ),
   preview: {
     DetailsPart.info: (context) =>
         const DefaultInheritedInformationSection<Post>(

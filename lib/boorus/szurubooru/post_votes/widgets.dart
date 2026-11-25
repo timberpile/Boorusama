@@ -13,9 +13,11 @@ class SzurubooruUpvotePostButton extends ConsumerWidget {
   const SzurubooruUpvotePostButton({
     super.key,
     required this.post,
+    this.menuItem = false,
   });
 
   final Post post;
+  final bool menuItem;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,6 +30,7 @@ class SzurubooruUpvotePostButton extends ConsumerWidget {
     );
 
     return UpvotePostButton(
+      menuItem: menuItem,
       voteState: voteState,
       onUpvote: () => voteNotifier.upvote(post.id),
       onRemoveUpvote: () => voteNotifier.removeVote(post.id),
@@ -39,9 +42,11 @@ class SzurubooruDownvotePostButton extends ConsumerWidget {
   const SzurubooruDownvotePostButton({
     super.key,
     required this.post,
+    this.menuItem = false,
   });
 
   final Post post;
+  final bool menuItem;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,6 +59,7 @@ class SzurubooruDownvotePostButton extends ConsumerWidget {
     );
 
     return DownvotePostButton(
+      menuItem: menuItem,
       voteState: voteState,
       onDownvote: () => voteNotifier.downvote(post.id),
       onRemoveDownvote: () => voteNotifier.removeVote(post.id),

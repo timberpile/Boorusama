@@ -8,6 +8,7 @@ import '../../post/types.dart';
 import 'simple_post_stats_tile.dart';
 import 'artist_section.dart';
 import '../../../artists/types.dart';
+import 'toolbars/viewer_toolbar_profile_actions.dart';
 
 const kDefaultPostDetailsPreviewPart = {
   DetailsPart.info,
@@ -43,6 +44,7 @@ class PostDetailsUIBuilder {
   const PostDetailsUIBuilder({
     this.preview = const {},
     this.full = const {},
+    this.viewerToolbarProfileActions,
     this.previewAllowedParts = const {
       DetailsPart.fileDetails,
       DetailsPart.source,
@@ -50,6 +52,7 @@ class PostDetailsUIBuilder {
   });
 
   final Set<DetailsPart> previewAllowedParts;
+  final ViewerToolbarProfileActionsBuilder? viewerToolbarProfileActions;
 
   final Map<DetailsPart, Widget Function(BuildContext context)> preview;
   final Map<DetailsPart, Widget Function(BuildContext context)> full;

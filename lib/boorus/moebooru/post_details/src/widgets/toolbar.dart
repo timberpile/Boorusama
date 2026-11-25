@@ -4,6 +4,8 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/posts/details_parts/src/toolbars/viewer_toolbar_profile_actions.dart';
 import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../core/posts/favorites/widgets.dart';
@@ -12,6 +14,18 @@ import '../../../../../core/posts/favorites/types.dart';
 import '../../../configs/providers.dart';
 import '../../../favorites/providers.dart';
 import '../../../moebooru.dart';
+
+ViewerToolbarProfileActions moebooruViewerToolbarActions(
+  Ref ref,
+  BooruConfigAuth auth,
+) => ref.watch(moebooruProvider).supportsFavorite(auth.url)
+    ? standardViewerToolbarActions(
+        ref,
+        auth,
+        favorite: ref.watch(moebooruLoginDetailsProvider(auth)).hasLogin(),
+        visibleCount: 4,
+      )
+    : standardViewerToolbarActions(ref, auth);
 
 class MoebooruPostDetailsActionToolbar extends ConsumerWidget {
   const MoebooruPostDetailsActionToolbar({

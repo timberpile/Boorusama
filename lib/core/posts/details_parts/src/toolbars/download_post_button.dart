@@ -24,10 +24,14 @@ class DownloadPostButton extends ConsumerStatefulWidget {
     super.key,
     this.small = false,
     this.download,
+    this.menuItem = false,
+    this.onMenuAction,
   });
 
   final Post post;
   final bool small;
+  final bool menuItem;
+  final VoidCallback? onMenuAction;
   final void Function({DownloadSource? source})? download;
 
   static void Function({DownloadSource? source})? action(
@@ -108,18 +112,41 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
         ...?sources?.map(
           (e) => KurumiPopupMenuItem(
             title: Text(e.name),
-            onTap: () => download(source: e),
+            onTap: () {
+              download(source: e);
+              widget.onMenuAction?.call();
+            },
           ),
         ),
       ],
-      child: KurumiActionIconButton(
-        tooltip: context.t.download.download,
-        iconSize: widget.small ? 20 : 24,
-        showDropdown: hasAlternatives,
-        onPressed: download,
-        onLongPress: hasAlternatives ? _controller.show : null,
-        icon: const Icon(Symbols.download),
-      ),
+      child: widget.menuItem
+          ? GestureDetector(
+              onLongPress: hasAlternatives ? _controller.show : null,
+              child: KurumiPopupMenuItem(
+                hideOnTap: false,
+                title: Text(context.t.download.download),
+                icon: const Icon(Symbols.download),
+                onTap: () {
+                  download();
+                  widget.onMenuAction?.call();
+                },
+                trailing: hasAlternatives
+                    ? IconButton(
+                        tooltip: context.t.settings.download.quality,
+                        onPressed: _controller.show,
+                        icon: const Icon(Icons.chevron_right),
+                      )
+                    : null,
+              ),
+            )
+          : KurumiActionIconButton(
+              tooltip: context.t.download.download,
+              iconSize: widget.small ? 20 : 24,
+              showDropdown: hasAlternatives,
+              onPressed: download,
+              onLongPress: hasAlternatives ? _controller.show : null,
+              icon: const Icon(Symbols.download),
+            ),
     );
   }
 }

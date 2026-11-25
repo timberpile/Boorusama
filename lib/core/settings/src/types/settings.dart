@@ -11,6 +11,7 @@ import 'package:kurumi/kurumi.dart';
 // Project imports:
 import 'search_refresh_settings.dart';
 import 'post_quality.dart';
+import 'viewer_toolbar_layout.dart';
 import '../../../../foundation/applock/types.dart';
 import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
@@ -619,11 +620,13 @@ class ViewerConfigs extends Equatable {
   const ViewerConfigs({
     required this.settings,
     required this.enable,
+    this.toolbarLayout,
   });
 
   ViewerConfigs.undefined()
     : settings = Settings.defaultSettings.viewer,
-      enable = false;
+      enable = false,
+      toolbarLayout = null;
 
   factory ViewerConfigs.fromJsonString(String? jsonString) =>
       switch (jsonString) {
@@ -638,27 +641,34 @@ class ViewerConfigs extends Equatable {
     return ViewerConfigs(
       settings: ImageViewerSettings.fromJson(json['settings']),
       enable: json['enable'],
+      toolbarLayout: ViewerToolbarLayout.tryParse(json['toolbarLayout']),
     );
   }
   final ImageViewerSettings settings;
   final bool enable;
+  final ViewerToolbarLayout? toolbarLayout;
 
   ViewerConfigs copyWith({
     ImageViewerSettings? settings,
     bool? enable,
+    ViewerToolbarLayout? Function()? toolbarLayout,
   }) {
     return ViewerConfigs(
       settings: settings ?? this.settings,
       enable: enable ?? this.enable,
+      toolbarLayout: toolbarLayout == null
+          ? this.toolbarLayout
+          : toolbarLayout(),
     );
   }
 
   @override
-  List<Object> get props => [settings, enable];
+  List<Object?> get props => [settings, enable, toolbarLayout];
 
   Map<String, dynamic> toJson() => {
     'settings': settings.toJson(),
     'enable': enable,
+    if (toolbarLayout case final layout?) 'toolbarLayout': layout.toJson(),
   };
 
   String toJsonString() => jsonEncode(toJson());

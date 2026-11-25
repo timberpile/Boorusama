@@ -66,10 +66,18 @@ class BooruConfigViewerView extends ConsumerWidget {
                     ViewerConfigs(
                       settings: Settings.defaultSettings.viewer,
                       enable: true,
+                      toolbarLayout: viewerConfig?.toolbarLayout,
                     ),
                   );
                 } else {
-                  ref.editNotifier.updateViewerConfigs(null);
+                  final layout = viewerConfig?.toolbarLayout;
+                  ref.editNotifier.updateViewerConfigs(
+                    layout == null
+                        ? null
+                        : ViewerConfigs.undefined().copyWith(
+                            toolbarLayout: () => layout,
+                          ),
+                  );
                 }
               },
             ),
@@ -93,6 +101,7 @@ class BooruConfigViewerView extends ConsumerWidget {
                             Settings.defaultSettings.viewer,
                       ),
                       enable: currentViewerConfig?.enable ?? true,
+                      toolbarLayout: currentViewerConfig?.toolbarLayout,
                     ),
                   );
                 },

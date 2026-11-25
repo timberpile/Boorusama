@@ -9,9 +9,11 @@ import '../../core/configs/manage/widgets.dart';
 import '../../core/home/types.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
+import '../../core/posts/details_parts/src/toolbars/viewer_toolbar_profile_actions.dart';
 import '../../core/posts/details_parts/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
+import 'configs/extra_data.dart';
 import 'favorites/favorite_control.dart';
 import 'home/custom_home.dart';
 import 'favorites/page.dart';
@@ -108,6 +110,13 @@ class PixivBuilder extends BaseBooruBuilder {
   /// part of the details UI.
   @override
   final postDetailsUIBuilder = PostDetailsUIBuilder(
+    viewerToolbarProfileActions: (ref, auth) => standardViewerToolbarActions(
+      ref,
+      auth,
+      favorite:
+          auth.anonymousReadScope == null &&
+          pixivAuthenticatedUserId(auth) != null,
+    ),
     preview: {
       DetailsPart.toolbar: (context) => const PixivPostFavoriteToolbar(),
     },

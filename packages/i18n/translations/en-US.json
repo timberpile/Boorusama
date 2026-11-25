@@ -1945,6 +1945,12 @@
         "widget_title": "Widgets",
         "storage_tooltip": "All changes are saved to your current profile.",
         "rearrange_tip": "Rearrange items or hide content",
+        "toolbar_editor": {
+          "edit_profile": "Profile to edit",
+          "no_profiles": "No profiles support toolbar customization yet.",
+          "drag": "Drag actions to reorder them or move them between Toolbar and More.",
+          "drag_full": "Drag to reorder. To add to a full toolbar, drop before the action you want to replace."
+        },
         "preview": {
           "title": "Layout Preview",
           "description": "Preview your custom layout for $previewMinutes minutes. After that, you can either upgrade to $brand to keep using it or retry as many times as you want.",

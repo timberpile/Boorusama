@@ -12,6 +12,7 @@ import 'widgets/danbooru_post_action_toolbar.dart';
 import 'widgets/details_widgets.dart';
 
 final danbooruPostDetailsUiBuilder = PostDetailsUIBuilder(
+  viewerToolbarProfileActions: danbooruViewerToolbarActions,
   previewAllowedParts: {
     DetailsPart.tags,
   },

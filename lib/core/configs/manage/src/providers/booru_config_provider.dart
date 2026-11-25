@@ -13,6 +13,8 @@ import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../settings/providers.dart';
+import '../../../../settings/src/types/viewer_toolbar_layout.dart';
+import '../../../../settings/types.dart';
 import '../../../../search/following_topics/providers.dart';
 import '../../../../search/following_topics/types.dart';
 import '../../../config/data.dart';
@@ -43,6 +45,41 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
   });
 
   final List<BooruConfig> initialConfigs;
+
+  Future<BooruConfig?> updateViewerToolbarLayout({
+    required BooruConfig profile,
+    required ViewerToolbarLayout? layout,
+  }) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+    final updated = await updateBooruConfigAtomically(
+      repository: ref.read(booruConfigRepoProvider),
+      id: profile.id,
+      transform: (current) {
+        if (!_sameBooruSite(profile, current) ||
+            current.viewerConfigs?.toolbarLayout !=
+                profile.viewerConfigs?.toolbarLayout) {
+          return null;
+        }
+        final viewer = current.viewerConfigs;
+        return current.toBooruConfigData().copyWith(
+          viewerConfigs: () => viewer == null && layout == null
+              ? null
+              : (viewer ?? ViewerConfigs.undefined()).copyWith(
+                  toolbarLayout: () => layout,
+                ),
+        );
+      },
+    );
+    if (updated != null) {
+      state = [
+        for (final config in state)
+          if (config.id == updated.id) updated else config,
+      ];
+      ref
+          .read(currentBooruConfigProvider.notifier)
+          .refreshViewerToolbar(updated);
+    }
+    return updated;
+  });
 
   @override
   List<BooruConfig> build() {
@@ -274,7 +311,21 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         final configRepository = ref.read(booruConfigRepoProvider);
         BooruConfig? updated;
         try {
-          updated = await configRepository.update(oldConfigId, booruConfigData);
+          updated = await updateBooruConfigAtomically(
+            repository: configRepository,
+            id: oldConfigId,
+            transform: (current) {
+              // The profile editor owns image options; the toolbar editor can
+              // save placement independently while a profile draft is open.
+              final layout = current.viewerConfigs?.toolbarLayout;
+              final viewer = proposedConfig.viewerConfigs;
+              if (viewer?.toolbarLayout == layout) return booruConfigData;
+              return booruConfigData.copyWith(
+                viewerConfigs: () => (viewer ?? ViewerConfigs.undefined())
+                    .copyWith(toolbarLayout: () => layout),
+              );
+            },
+          );
         } catch (error, stackTrace) {
           ref
               .read(loggerProvider)

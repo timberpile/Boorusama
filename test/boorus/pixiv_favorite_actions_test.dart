@@ -10,6 +10,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/favorites/types.dart';
 import 'package:boorusama/core/posts/favorites/widgets.dart';
+import 'package:boorusama/core/posts/details_parts/src/toolbars/customizable_post_toolbar.dart';
 import 'package:boorusama/core/themes/theme/types.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,64 @@ final _profile = _config(100);
 final _replacement = _config(200);
 
 void main() {
+  for (final inMore in [false, true]) {
+    testWidgets(
+      'configured Pixiv Favorite preserves actions in ${inMore ? 'More' : 'Toolbar'}',
+      (
+        tester,
+      ) async {
+        final rig = _Rig();
+        await rig.harness.pump(
+          tester,
+          Scaffold(
+            body: PixivFavoriteControl(
+              illustId: _illust,
+              builder: (_, buttons) => ConfiguredPostToolbar(
+                layout: ViewerToolbarLayout(
+                  toolbar: [if (!inMore) ViewerToolbarAction.favorite],
+                  more: [if (inMore) ViewerToolbarAction.favorite],
+                ),
+                buttons: buttons,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final trigger = find.byKey(
+          Key(inMore ? 'viewer-toolbar-more' : 'viewer-toolbar-favorite'),
+        );
+        if (inMore) {
+          await tester.tap(trigger);
+        } else {
+          await tester.longPress(find.byType(FavoritePostButton));
+        }
+        await tester.pumpAndSettle();
+        final label = inMore ? 'Add Private Favorite' : 'Add Public Favorite';
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(rig.server.writes.single.data, {
+          'illust_id': _illust,
+          'restrict': inMore ? 'private' : 'public',
+        });
+        if (inMore) {
+          await tester.tap(trigger);
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.descendant(
+              of: find.byKey(const Key('viewer-toolbar-menu-favorite')),
+              matching: find.byType(KurumiPopupMenuItem),
+            ),
+          );
+        } else {
+          await tester.tap(find.byType(FavoritePostButton));
+        }
+        await tester.pumpAndSettle();
+        expect(rig.server.writes.last.path, '/v1/illust/bookmark/delete');
+        await rig.unmount(tester);
+      },
+    );
+  }
+
   testWidgets('a plain tap adds Public and updates every sibling heart', (
     tester,
   ) async {

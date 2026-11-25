@@ -13,9 +13,11 @@ class UpvotePostButton extends StatelessWidget {
     required this.voteState,
     required this.onUpvote,
     required this.onRemoveUpvote,
+    this.menuItem = false,
     super.key,
   });
 
+  final bool menuItem;
   final VoteState voteState;
   final void Function() onUpvote;
   final void Function()? onRemoveUpvote;
@@ -27,13 +29,24 @@ class UpvotePostButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final icon = Icon(
+      Symbols.arrow_upward,
+      color: voteState.isUpvoted ? context.colors.upvoteColor : null,
+    );
+    if (menuItem) {
+      return Semantics(
+        toggled: voteState.isUpvoted,
+        child: KurumiPopupMenuItem(
+          title: Text(context.t.post.action.upvote),
+          icon: icon,
+          onTap: action,
+        ),
+      );
+    }
     return KurumiTooltip(
       message: context.t.post.action.upvote,
       child: IconButton(
-        icon: Icon(
-          Symbols.arrow_upward,
-          color: voteState.isUpvoted ? context.colors.upvoteColor : null,
-        ),
+        icon: icon,
         splashRadius: 16,
         onPressed: action,
       ),
@@ -46,9 +59,11 @@ class DownvotePostButton extends StatelessWidget {
     required this.voteState,
     required this.onDownvote,
     required this.onRemoveDownvote,
+    this.menuItem = false,
     super.key,
   });
 
+  final bool menuItem;
   final VoteState voteState;
   final void Function() onDownvote;
   final void Function()? onRemoveDownvote;
@@ -60,13 +75,24 @@ class DownvotePostButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final icon = Icon(
+      Symbols.arrow_downward,
+      color: voteState.isDownvoted ? context.colors.downvoteColor : null,
+    );
+    if (menuItem) {
+      return Semantics(
+        toggled: voteState.isDownvoted,
+        child: KurumiPopupMenuItem(
+          title: Text(context.t.post.action.downvote),
+          icon: icon,
+          onTap: action,
+        ),
+      );
+    }
     return KurumiTooltip(
       message: context.t.post.action.downvote,
       child: IconButton(
-        icon: Icon(
-          Symbols.arrow_downward,
-          color: voteState.isDownvoted ? context.colors.downvoteColor : null,
-        ),
+        icon: icon,
         splashRadius: 16,
         onPressed: action,
       ),

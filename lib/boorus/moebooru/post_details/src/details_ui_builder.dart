@@ -15,6 +15,7 @@ import 'widgets/related_post_section.dart';
 import 'widgets/toolbar.dart';
 
 final moebooruPostDetailsUIBuilder = PostDetailsUIBuilder(
+  viewerToolbarProfileActions: moebooruViewerToolbarActions,
   preview: {
     DetailsPart.info: (context) => const MoebooruInformationSection(),
     DetailsPart.toolbar: (context) => const MoebooruPostDetailsActionToolbar(),

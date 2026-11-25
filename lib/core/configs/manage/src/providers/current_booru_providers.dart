@@ -105,6 +105,12 @@ class CurrentBooruConfigNotifier extends Notifier<BooruConfig> {
     return update(booruConfig);
   }
 
+  void refreshViewerToolbar(BooruConfig config) {
+    if (state.id == config.id && state.auth == config.auth) {
+      state = state.copyWith(viewerConfigs: () => config.viewerConfigs);
+    }
+  }
+
   Future<void> update(BooruConfig booruConfig) async {
     // if same config, do nothing
     if (booruConfig == state) return;

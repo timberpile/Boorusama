@@ -5,7 +5,10 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/posts/details/types.dart';
+import '../../../../../../core/posts/details_parts/src/toolbars/customizable_post_toolbar.dart';
+import '../../../../../../core/posts/details_parts/src/toolbars/viewer_toolbar_profile_actions.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/favorites/providers.dart';
 import '../../../../../../core/posts/favorites/widgets.dart';
@@ -15,11 +18,33 @@ import '../../../../../../core/posts/votes/types.dart';
 import '../../../../../../core/posts/votes/widgets.dart';
 import '../../../../../../core/router.dart';
 import '../../../../../../core/widgets/adaptive_button_row.dart';
-import '../../../../../../core/widgets/booru_menu_button_row.dart';
 import '../../../../configs/providers.dart';
 import '../../../../favgroups/favgroups/routes.dart';
 import '../../../../versions/routes.dart';
 import '../../../votes/providers.dart';
+
+ViewerToolbarProfileActions danbooruViewerToolbarActions(
+  Ref ref,
+  BooruConfigAuth auth,
+) {
+  final hasLogin = ref.watch(danbooruLoginDetailsProvider(auth)).hasLogin();
+  return (
+    visibleCount: hasLogin ? 7 : 4,
+    actions: [
+      if (hasLogin) ...const [
+        ViewerToolbarAction.favorite,
+        ViewerToolbarAction.upvote,
+        ViewerToolbarAction.downvote,
+      ],
+      ViewerToolbarAction.bookmark,
+      if (auth.anonymousReadScope == null) ViewerToolbarAction.download,
+      ViewerToolbarAction.share,
+      ViewerToolbarAction.comments,
+      if (hasLogin) ViewerToolbarAction.favoriteGroup,
+      ViewerToolbarAction.tagHistory,
+    ],
+  );
+}
 
 class DanbooruInheritedPostActionToolbar extends ConsumerWidget {
   const DanbooruInheritedPostActionToolbar({super.key});
@@ -101,40 +126,65 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
         config: config,
         configViewer: configViewer,
         builder: (context, buttons) {
-          return BooruMenuButtonRow(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            invokeAfterClose: true,
+          return CustomizablePostToolbar(
+            key: ValueKey((post, config, profile.id)),
+            allowCustomization: scoped == null,
             maxVisibleButtons: hasLogin ? 7 : 4,
             buttons: [
               if (hasLogin)
-                ButtonData(
+                ViewerToolbarButtonData(
+                  action: ViewerToolbarAction.favorite,
                   required: scoped?.groupBookmarkButton == null,
                   widget: favorite,
                   onTap: favoriteAction,
                   enabled: favoriteAction != null,
-                  title: context.t.post.action.favorite,
-                  icon: const Icon(Icons.favorite_border),
+                  title: isFaved
+                      ? context.t.post.action.unfavorite
+                      : context.t.post.action.favorite,
+                  icon: Icon(
+                    isFaved ? Icons.favorite : Icons.favorite_border,
+                  ),
                 ),
               if (hasLogin)
-                ButtonData(
+                ViewerToolbarButtonData(
+                  action: ViewerToolbarAction.upvote,
                   required: scoped?.groupBookmarkButton == null,
                   widget: upvote,
+                  menuBuilder: (_, _) => UpvotePostButton(
+                    voteState: voteState,
+                    onUpvote: upvote.onUpvote,
+                    onRemoveUpvote: upvote.onRemoveUpvote,
+                    menuItem: true,
+                  ),
                   onTap: upvote.action,
                   enabled: upvote.action != null,
                   title: context.t.post.action.upvote,
                   icon: const Icon(Icons.thumb_up_outlined),
                 ),
               if (hasLogin)
-                ButtonData(
+                ViewerToolbarButtonData(
+                  action: ViewerToolbarAction.downvote,
                   required: scoped?.groupBookmarkButton == null,
                   widget: downvote,
+                  menuBuilder: (_, _) => DownvotePostButton(
+                    voteState: voteState,
+                    onDownvote: downvote.onDownvote,
+                    onRemoveDownvote: downvote.onRemoveDownvote,
+                    menuItem: true,
+                  ),
                   onTap: downvote.action,
                   enabled: downvote.action != null,
                   title: context.t.post.action.downvote,
                   icon: const Icon(Icons.thumb_down_outlined),
                 ),
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.bookmark,
                 required: true,
+                menuBuilder: (_, _) => BookmarkPostButton(
+                  post: post,
+                  config: config,
+                  menuItem: true,
+                ),
                 widget:
                     scoped?.bookmarkButton ??
                     BookmarkPostButton(
@@ -152,7 +202,14 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   icon: const Icon(Icons.bookmark_border),
                 ),
               if (downloadAction != null)
-                ButtonData(
+                ViewerToolbarButtonData(
+                  action: ViewerToolbarAction.download,
+                  menuBuilder: (_, close) => DownloadPostButton(
+                    post: post,
+                    download: downloadAction,
+                    menuItem: true,
+                    onMenuAction: close,
+                  ),
                   widget: DownloadPostButton(
                     post: post,
                     download: downloadAction,
@@ -161,13 +218,15 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   title: context.t.download.download,
                   icon: const Icon(Icons.download),
                 ),
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.share,
                 widget: share,
                 onTap: share.action(context, ref),
                 title: context.t.post.action.share,
                 icon: const Icon(Icons.share),
               ),
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.comments,
                 widget: CommentPostButton(
                   onPressed: () => goToCommentPage(context, ref, post),
                 ),
@@ -176,7 +235,8 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 onTap: () => goToCommentPage(context, ref, post),
               ),
               if (hasLogin)
-                SimpleButtonData(
+                ViewerToolbarSimpleButtonData(
+                  action: ViewerToolbarAction.favoriteGroup,
                   icon: Icons.folder_special,
                   title: context.t.post.action.add_to_favorite_group,
                   onPressed: () => goToAddToFavoriteGroupSelectionPage(
@@ -185,7 +245,8 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                     profile,
                   ),
                 ),
-              SimpleButtonData(
+              ViewerToolbarSimpleButtonData(
+                action: ViewerToolbarAction.tagHistory,
                 icon: Icons.history,
                 title: context.t.post.action.view_tag_history,
                 onPressed: () => goToPostVersionPage(ref, post),

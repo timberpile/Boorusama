@@ -16,6 +16,7 @@ import '../../../core/posts/details/src/types/inherited_post.dart';
 import '../../../core/posts/details/src/types/post_details.dart';
 import '../../../core/posts/details/src/widgets/post_details_page_view_scope.dart';
 import '../../../core/posts/details_parts/src/toolbars/simple_post_action_toolbar.dart';
+import '../../../core/posts/details_parts/src/toolbars/customizable_post_toolbar.dart';
 import '../../../core/posts/favorites/src/widgets/favorite_action.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/widgets/adaptive_button_row.dart';
@@ -245,22 +246,49 @@ class _PixivFavoriteControlState extends ConsumerState<PixivFavoriteControl> {
           : trigger,
     );
     return builder?.call(context, [
-          ButtonData(
+          ViewerToolbarButtonData(
+            action: ViewerToolbarAction.favorite,
             required: true,
             widget: button,
             title: title,
             icon: icon,
             enabled: enabled,
             onTap: enabled ? trigger.action(context) : null,
-          ),
-          if (canChoose)
-            ButtonData(
-              widget: const SizedBox.shrink(),
-              title: strings.add_private,
-              icon: const Icon(Icons.lock_outline),
-              placement: ButtonPlacement.menuOnly,
-              onTap: () => choose(PixivBookmarkVisibility.private),
+            menuBuilder: (_, close) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                KurumiPopupMenuItem(
+                  title: Text(canChoose ? strings.add_public : title),
+                  icon: icon,
+                  onTap: enabled
+                      ? () {
+                          close();
+                          trigger.action(context)?.call();
+                        }
+                      : null,
+                ),
+                if (canChoose)
+                  KurumiPopupMenuItem(
+                    title: Text(strings.add_private),
+                    icon: const Icon(Icons.lock_outline),
+                    onTap: () {
+                      close();
+                      choose(PixivBookmarkVisibility.private);
+                    },
+                  ),
+              ],
             ),
+            legacyMenuActions: [
+              if (canChoose)
+                ButtonData(
+                  widget: const SizedBox.shrink(),
+                  title: strings.add_private,
+                  icon: const Icon(Icons.lock_outline),
+                  placement: ButtonPlacement.menuOnly,
+                  onTap: () => choose(PixivBookmarkVisibility.private),
+                ),
+            ],
+          ),
         ]) ??
         button;
   }

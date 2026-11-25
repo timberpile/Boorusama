@@ -5,40 +5,72 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/details_parts/src/toolbars/customizable_post_toolbar.dart';
+import '../../../core/posts/details_parts/src/toolbars/viewer_toolbar_profile_actions.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/shares/widgets.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/router.dart';
 import '../../../core/search/search/routes.dart';
-import '../../../core/widgets/adaptive_button_row.dart';
-import '../../../core/widgets/booru_menu_button_row.dart';
 import '../configs/providers.dart';
 import '../pools/widgets.dart';
 import '../post_votes/widgets.dart';
 import 'post_data.dart';
 import 'providers.dart';
 
+ViewerToolbarProfileActions szurubooruViewerToolbarActions(
+  Ref ref,
+  BooruConfigAuth auth,
+) => (
+  visibleCount: 5,
+  actions: [
+    if (ref.watch(szurubooruLoginDetailsProvider(auth)).hasLogin()) ...const [
+      ViewerToolbarAction.favorite,
+      ViewerToolbarAction.upvote,
+      ViewerToolbarAction.downvote,
+    ],
+    ViewerToolbarAction.bookmark,
+    if (auth.anonymousReadScope == null) ViewerToolbarAction.download,
+    ViewerToolbarAction.share,
+    ViewerToolbarAction.comments,
+  ],
+);
+
 class SzurubooruPostActionToolbar extends ConsumerWidget {
-  const SzurubooruPostActionToolbar({
-    super.key,
-  });
+  const SzurubooruPostActionToolbar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<Post>(context);
     final controller = PostDetailsPageViewScope.of(context);
     final detailsController = PostDetails.of<Post>(context).controller;
-
+    final profileId = ref.watchConfig.id;
     final config = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
     final isFaved = ref.watch(favoriteProvider((config, post.id)));
     final favNotifier = ref.watch(favoritesProvider(config).notifier);
-    final loginDetails = ref.watch(szurubooruLoginDetailsProvider(config));
+    final hasLogin = ref
+        .watch(szurubooruLoginDetailsProvider(config))
+        .hasLogin();
+    final share = SharePostButton(
+      post: post,
+      auth: config,
+      configViewer: configViewer,
+      download: download,
+    );
+    final downloadAction = DownloadPostButton.action(context, ref, post);
+    final favorite = FavoritePostButton(
+      isFaved: isFaved,
+      isAuthorized: hasLogin,
+      addFavorite: () => favNotifier.add(post.id, profileId: profileId),
+      removeFavorite: () => favNotifier.remove(post.id, profileId: profileId),
+    );
 
     return SliverToBoxAdapter(
       child: CommonPostButtonsBuilder(
@@ -47,72 +79,90 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
         onLoadOriginal: () => detailsController.loadOriginalImage(post),
         config: config,
         configViewer: configViewer,
-        builder: (context, buttons) {
-          return BooruMenuButtonRow(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            maxVisibleButtons: 5,
-            buttons: [
-              if (loginDetails.hasLogin())
-                ButtonData(
-                  required: true,
-                  widget: FavoritePostButton(
-                    isFaved: isFaved,
-                    isAuthorized: loginDetails.hasLogin(),
-                    addFavorite: () =>
-                        favNotifier.add(post.id, profileId: ref.readConfig.id),
-                    removeFavorite: () => favNotifier.remove(
-                      post.id,
-                      profileId: ref.readConfig.id,
-                    ),
-                  ),
-                  title: context.t.post.action.favorite,
-                ),
-              if (loginDetails.hasLogin())
-                ButtonData(
-                  required: true,
-                  widget: SzurubooruUpvotePostButton(
-                    post: post,
-                  ),
-                  title: context.t.post.action.upvote,
-                ),
-              if (loginDetails.hasLogin())
-                ButtonData(
-                  required: true,
-                  widget: SzurubooruDownvotePostButton(
-                    post: post,
-                  ),
-                  title: context.t.post.action.downvote,
-                ),
-              ButtonData(
+        builder: (context, buttons) => CustomizablePostToolbar(
+          key: ValueKey((post, config, profileId)),
+          allowCustomization: PostActionToolbarScope.maybeOf(context) == null,
+          maxVisibleButtons: 5,
+          buttons: [
+            if (hasLogin) ...[
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.favorite,
                 required: true,
-                widget: BookmarkPostButton(post: post, config: config),
-                title: context.t.post.action.bookmark,
+                widget: favorite,
+                title: isFaved
+                    ? context.t.post.action.unfavorite
+                    : context.t.post.action.favorite,
+                icon: Icon(isFaved ? Icons.favorite : Icons.favorite_border),
+                onTap: favorite.action(context),
               ),
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.upvote,
                 required: true,
-                widget: DownloadPostButton(post: post),
-                title: context.t.download.download,
+                widget: SzurubooruUpvotePostButton(post: post),
+                title: context.t.post.action.upvote,
+                icon: const Icon(Icons.thumb_up_outlined),
+                menuBuilder: (_, _) =>
+                    SzurubooruUpvotePostButton(post: post, menuItem: true),
               ),
-              ButtonData(
-                widget: SharePostButton(
-                  post: post,
-                  auth: config,
-                  configViewer: configViewer,
-                  download: download,
-                ),
-                title: context.t.post.action.share,
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.downvote,
+                required: true,
+                widget: SzurubooruDownvotePostButton(post: post),
+                title: context.t.post.action.downvote,
+                icon: const Icon(Icons.thumb_down_outlined),
+                menuBuilder: (_, _) =>
+                    SzurubooruDownvotePostButton(post: post, menuItem: true),
               ),
-              ButtonData(
-                widget: CommentPostButton(
-                  onPressed: () => goToCommentPage(context, ref, post),
-                ),
-                title: context.t.post.action.view_comments,
-                onTap: () => goToCommentPage(context, ref, post),
-              ),
-              ...buttons,
             ],
-          );
-        },
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.bookmark,
+              required: true,
+              widget: BookmarkPostButton(post: post, config: config),
+              title: context.t.post.action.bookmark,
+              icon: const Icon(Icons.bookmark_border),
+              menuBuilder: (_, _) => BookmarkPostButton(
+                post: post,
+                config: config,
+                menuItem: true,
+              ),
+            ),
+            if (downloadAction != null)
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.download,
+                required: true,
+                widget: DownloadPostButton(
+                  post: post,
+                  download: downloadAction,
+                ),
+                title: context.t.download.download,
+                icon: const Icon(Icons.download),
+                onTap: downloadAction,
+                menuBuilder: (_, close) => DownloadPostButton(
+                  post: post,
+                  download: downloadAction,
+                  menuItem: true,
+                  onMenuAction: close,
+                ),
+              ),
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.share,
+              widget: share,
+              title: context.t.post.action.share,
+              icon: const Icon(Icons.share),
+              onTap: share.action(context, ref),
+            ),
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.comments,
+              widget: CommentPostButton(
+                onPressed: () => goToCommentPage(context, ref, post),
+              ),
+              title: context.t.post.action.view_comments,
+              icon: const Icon(Icons.comment_outlined),
+              onTap: () => goToCommentPage(context, ref, post),
+            ),
+            ...buttons,
+          ],
+        ),
       ),
     );
   }
@@ -193,6 +243,7 @@ class SzurubooruPoolTileSection extends StatelessWidget {
 }
 
 final kSzurubooruPostDetailsUIBuilder = PostDetailsUIBuilder(
+  viewerToolbarProfileActions: szurubooruViewerToolbarActions,
   preview: {
     DetailsPart.toolbar: (context) => const SzurubooruPostActionToolbar(),
   },
