@@ -76,9 +76,9 @@ void main() {
             ),
           );
           final backdrop = find.byKey(
-            const ValueKey('search-editor-background'),
+            const ValueKey('search-route-surface'),
           );
-          expect(backdrop, findsNothing);
+          expect(tester.widget<ColoredBox>(backdrop).color.a, 0);
           for (final inset in [0.0, 220.0, 0.0]) {
             keyboard.value = inset;
             await tester.pump();
@@ -104,7 +104,7 @@ void main() {
           }
           controller.closeEditor();
           await tester.pump();
-          expect(backdrop, findsNothing);
+          expect(tester.widget<ColoredBox>(backdrop).color.a, 0);
           expect(tags.rawTagsString, 'cat');
           expect(tester.takeException(), isNull);
         },

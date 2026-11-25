@@ -1,4 +1,3 @@
-import '../../../../posts/listing/types.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
 // Package imports:
@@ -18,6 +17,7 @@ import '../../../../navigation/destination_activity.dart';
 import '../../../../posts/count/widgets.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/src/types/post_search_actions.dart';
+import '../../../../posts/listing/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/links/boorusama_search_link.dart';
@@ -69,6 +69,7 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     int? initialScrollPosition,
     PageMode? pageMode,
     Widget header,
+    Widget? leadingSliver,
     ({Widget follow, Widget share}) toolbarActions,
   )?
   nativeResultBuilder;
@@ -343,7 +344,7 @@ class _SearchPageScaffoldState<T extends Post>
         resultGridBuilder: widget.resultGridBuilder,
         nativeResultBuilder: nativeResults == null
             ? null
-            : (context, query, page, position, mode, header) =>
+            : (context, query, page, position, mode, header, leadingSliver) =>
                   SearchLinkShareMenu(
                     profileName: profile.name,
                     link: BoorusamaSearchLink.fromRaw(
@@ -357,6 +358,7 @@ class _SearchPageScaffoldState<T extends Post>
                       position,
                       mode,
                       header,
+                      leadingSliver,
                       (
                         follow: ListenableBuilder(
                           listenable: _tagsController,

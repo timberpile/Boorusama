@@ -18,6 +18,7 @@ import '../../../../configs/config/providers.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/types.dart';
 import '../../../../posts/listing/widgets.dart';
+import '../../../../posts/listing/src/widgets/timeline_toolbar_host.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../widgets/widgets.dart';
@@ -36,16 +37,17 @@ typedef IndexedSelectableSearchWidgetBuilder<T extends Post> = Widget Function(
   bool useHero,
 );
 
+typedef NativeSearchResultBuilder = Widget Function(
+  BuildContext context,
+  String query,
+  int initialPage,
+  int? initialScrollPosition,
+  PageMode? pageMode,
+  Widget header,
+  Widget? leadingSliver,
+);
+
 const kSearchBarHeight = kToolbarHeight;
-const _kSelectedTagHeight = 48.0;
-
-double _calcBaseSearchHeight(List<TagSearchItem> tags) {
-  return kSearchBarHeight + (tags.isNotEmpty ? _kSelectedTagHeight : 0);
-}
-
-double _calcSearchRegionHeight(List<TagSearchItem> selectedTags) {
-  return _calcBaseSearchHeight(selectedTags);
-}
 
 class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   const RawSearchPageScaffold({
@@ -67,15 +69,7 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.nativeResultBuilder,
   });
 
-  final Widget Function(
-    BuildContext context,
-    String query,
-    int initialPage,
-    int? initialScrollPosition,
-    PageMode? pageMode,
-    Widget header,
-  )?
-  nativeResultBuilder;
+  final NativeSearchResultBuilder? nativeResultBuilder;
 
   final SearchParams params;
 
@@ -208,9 +202,30 @@ class _SearchPageScaffoldState<T extends Post>
     _controller.tagString.addListener(_onTagChanged);
   }
 
-  var _searchBarOffset = 0.0;
+  final _toolbarHost = TimelineToolbarHost();
+  final _panelExtents = ValueNotifier((editor: 0.0, toolbar: 0.0));
+  var _userScroll = false;
+
+  void _measureEditor(Size size) {
+    if (!mounted) return;
+    _panelExtents.value = (
+      editor: size.height,
+      toolbar: _panelExtents.value.toolbar,
+    );
+  }
+
+  void _measureToolbar(Size size) {
+    if (!mounted) return;
+    _panelExtents.value = (
+      editor: _panelExtents.value.editor,
+      toolbar: size.height,
+    );
+  }
 
   void _onTagChanged() {
+    _toolbarHost.clear();
+    _userScroll = false;
+    _searchBarAnimController.value = 0;
     if (_controller.tagString.value != _restoredQuery) {
       _useRoutePosition = false;
     }
@@ -244,6 +259,8 @@ class _SearchPageScaffoldState<T extends Post>
     _topics.dispose();
     _scrollController.dispose();
     _searchBarAnimController.dispose();
+    _toolbarHost.dispose();
+    _panelExtents.dispose();
 
     super.dispose();
   }
@@ -274,155 +291,272 @@ class _SearchPageScaffoldState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
+    final top = ref.watch(searchBarPositionProvider) == SearchBarPosition.top;
+    return TimelineToolbarHostScope(
+      host: top ? _toolbarHost : null,
+      child: _buildPage(context, top),
+    );
+  }
+
+  Widget _buildPage(BuildContext context, bool top) {
+    final searchPinned = ref.watch(
+      settingsProvider.select(
+        (value) => value.searchBarScrollBehavior.persistSearchBar,
+      ),
+    );
+    final toolbarPinned = ref.watch(
+      imageListingSettingsProvider.select(
+        (value) => value.keepTimelineToolbarVisible,
+      ),
+    );
+    final leadingSliver = top
+        ? ValueListenableBuilder(
+            valueListenable: _panelExtents,
+            builder: (_, extents, _) => SliverToBoxAdapter(
+              child: SizedBox(
+                height:
+                    (searchPinned ? 0 : extents.editor) +
+                    (toolbarPinned ? 0 : extents.toolbar),
+              ),
+            ),
+          )
+        : null;
     return InheritedSearchPageController(
       controller: _controller,
       child: Material(
         type: MaterialType.transparency,
-        child: SafeArea(
-          bottom: false,
-          child: Stack(
-            children: [
-              // Options and suggestions are drawn over what's below, which
-              // keys must not reach while it's covered.
-              ValueListenableBuilder(
-                valueListenable: _controller.state,
-                builder: (context, state, child) => ExcludeSemantics(
-                  excluding: state != SearchState.initial,
-                  child: ExcludeFocus(
-                    excluding: state != SearchState.initial,
-                    child: child!,
-                  ),
-                ),
-                child: ValueListenableBuilder(
-                  valueListenable: _controller.didSearchOnce,
-                  builder: (context, searchOnce, child) {
-                    return searchOnce
-                        ? _buildResult()
-                        : const SizedBox.shrink();
-                  },
-                ),
-              ),
-              // Paint beneath the entire editor, including its reserved tag
-              // and safe-area displacement, rather than only its child panels.
-              ValueListenableBuilder(
-                valueListenable: _controller.state,
-                builder: (context, state, _) => state == SearchState.initial
-                    ? const SizedBox.shrink()
-                    : Positioned.fill(
-                        child: ColoredBox(
-                          key: const ValueKey('search-editor-background'),
-                          color: Kurumi.themeOf(context).colorScheme.surface,
-                        ),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            _controller.didSearchOnce,
+            _controller.state,
+          ]),
+          builder: (context, child) => ColoredBox(
+            key: const ValueKey('search-route-surface'),
+            color:
+                _controller.didSearchOnce.value ||
+                    _controller.state.value != SearchState.initial
+                ? Kurumi.themeOf(context).colorScheme.surface
+                : Colors.transparent,
+            child: child,
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: ListenableBuilder(
+              listenable: Listenable.merge([
+                _searchBarAnimController,
+                _toolbarHost,
+                _panelExtents,
+                _selectionModeController,
+                _controller.state,
+                _controller.didSearchOnce,
+              ]),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ValueListenableBuilder(
+                    valueListenable: _controller.state,
+                    builder: (context, state, child) => ExcludeSemantics(
+                      excluding: state != SearchState.initial,
+                      child: ExcludeFocus(
+                        excluding: state != SearchState.initial,
+                        child: child!,
                       ),
+                    ),
+                    child: ValueListenableBuilder(
+                      valueListenable: _controller.didSearchOnce,
+                      builder: (context, searched, _) => searched
+                          ? _buildResult(leadingSliver)
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  ValueListenableBuilder(
+                    valueListenable: _controller.state,
+                    builder: (context, state, _) => state == SearchState.initial
+                        ? const SizedBox.shrink()
+                        : Positioned.fill(
+                            child: ColoredBox(
+                              key: const ValueKey('search-editor-background'),
+                              color: Kurumi.themeOf(context)
+                                  .colorScheme
+                                  .surface,
+                            ),
+                          ),
+                  ),
+                  _SearchOptionsView(
+                    landingView: widget.landingView,
+                    selectionModeController: _selectionModeController,
+                  ),
+                  widget.searchSuggestions,
+                ],
               ),
-              _SearchOptionsView(
-                landingView: widget.landingView,
-                selectionModeController: _selectionModeController,
-              ),
-              widget.searchSuggestions,
-              _SearchBarPositioned(
-                selectionModeController: _selectionModeController,
-                searchBarAnimController: _searchBarAnimController,
-                child: widget.searchRegion,
-              ),
-            ],
+              builder: (context, child) {
+                final resultsActive =
+                    _controller.didSearchOnce.value &&
+                    _controller.state.value == SearchState.initial;
+                final hidden =
+                    !resultsActive || _selectionModeController.isActive
+                    ? 0.0
+                    : _searchBarAnimController.value;
+                final editor = KurumiMeasureSize(
+                  onChange: _measureEditor,
+                  child: widget.searchRegion,
+                );
+                final toolbar = Visibility(
+                  visible: resultsActive,
+                  maintainState: true,
+                  child: KurumiMeasureSize(
+                    onChange: _measureToolbar,
+                    child: _toolbarHost.toolbar ?? const SizedBox.shrink(),
+                  ),
+                );
+                // When both rows hide, clip the entire natural-height Column.
+                // Neither row has an independent displacement or snap driver.
+                final together = !searchPinned && !toolbarPinned;
+                final panel = top
+                    ? ColoredBox(
+                        color: Kurumi.themeOf(context).colorScheme.surface,
+                        child: _collapse(
+                          hidden: together ? hidden : 0,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _collapse(
+                                hidden: together || searchPinned ? 0 : hidden,
+                                child: editor,
+                              ),
+                              _collapse(
+                                hidden: together || toolbarPinned ? 0 : hidden,
+                                child: toolbar,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _collapse(
+                        hidden: searchPinned ? 0 : hidden,
+                        alignment: Alignment.topCenter,
+                        child: editor,
+                      );
+                final extents = _panelExtents.value;
+                return CustomMultiChildLayout(
+                  delegate: _SearchViewportLayout(
+                    top: top,
+                    pinnedExtent: top && resultsActive && extents.editor > 0
+                        ? (searchPinned ? extents.editor : 0.0) +
+                              (toolbarPinned ? extents.toolbar : 0.0)
+                        : null,
+                  ),
+                  children: [
+                    LayoutId(id: _SearchViewportChild.content, child: child!),
+                    LayoutId(id: _SearchViewportChild.panel, child: panel),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildResult() {
-    final persistentSearchBar = ref.watch(
-      settingsProvider.select(
-        (value) => value.searchBarScrollBehavior.persistSearchBar,
+  Widget _collapse({
+    required double hidden,
+    required Widget child,
+    Alignment alignment = Alignment.bottomCenter,
+  }) => ClipRect(
+    child: Align(
+      alignment: alignment,
+      heightFactor: 1 - hidden,
+      child: IgnorePointer(
+        ignoring: hidden == 1,
+        child: ExcludeFocus(
+          excluding: hidden == 1,
+          child: ExcludeSemantics(excluding: hidden == 1, child: child),
+        ),
       ),
-    );
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
+    ),
+  );
 
+  bool _onResultScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    if (notification is ScrollStartNotification) {
+      _userScroll = notification.dragDetails != null;
+      if (_userScroll) _searchBarAnimController.stop();
+    }
+    if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      _userScroll = true;
+    }
+    final pixels = notification.metrics.pixels;
+    if (notification is ScrollUpdateNotification &&
+        !notification.metrics.outOfRange &&
+        pixels <= notification.metrics.minScrollExtent) {
+      // The leading spacer is visible at the top, including after a jump.
+      _searchBarAnimController.value = 0;
+      return false;
+    }
+    final settings = ref.read(settingsProvider);
+    final top = ref.read(searchBarPositionProvider) == SearchBarPosition.top;
+    final searchPinned = settings.searchBarScrollBehavior.persistSearchBar;
+    final toolbarPinned = ref
+        .read(imageListingSettingsProvider)
+        .keepTimelineToolbarVisible;
+    final extents = _panelExtents.value;
+    final extent =
+        (searchPinned ? 0.0 : extents.editor) +
+        (top && !toolbarPinned && _toolbarHost.toolbar != null
+            ? extents.toolbar
+            : 0.0);
+    if (!_userScroll ||
+        extent <= 0 ||
+        _controller.state.value != SearchState.initial ||
+        _selectionModeController.isActive) {
+      if (notification is ScrollEndNotification) _userScroll = false;
+      return false;
+    }
+    if (notification is ScrollUpdateNotification &&
+        !notification.metrics.outOfRange) {
+      _searchBarAnimController.value =
+          ((_searchBarAnimController.value * extent +
+                      (notification.scrollDelta ?? 0)) /
+                  extent)
+              .clamp(0.0, 1.0);
+    } else if (notification is ScrollEndNotification) {
+      _userScroll = false;
+      final target = pixels < extent || _searchBarAnimController.value <= .5
+          ? 0.0
+          : 1.0;
+      if (settings.reduceAnimations) {
+        _searchBarAnimController.value = target;
+      } else {
+        _searchBarAnimController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+    return false;
+  }
+
+  Widget _buildResult(Widget? leadingSliver) {
     return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (persistentSearchBar) return false;
-        if (notification.depth != 0) return false;
-
-        final viewPadding = searchBarPosition == SearchBarPosition.bottom
-            ? MediaQuery.viewPaddingOf(context).bottom
-            : 0;
-
-        final searchRegionHeight =
-            _calcSearchRegionHeight(_tagsController.value) + viewPadding;
-
-        final pixels = notification.metrics.pixels;
-
-        if (notification is ScrollUpdateNotification) {
-          // Ignore overscroll
-          // Also must scroll pass the search bar
-          if (pixels <= 0) {
-            return false;
-          }
-
-          final newValue = _searchBarOffset + (notification.scrollDelta ?? 0);
-
-          _searchBarOffset = newValue.clamp(0, searchRegionHeight);
-
-          _searchBarAnimController.value =
-              _searchBarOffset / searchRegionHeight;
-        } else if (notification is ScrollEndNotification) {
-          final pixels = notification.metrics.pixels;
-
-          final offset = _searchBarOffset.abs();
-
-          final isHalf = offset > searchRegionHeight / 2;
-
-          _searchBarOffset = isHalf ? searchRegionHeight : 0.0;
-
-          // Handle case where user taps on jump to top button
-          if (pixels < searchRegionHeight) {
-            _searchBarAnimController.reverse();
-            _searchBarOffset = 0;
-          } else if (isHalf) {
-            _searchBarAnimController.forward();
-            _searchBarOffset = searchRegionHeight;
-          } else {
-            _searchBarAnimController.reverse();
-            _searchBarOffset = 0;
-          }
-        }
-
-        return true;
-      },
+      onNotification: _onResultScroll,
       child: ValueListenableBuilder(
         valueListenable: _controller.tagString,
         builder: (context, query, _) => widget.nativeResultBuilder != null
-            ? Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      ref.watch(searchBarPositionProvider) ==
-                          SearchBarPosition.bottom
-                      ? _calcSearchRegionHeight(_tagsController.value) +
-                            MediaQuery.viewPaddingOf(context).bottom
-                      : 0,
-                ),
-                child: widget.nativeResultBuilder!(
-                  context,
-                  query,
-                  _useRoutePosition ? widget.initialPage ?? 1 : 1,
-                  _useRoutePosition ? widget.initialScrollPosition : null,
-                  _useRoutePosition && widget.initialPage != null
-                      ? PageMode.paginated
-                      : null,
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (ref.watch(searchBarPositionProvider) ==
-                          SearchBarPosition.top)
-                        _Displacement(
-                          selectionModeController: _selectionModeController,
-                        ),
-                      widget.resultHeader,
-                    ],
-                  ),
-                ),
+            ? widget.nativeResultBuilder!(
+                context,
+                query,
+                _useRoutePosition ? widget.initialPage ?? 1 : 1,
+                _useRoutePosition ? widget.initialScrollPosition : null,
+                _useRoutePosition && widget.initialPage != null
+                    ? PageMode.paginated
+                    : null,
+                widget.resultHeader,
+                leadingSliver,
               )
             : PostScope(
                 // Each applied query owns its requests and pagination. Replacing this
@@ -442,6 +576,7 @@ class _SearchPageScaffoldState<T extends Post>
                   return _buildDefaultSearchResults(
                     context,
                     controller,
+                    leadingSliver,
                   );
                 },
               ),
@@ -452,9 +587,8 @@ class _SearchPageScaffoldState<T extends Post>
   Widget _buildDefaultSearchResults(
     BuildContext context,
     PostGridController<T> controller,
+    Widget? leadingSliver,
   ) {
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
-
     return ColoredBox(
       color: Kurumi.themeOf(context).colorScheme.surface,
       child: SafeArea(
@@ -467,10 +601,6 @@ class _SearchPageScaffoldState<T extends Post>
           selectionModeController: _selectionModeController,
           scrollController: _scrollController,
           controller: controller,
-          bottomInset: searchBarPosition == SearchBarPosition.bottom
-              ? _calcSearchRegionHeight(_tagsController.value) +
-                    MediaQuery.viewPaddingOf(context).bottom
-              : 0,
           itemBuilder: widget.itemBuilder != null
               ? (context, index, scrollController, useHero) {
                   return widget.itemBuilder!(
@@ -482,29 +612,12 @@ class _SearchPageScaffoldState<T extends Post>
                   );
                 }
               : null,
-          scrollToTopButton: ValueListenableBuilder(
-            valueListenable: _tagsController,
-            builder: (_, tags, _) {
-              return _ScrollToTopButtonPadding(
-                selectionModeController: _selectionModeController,
-                searchBarAnimController: _searchBarAnimController,
-                builder: (context, value) {
-                  return PostGridScrollToTopButton(
-                    controller: controller,
-                    autoScrollController: _scrollController,
-                    bottomPadding: (1 - value) * _calcSearchRegionHeight(tags),
-                  );
-                },
-              );
-            },
+          scrollToTopButton: PostGridScrollToTopButton(
+            controller: controller,
+            autoScrollController: _scrollController,
           ),
           sliverHeaders: [
-            if (searchBarPosition == SearchBarPosition.top)
-              SliverToBoxAdapter(
-                child: _Displacement(
-                  selectionModeController: _selectionModeController,
-                ),
-              ),
+            ?leadingSliver,
             const SearchResultAnalyticsAnchor(),
             if (widget.extraHeaders != null)
               ...widget.extraHeaders!(
@@ -521,6 +634,43 @@ class _SearchPageScaffoldState<T extends Post>
   }
 }
 
+enum _SearchViewportChild { content, panel }
+
+class _SearchViewportLayout extends MultiChildLayoutDelegate {
+  _SearchViewportLayout({required this.top, required this.pinnedExtent});
+
+  final bool top;
+  final double? pinnedExtent;
+
+  @override
+  void performLayout(Size size) {
+    final panel = layoutChild(
+      _SearchViewportChild.panel,
+      BoxConstraints(
+        minWidth: size.width,
+        maxWidth: size.width,
+        maxHeight: size.height,
+      ),
+    );
+    // While results are active, the leading sliver reserves the floating part.
+    // Moving the viewport as well would add the panel's travel to every tile.
+    final reserved = (pinnedExtent ?? panel.height).clamp(0.0, size.height);
+    layoutChild(
+      _SearchViewportChild.content,
+      BoxConstraints.tight(Size(size.width, size.height - reserved)),
+    );
+    positionChild(_SearchViewportChild.content, Offset(0, top ? reserved : 0));
+    positionChild(
+      _SearchViewportChild.panel,
+      Offset(0, top ? 0 : size.height - panel.height),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_SearchViewportLayout oldDelegate) =>
+      top != oldDelegate.top || pinnedExtent != oldDelegate.pinnedExtent;
+}
+
 class SearchRegionSafeArea extends ConsumerWidget {
   const SearchRegionSafeArea({
     required this.child,
@@ -533,214 +683,19 @@ class SearchRegionSafeArea extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final displacement = _Displacement(
-      selectionModeController: selectionModeController,
-    );
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
-
-    return Column(
-      children: [
-        if (searchBarPosition == SearchBarPosition.top) displacement,
-        Expanded(
-          child: child,
-        ),
-        switch (searchBarPosition) {
-          SearchBarPosition.bottom => displacement,
-          SearchBarPosition.top => SizedBox(
-            height: max(
-              MediaQuery.viewInsetsOf(context).bottom,
-              MediaQuery.viewPaddingOf(context).bottom,
-            ),
-          ),
-        },
-      ],
-    );
-  }
-}
-
-class _ScrollToTopButtonPadding extends ConsumerStatefulWidget {
-  const _ScrollToTopButtonPadding({
-    required this.builder,
-    required this.searchBarAnimController,
-    required this.selectionModeController,
-  });
-
-  final Widget Function(
-    BuildContext context,
-    double value,
-  )
-  builder;
-
-  final AnimationController searchBarAnimController;
-  final SelectionModeController selectionModeController;
-
-  @override
-  ConsumerState<_ScrollToTopButtonPadding> createState() =>
-      __ScrollToTopButtonPaddingState();
-}
-
-class __ScrollToTopButtonPaddingState
-    extends ConsumerState<_ScrollToTopButtonPadding> {
-  late final _animation = CurvedAnimation(
-    parent: widget.searchBarAnimController,
-    curve: Curves.easeInOut,
-  );
-
-  @override
-  void dispose() {
-    _animation.dispose();
-
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
-
-    return ListenableBuilder(
-      listenable: widget.selectionModeController,
-      builder: (_, _) {
-        if (widget.selectionModeController.isActive ||
-            searchBarPosition == SearchBarPosition.top) {
-          return widget.builder(context, 1);
-        }
-
-        return AnimatedBuilder(
-          animation: _animation,
-          builder: (context, child) {
-            return widget.builder(
-              context,
-              _animation.value,
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _SearchBarPositioned extends ConsumerStatefulWidget {
-  const _SearchBarPositioned({
-    required this.searchBarAnimController,
-    required this.selectionModeController,
-    required this.child,
-  });
-
-  final Widget child;
-  final AnimationController searchBarAnimController;
-  final SelectionModeController selectionModeController;
-
-  @override
-  ConsumerState<_SearchBarPositioned> createState() =>
-      __SearchBarPositionedState();
-}
-
-class __SearchBarPositionedState extends ConsumerState<_SearchBarPositioned> {
-  late final _searchBarCurve = CurvedAnimation(
-    parent: widget.searchBarAnimController,
-    curve: Curves.easeInOut,
-  );
-
-  @override
-  void dispose() {
-    _searchBarCurve.dispose();
-
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = InheritedSearchPageController.of(context);
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
-
-    return MultiValueListenableBuilder3(
-      first: controller.didSearchOnce,
-      second: controller.state,
-      third: controller.tagsController,
-
-      builder: (_, searchOnce, state, selectedTags) {
-        final baseSearchRegionHeight = _calcSearchRegionHeight(selectedTags);
-        final viewPadding = searchBarPosition == SearchBarPosition.bottom
-            ? MediaQuery.viewPaddingOf(context).bottom
-            : 0;
-        final searchRegionHeight = baseSearchRegionHeight + viewPadding;
-
-        return NotificationListener<ScrollNotification>(
-          onNotification: (notification) => true,
-          child: ListenableBuilder(
-            listenable: widget.selectionModeController,
-            builder: (context, _) {
-              return AnimatedBuilder(
-                animation: _searchBarCurve,
-                builder: (context, _) {
-                  final padding = widget.selectionModeController.isActive
-                      ? 0.0
-                      : searchOnce
-                      ? state != SearchState.initial
-                            ? 0.0
-                            : -(_searchBarCurve.value * searchRegionHeight)
-                      : 0.0;
-
-                  return Positioned(
-                    bottom: searchBarPosition == SearchBarPosition.bottom
-                        ? padding
-                        : null,
-                    top: searchBarPosition == SearchBarPosition.top
-                        ? padding
-                        : null,
-                    left: 0,
-                    right: 0,
-                    child: widget.child,
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _Displacement extends ConsumerWidget {
-  const _Displacement({
-    required this.selectionModeController,
-  });
-
-  final SelectionModeController selectionModeController;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = InheritedSearchPageController.of(context);
-    final searchBarPosition = ref.watch(searchBarPositionProvider);
-
-    return ListenableBuilder(
-      listenable: selectionModeController,
-      builder: (context, _) => MultiValueListenableBuilder3(
-        first: controller.tagsController,
-        second: controller.state,
-        third: controller.didSearchOnce,
-
-        builder: (_, value, state, searchOnce) {
-          final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
-          final viewPadding = MediaQuery.viewPaddingOf(context).bottom;
-          final padding = max(viewInsets, viewPadding);
-
-          final effectivePadding = searchOnce
-              ? state != SearchState.suggestions && state != SearchState.options
-                    ? 0
-                    : padding
-              : padding;
-
-          final baseHeight = searchBarPosition == SearchBarPosition.bottom
-              ? effectivePadding + _calcBaseSearchHeight(value)
-              : _calcBaseSearchHeight(value);
-
-          return SizedBox(
-            height: baseHeight,
-          );
-        },
+    final top = ref.watch(searchBarPositionProvider) == SearchBarPosition.top;
+    return Padding(
+      // The surrounding Column already reserves the complete editor. A top
+      // editor leaves only native bottom obstructions for its panels to avoid.
+      padding: EdgeInsets.only(
+        bottom: top
+            ? max(
+                MediaQuery.viewInsetsOf(context).bottom,
+                MediaQuery.viewPaddingOf(context).bottom,
+              )
+            : 0,
       ),
+      child: child,
     );
   }
 }

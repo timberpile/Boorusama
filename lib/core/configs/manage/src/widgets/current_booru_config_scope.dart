@@ -22,6 +22,7 @@ class CurrentBooruConfigScope extends ConsumerWidget {
     this.accessKey,
     this.requireAccess = false,
     this.bookmarkId,
+    this.unavailable,
     super.key,
   });
 
@@ -30,6 +31,9 @@ class CurrentBooruConfigScope extends ConsumerWidget {
   final ContentAccessKey? accessKey;
   final bool requireAccess;
   final int? bookmarkId;
+
+  /// Compact surfaces can retire their controls when their source disappears.
+  final Widget? unavailable;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,6 +60,7 @@ class CurrentBooruConfigScope extends ConsumerWidget {
           access.config?.auth != config.auth ||
           (access.config?.anonymousReadScope?.isCurrent == false) ||
           (key!.profileId != null && key.profileId != config.id)) {
+        if (unavailable case final fallback?) return fallback;
         return _scope(
           BooruConfig.empty,
           key: null,
@@ -72,9 +77,10 @@ class CurrentBooruConfigScope extends ConsumerWidget {
         .where((value) => value.id == config.id)
         .firstOrNull;
     if (live == null || live.auth != config.auth) {
-      return Scaffold(
-        body: Center(child: Text(context.t.navigation.unavailable_profile)),
-      );
+      return unavailable ??
+          Scaffold(
+            body: Center(child: Text(context.t.navigation.unavailable_profile)),
+          );
     }
     return scoped(live);
   }

@@ -41,6 +41,7 @@ class PixivWorkSearchPage extends ConsumerWidget {
             initialScrollPosition,
             pageMode,
             header,
+            leadingSliver,
             toolbarActions,
           ) {
             final composed = composer.compose(queryText.split(' '));
@@ -52,6 +53,7 @@ class PixivWorkSearchPage extends ConsumerWidget {
               initialScrollPosition: initialScrollPosition,
               pageMode: pageMode,
               header: header,
+              sliverHeaders: [?leadingSliver],
               toolbarControls: [toolbarActions.follow],
               toolbarMenuItems: [toolbarActions.share],
               fetchPage: (page) {

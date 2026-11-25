@@ -8,7 +8,11 @@ import 'package:sliver_tools/sliver_tools.dart';
 import '../../../../foundation/app_update/widgets.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../posts/listing/src/widgets/measured_floating_header.dart';
+import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
+import '../../../posts/listing/src/widgets/timeline_toolbar_host.dart';
 import '../../../search/histories/providers.dart';
+import '../../../search/search/types.dart';
 import '../../../search/search/routes.dart';
 import '../../../search/search/widgets.dart';
 import '../../../search/selected_tags/providers.dart';
@@ -155,5 +159,106 @@ class _SliverHomeSearchBarState
         .addHistoryFromController(selectedTagController, ref.readConfigAuth);
     selectedTagString.value = selectedTagController.rawTagsString;
     widget.onSearch();
+  }
+}
+
+/// Supplies the leading Search sliver and, when both rows auto-hide, hosts
+/// the Timeline Toolbar in that sliver. The grid retains its controller.
+class BrowseTimelineHeader extends ConsumerStatefulWidget {
+  const BrowseTimelineHeader({
+    required this.searchBar,
+    required this.builder,
+    super.key,
+  });
+
+  final SliverHomeSearchBar searchBar;
+  final Widget Function(BuildContext context, Widget? leadingSliver) builder;
+
+  @override
+  ConsumerState<BrowseTimelineHeader> createState() =>
+      _BrowseTimelineHeaderState();
+}
+
+class _BrowseTimelineHeaderState extends ConsumerState<BrowseTimelineHeader> {
+  final _toolbarHost = TimelineToolbarHost();
+
+  @override
+  void dispose() {
+    _toolbarHost.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final largeScreen = context.isLargeScreen;
+    final searchAtTop =
+        ref.watch(searchBarPositionProvider) == SearchBarPosition.top;
+    final attachToolbar =
+        !largeScreen &&
+        searchAtTop &&
+        !ref.watch(
+          settingsProvider.select(
+            (settings) => settings.searchBarScrollBehavior.persistSearchBar,
+          ),
+        ) &&
+        !ref.watch(
+          imageListingSettingsProvider.select(
+            (settings) => settings.keepTimelineToolbarVisible,
+          ),
+        );
+    final leadingSliver = attachToolbar
+        ? _AttachedBrowseHeader(host: _toolbarHost)
+        : largeScreen || searchAtTop
+        ? widget.searchBar
+        : null;
+    return TimelineToolbarHostScope(
+      host: attachToolbar ? _toolbarHost : null,
+      child: widget.builder(context, leadingSliver),
+    );
+  }
+}
+
+/// Browse's two auto-hiding rows must share the same sliver geometry. An
+/// independent floating Toolbar follows both the Search overlap and its own
+/// scroll offset after a reverse drag deep in the results.
+class _AttachedBrowseHeader extends ConsumerWidget {
+  const _AttachedBrowseHeader({required this.host});
+
+  final TimelineToolbarHost host;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final surface = Kurumi.themeOf(context).colorScheme.surface;
+    return MeasuredFloatingHeader(
+      reduceMotion: ref.watch(
+        settingsProvider.select((settings) => settings.reduceAnimations),
+      ),
+      child: ColoredBox(
+        color: surface,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: kToolbarHeight + MediaQuery.paddingOf(context).top,
+              child: KurumiAppBar(
+                toolbarHeight: kToolbarHeight,
+                backgroundColor: surface,
+                automaticallyImplyLeading: false,
+                automaticallyImplyActions: false,
+                title: const HomeSearchBar(),
+              ),
+            ),
+            ListenableBuilder(
+              listenable: host,
+              builder: (context, _) => ColoredBox(
+                color: TimelineHeaderSliver.backgroundColorOf(context),
+                child: host.toolbar ?? const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

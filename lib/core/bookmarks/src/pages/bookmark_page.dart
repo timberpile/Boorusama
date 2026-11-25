@@ -8,6 +8,7 @@ import 'package:kurumi/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
+import '../../../settings/providers.dart';
 import '../../../widgets/widgets.dart';
 import '../widgets/bookmark_scroll_view.dart';
 import 'bookmark_group_browser_page.dart';
@@ -45,17 +46,25 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
     if (widget.view.kind != BookmarkViewKind.all) {
       return BookmarkGroupBrowserPage(groupId: widget.view.groupId);
     }
+    final floatAppBar =
+        MediaQuery.viewInsetsOf(context).bottom == 0 &&
+        !ref.watch(
+          imageListingSettingsProvider.select(
+            (settings) => settings.keepTimelineToolbarVisible,
+          ),
+        );
+    final appBar = BookmarkAppBar(title: widget.title);
     return PerformanceScreenScope(
       screen: PerfScreen.bookmarks,
       priority: 2,
       child: CustomContextMenuOverlay(
         child: Scaffold(
-          appBar: BookmarkAppBar(title: widget.title),
+          appBar: floatAppBar ? null : appBar,
           body: BookmarkScrollView(
             scrollController: _scrollController,
             searchController: _searchController,
             view: widget.view,
-            title: widget.title,
+            floatingAppBar: floatAppBar ? appBar : null,
           ),
         ),
       ),

@@ -143,6 +143,99 @@ void main() {
       },
     );
   }
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('native Search keeps toolbar attached at scale $scale', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final config = workAccess().config!;
+      final client = _Client(count: 60);
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        settings: Settings.defaultSettings.copyWith(autoFocusSearchBar: false),
+        overrides: [
+          currentReadOnlyBooruConfigProvider.overrideWithValue(config),
+          pixivClientProvider.overrideWith((ref, _) => client),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, _) => createPixivGroupCapability(ref),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        const PixivWorkSearchPage(
+          params: SearchParams(query: 'cat'),
+        ),
+      );
+      await drain(tester);
+      final grid = find.byType(NativeContentGrid);
+      final view = find.descendant(
+        of: grid,
+        matching: find.byType(CustomScrollView),
+      );
+      final controller = NativeContentGrid.controllerOf(tester.element(view));
+      final entries = controller.viewerEntries;
+      final scroll = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: view,
+                  matching: find.byWidgetPredicate(
+                    (w) =>
+                        w is Scrollable &&
+                        w.axisDirection == AxisDirection.down,
+                  ),
+                )
+                .first,
+          )
+          .position;
+      scroll.jumpTo(600);
+      await tester.pumpAndSettle();
+      Rect editor() => tester.getRect(find.byType(RawSearchRegion));
+      Rect toolbar() =>
+          tester.getRect(find.byType(PostListConfigurationHeader));
+      expect(toolbar().top, closeTo(editor().bottom, .01));
+      final calls = client.calls.length;
+      final gesture = await tester.startGesture(const Offset(160, 450));
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      final before = toolbar().top;
+      final pixels = scroll.pixels;
+      await gesture.moveBy(const Offset(0, -30));
+      await tester.pump();
+      expect(toolbar().top - before, closeTo(pixels - scroll.pixels, .01));
+      expect(toolbar().top, closeTo(editor().bottom, .01));
+      await gesture.moveBy(const Offset(0, 15));
+      await tester.pump();
+      expect(toolbar().top, closeTo(editor().bottom, .01));
+      await tester.pump(const Duration(milliseconds: 200));
+      await gesture.up();
+      for (var frame = 0; frame < 8; frame++) {
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(toolbar().top, closeTo(editor().bottom, .01));
+      }
+      expect(
+        NativeContentGrid.controllerOf(tester.element(view)),
+        same(controller),
+      );
+      expect(controller.viewerEntries, entries);
+      expect(client.calls.length, calls);
+      final search = InheritedSearchPageController.of(
+        tester.element(find.byType(RawSearchRegion)),
+      );
+      search.skipToResultWithTag('dog');
+      await drain(tester);
+      expect(client.calls.last, ('search', 'dog', 1));
+      expect(toolbar().top, closeTo(editor().bottom, .01));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
   for (final local in [false, true]) {
     for (final query in [null, '', 'user:7', 'cat']) {
       testWidgets(

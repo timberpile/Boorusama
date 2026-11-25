@@ -181,7 +181,11 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           gridHeader: ValueListenableBuilder(
             valueListenable: widget.controller.errors,
             builder: (_, errors, _) => errors == null
-                ? widget.header ?? PostGridConfigurationHeader<T>()
+                ? widget.header ??
+                      PostGridConfigurationHeader<T>(
+                        controller: widget.controller,
+                        selectionModeController: _selectionModeController,
+                      )
                 : const SizedBox.shrink(),
           ),
           topPageIndicator: Consumer(
@@ -568,12 +572,16 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
   const PostGridConfigurationHeader({
     this.axis = Axis.horizontal,
     this.blacklistOnly = false,
+    this.controller,
+    this.selectionModeController,
     this.additionalControls = const [],
     super.key,
   });
 
   final Axis axis;
   final bool blacklistOnly;
+  final PostGridController<T>? controller;
+  final SelectionModeController? selectionModeController;
   final List<Widget> additionalControls;
 
   @override
@@ -582,7 +590,7 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
       imageListingSettingsProvider.select((v) => v.imageGridPadding),
     );
 
-    final controller = PostScope.of<T>(context);
+    final controller = this.controller ?? PostScope.of<T>(context);
 
     final expand = ref.watch(_expandedProvider);
     final expandNotifier = ref.watch(_expandedProvider.notifier);
@@ -630,7 +638,10 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
                 : null,
             hasBlacklist: hasBlacklist,
             trailing: !blacklistOnly && axis == Axis.horizontal
-                ? PostGridConfigIconButton(postController: controller)
+                ? PostGridConfigIconButton(
+                    postController: controller,
+                    selectionModeController: selectionModeController,
+                  )
                 : null,
             hiddenCount: countActiveBlacklistPosts(
               controller.tagCounts.value,

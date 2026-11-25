@@ -44,14 +44,16 @@ void main() {
       final shell = tester.element(find.byType(AppNavigationShell));
       final chrome = ProviderScope.containerOf(shell)
           .read(navigationChromeProvider.notifier);
+      final toolbarMenu = find
+          .descendant(
+            of: find.byType(PostGridConfigIconButton),
+            matching: find.byType(KurumiPopupMenuButton),
+          )
+          .hitTestable();
+      await harness.pumpUntilFound(tester, toolbarMenu);
       final grid = find.byType(SliverPostGridImageGridItem).first;
       final initial = tester.getRect(grid);
-      await tester.tap(
-        find.descendant(
-          of: find.byType(PostGridConfigIconButton),
-          matching: find.byType(KurumiPopupMenuButton),
-        ),
-      );
+      await tester.tap(toolbarMenu);
       await harness.pumpUntilFound(
         tester,
         find.text(appStrings(tester).posts.actions.view_options),

@@ -1,9 +1,11 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../foundation/display.dart';
+
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../foundation/display.dart';
 import '../../../announcements/widgets.dart';
 import '../../../configs/config/providers.dart';
 import '../../../posts/count/widgets.dart';
@@ -54,7 +56,7 @@ class _MobileHomePageScaffoldState
   @override
   Widget build(BuildContext context) {
     final searchBarPosition = ref.watch(searchBarPositionProvider);
-
+    final largeScreen = context.isLargeScreen;
     Widget body({PostGridController? controller}) {
       void refresh() {
         if (controller != null) {
@@ -64,64 +66,67 @@ class _MobileHomePageScaffoldState
         }
       }
 
-      final headers = <Widget>[
-        if (context.isLargeScreen || searchBarPosition == SearchBarPosition.top)
-          SliverHomeSearchBar(
-            selectedTagController: selectedTagController,
-            selectedTagString: selectedTagString,
-            onSearch: refresh,
-          ),
-        const SliverAppAnnouncementBanner(),
-        if (context.isLargeScreen && controller != null)
-          SliverResultHeader(
-            selectedTagString: selectedTagString,
-            controller: controller,
-          ),
-      ];
-      return Column(
-        children: [
-          Expanded(
-            child: controller == null
-                ? KeyedSubtree(
-                    key: ValueKey(_queryRevision),
-                    child: widget.nativeResultBuilder!(
-                      context,
-                      selectedTagString.value,
-                      headers,
-                    ),
-                  )
-                : PostGrid(controller: controller, sliverHeaders: headers),
-          ),
-          if (searchBarPosition == SearchBarPosition.bottom &&
-              !context.isLargeScreen)
-            Consumer(
-              builder: (_, ref, _) {
-                final position = ref.watch(
-                  settingsProvider.select(
-                    (value) => value.booruConfigSelectorPosition,
-                  ),
-                );
-
-                return SafeArea(
-                  top: false,
-                  bottom: !position.isBottom,
-                  child: SizedBox(
-                    height: kToolbarHeight,
-                    child: CustomScrollView(
-                      slivers: [
-                        SliverHomeSearchBar(
-                          primary: false,
-                          selectedTagController: selectedTagController,
-                          selectedTagString: selectedTagString,
-                          onSearch: refresh,
+      return BrowseTimelineHeader(
+        searchBar: SliverHomeSearchBar(
+          selectedTagController: selectedTagController,
+          selectedTagString: selectedTagString,
+          onSearch: refresh,
+        ),
+        builder: (context, leadingHeader) {
+          final headers = <Widget>[
+            ?leadingHeader,
+            const SliverAppAnnouncementBanner(),
+            if (largeScreen && controller != null)
+              SliverResultHeader(
+                selectedTagString: selectedTagString,
+                controller: controller,
+              ),
+          ];
+          return Column(
+            children: [
+              Expanded(
+                child: controller == null
+                    ? KeyedSubtree(
+                        key: ValueKey(_queryRevision),
+                        child: widget.nativeResultBuilder!(
+                          context,
+                          selectedTagString.value,
+                          headers,
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-        ],
+                      )
+                    : PostGrid(controller: controller, sliverHeaders: headers),
+              ),
+              if (searchBarPosition == SearchBarPosition.bottom && !largeScreen)
+                Consumer(
+                  builder: (_, ref, _) {
+                    final position = ref.watch(
+                      settingsProvider.select(
+                        (value) => value.booruConfigSelectorPosition,
+                      ),
+                    );
+
+                    return SafeArea(
+                      top: false,
+                      bottom: !position.isBottom,
+                      child: SizedBox(
+                        height: kToolbarHeight,
+                        child: CustomScrollView(
+                          slivers: [
+                            SliverHomeSearchBar(
+                              primary: false,
+                              selectedTagController: selectedTagController,
+                              selectedTagString: selectedTagString,
+                              onSearch: refresh,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          );
+        },
       );
     }
 

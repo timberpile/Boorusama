@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 
 import 'measured_floating_header.dart';
+import 'timeline_toolbar_host.dart';
 
 /// Uses the child's measured extent, including enlarged text and custom headers.
 class TimelineHeaderSliver extends StatelessWidget {
@@ -28,6 +29,8 @@ class TimelineHeaderSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final host = TimelineToolbarHostScope.maybeOf(context);
+    if (host != null) return HostedTimelineToolbar(host: host, child: child);
     // Keep a stable measured render child across empty/error header changes.
     Widget surface({double topInset = 0}) => ColoredBox(
       color: backgroundColor ?? backgroundColorOf(context),
@@ -163,11 +166,29 @@ class _AvoidHeaderOverlap extends SingleChildRenderObjectWidget {
 }
 
 class _RenderAvoidHeaderOverlap extends RenderProxySliver {
+  var _lastScrollOffset = 0.0;
+  var _lastOverlap = 0.0;
+  var _visualScrollOffset = 0.0;
+
   @override
   void performLayout() {
+    final scrollOffset = constraints.scrollOffset;
     final overlap = math.max<double>(0, constraints.overlap);
+    // The lower row moves with paintOrigin as well as its own float offset.
+    // Consume only the scroll movement left after the leading row has moved.
+    _visualScrollOffset = scrollOffset == 0
+        ? 0
+        : math.max(
+            0,
+            _visualScrollOffset +
+                (scrollOffset - _lastScrollOffset) +
+                (overlap - _lastOverlap),
+          );
+    _lastScrollOffset = scrollOffset;
+    _lastOverlap = overlap;
     child!.layout(
       constraints.copyWith(
+        scrollOffset: _visualScrollOffset,
         overlap: math.min<double>(0, constraints.overlap),
         remainingPaintExtent: math.max<double>(
           0,
@@ -176,8 +197,15 @@ class _RenderAvoidHeaderOverlap extends RenderProxySliver {
       ),
       parentUsesSize: true,
     );
-    geometry = child!.geometry!.copyWith(
-      paintOrigin: child!.geometry!.paintOrigin + overlap,
+    final painted = child!.geometry!;
+    final inFlow = (painted.scrollExtent - scrollOffset).clamp(
+      0.0,
+      painted.paintExtent,
+    );
+    geometry = painted.copyWith(
+      paintOrigin: painted.paintOrigin + overlap,
+      layoutExtent: inFlow,
+      cacheExtent: inFlow > 0 ? inFlow - constraints.cacheOrigin : 0,
     );
   }
 }

@@ -27,17 +27,20 @@ import '../types/image_list_type.dart';
 import '../types/page_mode.dart';
 import 'post_grid_controller.dart';
 import 'timeline_header_sliver.dart';
+import 'timeline_toolbar_host.dart';
 
 class PostGridConfigIconButton<T> extends ConsumerWidget {
   const PostGridConfigIconButton({
     required this.postController,
     super.key,
     this.showBlacklist = true,
+    this.selectionModeController,
     this.itemCount,
   });
 
   final PostGridController<Post> postController;
   final bool showBlacklist;
+  final SelectionModeController? selectionModeController;
 
   /// Mixed timelines can contain selectable native Groups without any Posts.
   /// Post-only operations still use the Post controller's actual contents.
@@ -45,7 +48,8 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectionModeController = SelectionMode.of(context);
+    final selectionModeController =
+        this.selectionModeController ?? SelectionMode.of(context);
 
     return ListenableBuilder(
       listenable: selectionModeController,
@@ -70,7 +74,8 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
         final blacklistEntries = ref
             .watch(blacklistTagEntriesProvider(config))
             .valueOrNull;
-        final selectionModeController = SelectionMode.of(context);
+        final selectionModeController =
+            this.selectionModeController ?? SelectionMode.of(context);
 
         return ValueListenableBuilder(
           valueListenable: postController.itemsNotifier,
@@ -79,10 +84,11 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
                 ? KurumiPopupMenuButton(
                     iconBackgroundColor:
                         context
-                                .findAncestorWidgetOfExactType<
-                                  TimelineHeaderSliver
-                                >() !=
-                            null
+                                    .findAncestorWidgetOfExactType<
+                                      TimelineHeaderSliver
+                                    >() !=
+                                null ||
+                            TimelineToolbarHostScope.maybeOf(context) != null
                         ? Colors.transparent
                         : context.extendedColorScheme.surfaceContainerOverlay,
                     iconColor:

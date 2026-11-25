@@ -769,9 +769,10 @@ void main() {
         expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
         expect(searchRect.top, 24 + kToolbarHeight);
         expect(titleRect.overlaps(searchRect), isFalse);
-        final appBar = find.byType(KurumiAppBar);
-        expect(tester.getSize(appBar).height, 24 + kToolbarHeight);
-        expect(tester.getRect(appBar).bottom, searchRect.top);
+        final appBar = tester.getRect(find.byType(KurumiAppBar));
+        expect(appBar.top, 24);
+        expect(appBar.height, kToolbarHeight);
+        expect(appBar.bottom, searchRect.top);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },

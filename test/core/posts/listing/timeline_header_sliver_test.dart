@@ -5,6 +5,80 @@ import 'package:kurumi/kurumi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final (initialOffset, pinned) in [
+    (250.0, false),
+    (280.0, false),
+    (600.0, false),
+    (250.0, true),
+  ]) {
+    testWidgets(
+      'a floating toolbar moves once per drag at $initialOffset with action bar pinned=$pinned',
+      (
+        tester,
+      ) async {
+        const controls = ValueKey('floating-controls');
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CustomScrollView(
+                controller: controller,
+                slivers: [
+                  SliverAppBar(
+                    floating: true,
+                    snap: true,
+                    pinned: pinned,
+                    title: const Text('Actions'),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                  const TimelineHeaderSliver(
+                    child: SizedBox(
+                      key: controls,
+                      height: 56,
+                      child: Text('Toolbar'),
+                    ),
+                  ),
+                  SliverList.builder(
+                    itemCount: 80,
+                    itemBuilder: (_, index) =>
+                        SizedBox(height: 100, child: Text('Post $index')),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(initialOffset);
+        await tester.pumpAndSettle();
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 45));
+        await tester.pumpAndSettle();
+        final toolbar = find.byKey(controls);
+        expect(toolbar.hitTestable(), findsOneWidget);
+        expect(
+          tester.getTopLeft(toolbar).dy,
+          tester.getBottomLeft(find.byType(NavigationToolbar)).dy,
+        );
+
+        final gesture = await tester.startGesture(const Offset(150, 400));
+        await gesture.moveBy(const Offset(0, -20));
+        await tester.pump();
+        final before = tester.getTopLeft(toolbar).dy;
+        await gesture.moveBy(const Offset(0, -24));
+        await tester.pump();
+        expect(tester.getTopLeft(toolbar).dy - before, closeTo(-24, .01));
+        await gesture.moveBy(const Offset(0, 12));
+        await tester.pump();
+        expect(tester.getTopLeft(toolbar).dy - before, closeTo(-12, .01));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        controller.jumpTo(0);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(toolbar).dy, 176);
+      },
+    );
+  }
+
   for (final insetAlreadyConsumed in [false, true]) {
     testWidgets(
       'pinned controls respect status inset without double padding: consumed=$insetAlreadyConsumed',

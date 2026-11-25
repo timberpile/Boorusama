@@ -13,6 +13,7 @@ import '../../../posts/details/src/types/viewer_entry.dart';
 
 import 'package:collection/collection.dart';
 
+import '../../../posts/listing/src/widgets/measured_floating_header.dart';
 import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
 
 import '../../../selection/ordered_selection_controller.dart';
@@ -68,7 +69,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
     required this.scrollController,
     required this.searchController,
     required this.view,
-    this.title,
+    this.floatingAppBar,
     this.leadingSlivers = const [],
     this.localGroupSelectionController,
     this.onContentRendered,
@@ -78,7 +79,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
   final AutoScrollController scrollController;
   final TextEditingController searchController;
   final BookmarkView view;
-  final String? title;
+  final PreferredSizeWidget? floatingAppBar;
   final List<Widget> leadingSlivers;
   final SelectionModeController? localGroupSelectionController;
   final ValueChanged<BookmarkLibraryState>? onContentRendered;
@@ -330,6 +331,24 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             });
 
           final auth = ref.watchConfigAuth;
+          final reduceMotion = ref.watch(
+            settingsProvider.select((settings) => settings.reduceAnimations),
+          );
+          final floatingAppBar = widget.floatingAppBar;
+          final appBar = floatingAppBar == null
+              ? null
+              : Builder(
+                  builder: (context) => SizedBox(
+                    height:
+                        AppBar.preferredHeightFor(
+                          context,
+                          floatingAppBar.preferredSize,
+                        ) +
+                        MediaQuery.paddingOf(context).top,
+                    child: floatingAppBar,
+                  ),
+                );
+          final hasLeadingContent = widget.leadingSlivers.isNotEmpty;
 
           return PostGrid(
             selectionModeController: _selectionModeController,
@@ -411,6 +430,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   controller,
                 ),
             sliverHeaders: [
+              // Structure mode keeps subgroup cards between the title and
+              // the timeline controls.
+              if (appBar != null && hasLeadingContent)
+                MeasuredFloatingHeader(
+                  reduceMotion: reduceMotion,
+                  child: appBar,
+                ),
               ...widget.leadingSlivers,
               TimelineHeaderSliver(
                 keepVisible: ref.watch(
@@ -418,15 +444,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     (settings) => settings.keepTimelineToolbarVisible,
                   ),
                 ),
-                reduceMotion: ref.watch(
-                  settingsProvider.select(
-                    (settings) => settings.reduceAnimations,
-                  ),
-                ),
+                reduceMotion: reduceMotion,
                 backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (!hasLeadingContent) ?appBar,
                     BookmarkSearchBar(
                       controller: widget.searchController,
                       postController: controller,

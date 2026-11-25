@@ -98,115 +98,116 @@ class _LatestViewState extends ConsumerState<LatestView> {
         }
         return result;
       }),
-      builder: (context, controller) => Column(
-        children: [
-          Expanded(
-            child: ValueListenableBuilder<String>(
-              valueListenable: context.isLargeScreen
-                  ? selectedTagString
-                  : _selectedMostSearchedTag,
-              builder: (context, query, _) => PostGrid<Post>(
-                controller: controller,
-                scrollController: _autoScrollController,
-                gridBuilder: (context, itemBuilder) => SearchSeriesGrid(
+      builder: (context, controller) => BrowseTimelineHeader(
+        searchBar: SliverHomeSearchBar(
+          selectedTagController: selectedTagController,
+          selectedTagString: selectedTagString,
+          onSearch: () {
+            controller.refresh();
+          },
+        ),
+        builder: (context, leadingHeader) => Column(
+          children: [
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: context.isLargeScreen
+                    ? selectedTagString
+                    : _selectedMostSearchedTag,
+                builder: (context, query, _) => PostGrid<Post>(
                   controller: controller,
-                  config: config,
-                  query: query,
-                  itemBuilder: itemBuilder,
-                  index: _series,
-                ),
-                itemBuilder: (context, index, scrollController, hero) =>
-                    DanbooruPostListingContextMenu(
-                      index: index,
-                      controller: controller,
-                      child: DefaultDanbooruImageGridItem(
+                  scrollController: _autoScrollController,
+                  gridBuilder: (context, itemBuilder) => SearchSeriesGrid(
+                    controller: controller,
+                    config: config,
+                    query: query,
+                    itemBuilder: itemBuilder,
+                    index: _series,
+                  ),
+                  itemBuilder: (context, index, scrollController, hero) =>
+                      DanbooruPostListingContextMenu(
                         index: index,
-                        autoScrollController: scrollController,
+                        controller: controller,
+                        child: DefaultDanbooruImageGridItem(
+                          index: index,
+                          autoScrollController: scrollController,
+                          controller: controller,
+                        ),
+                      ),
+                  sliverHeaders: [
+                    ?leadingHeader,
+                    const SliverAppAnnouncementBanner(),
+                    const SliverUnreadMailsBanner(),
+                    if (context.isLargeScreen)
+                      SliverResultHeader(
+                        selectedTagString: selectedTagString,
                         controller: controller,
                       ),
-                    ),
-                sliverHeaders: [
-                  if (context.isLargeScreen ||
-                      searchBarPosition == SearchBarPosition.top)
-                    SliverHomeSearchBar(
-                      selectedTagController: selectedTagController,
-                      selectedTagString: selectedTagString,
-                      onSearch: () {
-                        controller.refresh();
-                      },
-                    ),
-                  const SliverAppAnnouncementBanner(),
-                  const SliverUnreadMailsBanner(),
-                  if (context.isLargeScreen)
-                    SliverResultHeader(
-                      selectedTagString: selectedTagString,
-                      controller: controller,
-                    ),
-                  if (!context.isLargeScreen)
-                    SliverToBoxAdapter(
-                      child: ValueListenableBuilder<String>(
-                        valueListenable: _selectedMostSearchedTag,
-                        builder: (context, value, child) => MostSearchTagList(
-                          selected: value,
-                          onSelected: (search, sel) {
-                            _selectedMostSearchedTag.value =
-                                search.rawName == value ? '' : search.rawName;
+                    if (!context.isLargeScreen)
+                      SliverToBoxAdapter(
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: _selectedMostSearchedTag,
+                          builder: (context, value, child) => MostSearchTagList(
+                            selected: value,
+                            onSelected: (search, sel) {
+                              _selectedMostSearchedTag.value =
+                                  search.rawName == value ? '' : search.rawName;
 
-                            selectedTagString.value = search.rawName;
-                            if (sel) {
-                              selectedTagController
-                                ..clear()
-                                ..addTag(
-                                  TagSearchItem.fromString(
-                                    search.rawName,
-                                    extractor: metatagExtractor,
-                                  ),
-                                );
-                            } else {
-                              selectedTagController.clear();
-                            }
-                            controller.refresh();
-                            _autoScrollController.jumpTo(0);
-                          },
+                              selectedTagString.value = search.rawName;
+                              if (sel) {
+                                selectedTagController
+                                  ..clear()
+                                  ..addTag(
+                                    TagSearchItem.fromString(
+                                      search.rawName,
+                                      extractor: metatagExtractor,
+                                    ),
+                                  );
+                              } else {
+                                selectedTagController.clear();
+                              }
+                              controller.refresh();
+                              _autoScrollController.jumpTo(0);
+                            },
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          if (searchBarPosition == SearchBarPosition.bottom &&
-              !context.isLargeScreen)
-            Consumer(
-              builder: (_, ref, _) {
-                final position = ref.watch(
-                  settingsProvider.select(
-                    (value) => value.booruConfigSelectorPosition,
-                  ),
-                );
-
-                return SafeArea(
-                  top: false,
-                  bottom: !position.isBottom,
-                  child: SizedBox(
-                    height: kToolbarHeight,
-                    child: CustomScrollView(
-                      slivers: [
-                        SliverHomeSearchBar(
-                          primary: false,
-                          selectedTagController: selectedTagController,
-                          selectedTagString: selectedTagString,
-                          onSearch: () {
-                            controller.refresh();
-                          },
-                        ),
-                      ],
+            if (searchBarPosition == SearchBarPosition.bottom &&
+                !context.isLargeScreen)
+              Consumer(
+                builder: (_, ref, _) {
+                  final position = ref.watch(
+                    settingsProvider.select(
+                      (value) => value.booruConfigSelectorPosition,
                     ),
-                  ),
-                );
-              },
-            ),
-        ],
+                  );
+
+                  return SafeArea(
+                    top: false,
+                    bottom: !position.isBottom,
+                    child: SizedBox(
+                      height: kToolbarHeight,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverHomeSearchBar(
+                            primary: false,
+                            selectedTagController: selectedTagController,
+                            selectedTagString: selectedTagString,
+                            onSearch: () {
+                              controller.refresh();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

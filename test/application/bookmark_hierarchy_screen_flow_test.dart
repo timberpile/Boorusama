@@ -234,13 +234,18 @@ void main() {
       await choose('b.test');
       expect(container.read(selectedBooruUrlProvider), 'b.test');
       view.searchController.clear();
+      await _animateTo(tester, scenario.harness, view.scrollController, 0);
       await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
       await scenario.harness.settle(tester);
       await menu('Source: b.test');
       expect(find.text('c.test'), findsOneWidget);
       expect(find.text('d.test'), findsNothing);
       await choose('c.test');
-      // Return to direct scope: C is only a descendant, so actual controls reset.
+      // Reveal the title before switching back to direct scope.
+      final subtree = tester.widget<BookmarkScrollView>(
+        find.byType(BookmarkScrollView),
+      );
+      await _animateTo(tester, scenario.harness, subtree.scrollController, 0);
       await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
       await scenario.harness.settle(tester);
       expect(container.read(selectedBooruUrlProvider), isNull);
@@ -368,6 +373,11 @@ void main() {
         );
         await _openGroup(tester, scenario.harness, _rootId);
 
+        final back = find.descendant(
+          of: find.byType(BookmarkGroupBrowserPage),
+          matching: find.byType(BackButton),
+        );
+        expect(back.hitTestable(), findsOneWidget);
         final body = find.byType(BookmarkScrollView);
         var scrollView = tester.widget<BookmarkScrollView>(body);
         final controller = scrollView.scrollController;
@@ -414,13 +424,23 @@ void main() {
           keepControlsVisible ? findsOneWidget : findsNothing,
         );
 
+        expect(
+          back.hitTestable(),
+          keepControlsVisible ? findsOneWidget : findsNothing,
+        );
+
         if (!keepControlsVisible) {
           await tester.dragFrom(
             Offset(viewportRect.center.dx, viewportRect.top + 100),
             const Offset(0, 36),
           );
           await scenario.harness.settle(tester);
+          expect(back.hitTestable(), findsOneWidget);
           expect(search.hitTestable(), findsOneWidget);
+          expect(
+            tester.getTopLeft(search).dy,
+            greaterThanOrEqualTo(tester.getBottomLeft(back).dy),
+          );
           expect(controls.hitTestable(), findsOneWidget);
         }
 
@@ -736,7 +756,7 @@ void main() {
     final scenario = await _mount(tester);
     await _openGroup(tester, scenario.harness, _rootId);
 
-    await tester.tap(find.text('Child'));
+    await tester.tap(find.byKey(const ValueKey(('bookmark-card', _childId))));
     await scenario.harness.settle(tester);
     expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
     expect(find.text('Child'), findsOneWidget);

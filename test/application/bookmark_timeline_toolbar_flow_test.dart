@@ -22,9 +22,14 @@ import 'support/app_flow_finders.dart';
 import '../support/fakes/test_post.dart';
 
 void main() {
-  for (final scale in [1.0, 2.0]) {
+  for (final (scale, allBookmarks) in [
+    (1.0, false),
+    (1.0, true),
+    (2.0, false),
+    (2.0, true),
+  ]) {
     testWidgets(
-      'Bookmark search and filters return together after slight upward scroll at $scale',
+      'Bookmark title, search and filters return together at ${scale}x, all=$allBookmarks',
       (tester) async {
         tester.platformDispatcher.textScaleFactorTestValue = scale;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
@@ -39,10 +44,11 @@ void main() {
           listen: false,
         ).read(bookmarkProvider.notifier);
         final config = harness.booruBackend.config;
+        const title = 'Scroll fixture';
         final group = await harness.pumpUntilComplete(
           tester,
           notifier.createGroupWithPosts(
-            'Scroll fixture',
+            title,
             config.auth,
             [
               for (var id = 1000; id < 1100; id++)
@@ -52,18 +58,29 @@ void main() {
         );
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                BookmarkPage(view: BookmarkView.group(group.group.id)),
+            builder: (_) => BookmarkPage(
+              title: title,
+              view: allBookmarks
+                  ? const BookmarkView.all()
+                  : BookmarkView.group(group.group.id),
+            ),
           ),
         );
         final body = find.byType(BookmarkScrollView);
         await harness.pumpUntilFound(tester, body);
         await harness.settle(tester);
+        final back = find.descendant(
+          of: find.byType(BookmarkPage),
+          matching: find.byType(BackButton),
+        );
         final search = find.byType(BookmarkSearchBar);
         final controls = find.byType(BookmarkListControls);
         final header = tester.widget<TimelineHeaderSliver>(
           find
-              .ancestor(of: search, matching: find.byType(TimelineHeaderSliver))
+              .ancestor(
+                of: search,
+                matching: find.byType(TimelineHeaderSliver),
+              )
               .first,
         );
         final theme = Theme.of(tester.element(search));
@@ -116,18 +133,43 @@ void main() {
               : theme.colorScheme.surfaceContainerHighest,
         );
         expect(fieldSurface.borderRadius, BorderRadius.circular(8));
+        expect(back.hitTestable(), findsOneWidget);
         await tester.drag(body, const Offset(0, -800));
         await harness.settle(tester);
+        expect(back.hitTestable(), findsNothing);
         expect(search.hitTestable(), findsNothing);
         expect(controls.hitTestable(), findsNothing);
         await tester.drag(body, const Offset(0, 32));
         await harness.settle(tester);
+        expect(back.hitTestable(), findsOneWidget);
         expect(search.hitTestable(), findsOneWidget);
         expect(controls.hitTestable(), findsOneWidget);
         final grid = tester.widget<PostGrid<Post>>(
           find.descendant(of: body, matching: find.byType(PostGrid<Post>)),
         );
-        expect(grid.scrollController!.offset, greaterThan(200));
+        final position = grid.scrollController!.position;
+        expect(position.pixels, greaterThan(200));
+        final drag = await tester.startGesture(tester.getCenter(body));
+        await drag.moveBy(const Offset(0, -20));
+        await tester.pump();
+        final offsets = [
+          for (final row in [back, search, controls]) tester.getTopLeft(row).dy,
+        ];
+        final before = position.pixels;
+        for (final (delta, expected) in [(-24.0, -24.0), (12.0, -12.0)]) {
+          await drag.moveBy(Offset(0, delta));
+          await tester.pump();
+          expect(position.pixels - before, closeTo(-expected, .01));
+          for (final (index, row) in [back, search, controls].indexed) {
+            expect(
+              tester.getTopLeft(row).dy - offsets[index],
+              closeTo(expected, .01),
+            );
+          }
+        }
+        await drag.up();
+        await harness.settle(tester);
+        expect(position.pixels, greaterThan(200));
         final field = find.descendant(
           of: search,
           matching: find.byType(TextField),

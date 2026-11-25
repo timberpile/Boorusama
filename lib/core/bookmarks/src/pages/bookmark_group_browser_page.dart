@@ -29,6 +29,7 @@ import '../../../selection/collection_selection_bar.dart';
 import '../../../selection/ordered_selection_canvas.dart';
 import '../../../selection/ordered_selection_controller.dart';
 import '../../../selection/selection_input.dart';
+import '../../../settings/providers.dart';
 import '../../../widgets/widgets.dart';
 import '../providers/bookmark_group_view_preferences.dart';
 import '../providers/bookmark_provider.dart';
@@ -202,6 +203,134 @@ class _BookmarkGroupBrowserPageState
         : _groupLabel(state!, group);
     void up() => _open(group?.parentGroupId);
 
+    final hasTimeline =
+        view != null &&
+        library.when(
+          loading: () => false,
+          error: (_, _) => false,
+          data: (state) =>
+              state.bookmarkIdsForView(view).isNotEmpty ||
+              (!state.hasUnifiedRecords &&
+                  state.pools.any((pool) => pool.groupIds.contains(id))),
+        );
+    final floatAppBar =
+        hasTimeline &&
+        // Keep group navigation reachable above the on-screen keyboard.
+        MediaQuery.viewInsetsOf(context).bottom == 0 &&
+        !ref.watch(
+          imageListingSettingsProvider.select(
+            (settings) => settings.keepTimelineToolbarVisible,
+          ),
+        );
+    final appBar = KurumiAppBar(
+      leading: id == null ? null : BackButton(onPressed: up),
+      title: id == null || state == null
+          ? Text(title)
+          : KurumiPopupMenuButton(
+              semanticLabel: context.t.bookmark.groups.choose_ancestor,
+              maxWidth: 280,
+              items: [_ancestorMenu(state, id, title)],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: KurumiFittedText(Text(title))),
+                  if (state.mirrors.isReceived(id)) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: context.t.mitemite.received_group,
+                      child: const MiteMiteIcon(
+                        size: 18,
+                      ),
+                    ),
+                  ] else if (ref
+                          .watch(publishedBookmarkRootsProvider)
+                          .contains(id) ||
+                      state.groupTree
+                          .ancestors(id)
+                          .any(
+                            (a) => ref
+                                .watch(
+                                  publishedBookmarkRootsProvider,
+                                )
+                                .contains(a.id),
+                          )) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: context.t.mitemite.published,
+                      child: const MiteMiteIcon(size: 18),
+                    ),
+                  ],
+                  const Icon(Icons.arrow_drop_down),
+                ],
+              ),
+            ),
+      actions: [
+        if (id != null && ordinaryChildren.isNotEmpty)
+          IconButton(
+            key: const Key('bookmark-group-view-mode'),
+            tooltip: mode == BookmarkGroupViewMode.structure
+                ? context.t.bookmark.groups.all_bookmarks
+                : context.t.bookmark.groups.structure,
+            isSelected: mode == BookmarkGroupViewMode.allBookmarks,
+            icon: Semantics(
+              value: mode == BookmarkGroupViewMode.structure
+                  ? context.t.bookmark.groups.structure
+                  : context.t.bookmark.groups.all_bookmarks,
+              child: SvgPicture.asset(
+                mode == BookmarkGroupViewMode.structure
+                    ? 'assets/icon/bookmark_view_structure.svg'
+                    : 'assets/icon/bookmark_view_unified.svg',
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  Theme.of(context).colorScheme.onSurface,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+            onPressed: () => _setMode(
+              id,
+              mode == BookmarkGroupViewMode.structure
+                  ? BookmarkGroupViewMode.allBookmarks
+                  : BookmarkGroupViewMode.structure,
+            ),
+          ),
+        KurumiPopupMenuButton(
+          enabled: state != null,
+          semanticLabel: context.t.generic.action.more,
+          items: [
+            if (group != null && state != null) ..._syncActions(state, group),
+            if (!(state?.mirrors.isReceived(id ?? '') ?? false))
+              KurumiPopupMenuItem(
+                title: Text(context.t.bookmark.groups.add),
+                icon: const Icon(Icons.add),
+                onTap: () => _create(id),
+              ),
+            if (group != null &&
+                !group.isDefault &&
+                !state!.mirrors.isReceived(group.id)) ...[
+              KurumiPopupMenuItem(
+                title: Text(context.t.bookmark.groups.rename),
+                onTap: () => _rename(group),
+              ),
+              KurumiPopupMenuItem(
+                title: Text(context.t.folders.move),
+                onTap: () => _move({group.id}, id),
+              ),
+              KurumiPopupMenuItem(
+                title: Text(context.t.bookmark.groups.duplicate),
+                onTap: () => _duplicate([group]),
+              ),
+              KurumiPopupMenuItem(
+                title: Text(context.t.generic.action.delete),
+                onTap: () => _delete({group.id}),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+
     return PopScope(
       canPop: id == null,
       onPopInvokedWithResult: (didPop, _) {
@@ -218,116 +347,7 @@ class _BookmarkGroupBrowserPageState
             priority: 2,
             child: CustomContextMenuOverlay(
               child: Scaffold(
-                appBar: KurumiAppBar(
-                  leading: id == null ? null : BackButton(onPressed: up),
-                  title: id == null || state == null
-                      ? Text(title)
-                      : KurumiPopupMenuButton(
-                          semanticLabel:
-                              context.t.bookmark.groups.choose_ancestor,
-                          maxWidth: 280,
-                          items: [_ancestorMenu(state, id, title)],
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(child: KurumiFittedText(Text(title))),
-                              if (state.mirrors.isReceived(id)) ...[
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: context.t.mitemite.received_group,
-                                  child: const MiteMiteIcon(
-                                    size: 18,
-                                  ),
-                                ),
-                              ] else if (ref
-                                      .watch(publishedBookmarkRootsProvider)
-                                      .contains(id) ||
-                                  state.groupTree
-                                      .ancestors(id)
-                                      .any(
-                                        (a) => ref
-                                            .watch(
-                                              publishedBookmarkRootsProvider,
-                                            )
-                                            .contains(a.id),
-                                      )) ...[
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: context.t.mitemite.published,
-                                  child: const MiteMiteIcon(size: 18),
-                                ),
-                              ],
-                              const Icon(Icons.arrow_drop_down),
-                            ],
-                          ),
-                        ),
-                  actions: [
-                    if (id != null && ordinaryChildren.isNotEmpty)
-                      IconButton(
-                        key: const Key('bookmark-group-view-mode'),
-                        tooltip: mode == BookmarkGroupViewMode.structure
-                            ? context.t.bookmark.groups.all_bookmarks
-                            : context.t.bookmark.groups.structure,
-                        isSelected: mode == BookmarkGroupViewMode.allBookmarks,
-                        icon: Semantics(
-                          value: mode == BookmarkGroupViewMode.structure
-                              ? context.t.bookmark.groups.structure
-                              : context.t.bookmark.groups.all_bookmarks,
-                          child: SvgPicture.asset(
-                            mode == BookmarkGroupViewMode.structure
-                                ? 'assets/icon/bookmark_view_structure.svg'
-                                : 'assets/icon/bookmark_view_unified.svg',
-                            width: 24,
-                            height: 24,
-                            colorFilter: ColorFilter.mode(
-                              Theme.of(context).colorScheme.onSurface,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
-                        onPressed: () => _setMode(
-                          id,
-                          mode == BookmarkGroupViewMode.structure
-                              ? BookmarkGroupViewMode.allBookmarks
-                              : BookmarkGroupViewMode.structure,
-                        ),
-                      ),
-                    KurumiPopupMenuButton(
-                      enabled: state != null,
-                      semanticLabel: context.t.generic.action.more,
-                      items: [
-                        if (group != null && state != null)
-                          ..._syncActions(state, group),
-                        if (!(state?.mirrors.isReceived(id ?? '') ?? false))
-                          KurumiPopupMenuItem(
-                            title: Text(context.t.bookmark.groups.add),
-                            icon: const Icon(Icons.add),
-                            onTap: () => _create(id),
-                          ),
-                        if (group != null &&
-                            !group.isDefault &&
-                            !state!.mirrors.isReceived(group.id)) ...[
-                          KurumiPopupMenuItem(
-                            title: Text(context.t.bookmark.groups.rename),
-                            onTap: () => _rename(group),
-                          ),
-                          KurumiPopupMenuItem(
-                            title: Text(context.t.folders.move),
-                            onTap: () => _move({group.id}, id),
-                          ),
-                          KurumiPopupMenuItem(
-                            title: Text(context.t.bookmark.groups.duplicate),
-                            onTap: () => _duplicate([group]),
-                          ),
-                          KurumiPopupMenuItem(
-                            title: Text(context.t.generic.action.delete),
-                            onTap: () => _delete({group.id}),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
+                appBar: floatAppBar ? null : appBar,
                 bottomNavigationBar: !_selection.isActive
                     ? null
                     : CollectionSelectionBar(
@@ -371,13 +391,7 @@ class _BookmarkGroupBrowserPageState
                         const Center(child: Icon(Icons.error_outline)),
                     data: (state) {
                       _updatePreviewInputs(state, visible: visible);
-                      final genuinelyEmpty =
-                          view != null &&
-                          state.bookmarkIdsForView(view).isEmpty &&
-                          (state.hasUnifiedRecords ||
-                              !state.pools.any(
-                                (pool) => pool.groupIds.contains(id),
-                              ));
+                      final genuinelyEmpty = view != null && !hasTimeline;
                       final cards = _cards(
                         state,
                         id,
@@ -448,7 +462,7 @@ class _BookmarkGroupBrowserPageState
                           searchController: _search,
                           localGroupSelectionController: _selection,
                           view: view!,
-                          title: title,
+                          floatingAppBar: floatAppBar ? appBar : null,
                           leadingSlivers: slivers,
                         ),
                       );
