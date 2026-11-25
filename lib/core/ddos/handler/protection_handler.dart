@@ -35,8 +35,9 @@ class HttpProtectionHandler {
 
   // Avoid immediate challenge loops after a failed handoff, while allowing a
   // later request to recover without requiring a successful request first.
-  final Map<String, DateTime> _blockedAfterSolve = {};
-  static const _blockedAfterSolveCooldown = Duration(seconds: 30);
+  final _recoveryCooldown =
+      <String, ({DateTime until, RecoveryStopReason reason})>{};
+  static const _cooldown = Duration(seconds: 30);
   final int maxRetries;
   final ProtectionEventSink? onEvent;
 
@@ -148,12 +149,17 @@ class HttpProtectionHandler {
       attempt?.record(const RecoveryStopped(RecoveryStopReason.disabled));
       return false;
     }
+    if (_recoveryPaused(response.requestUri, attempt)) return false;
 
     try {
       final solved = await _orchestrator.handleResponse(
         response,
         attempt: attempt,
         challengeUri: challengeUri,
+        onDismissed: () => _pauseRecovery(
+          response.requestUri,
+          RecoveryStopReason.dismissed,
+        ),
       );
       if (solved) _onSolved?.call();
 
@@ -180,14 +186,7 @@ class HttpProtectionHandler {
       return false;
     }
 
-    final blockedUntil = _blockedAfterSolve[error.requestUri.origin];
-    if (blockedUntil != null && _clock.now().isBefore(blockedUntil)) {
-      attempt?.record(
-        const RecoveryStopped(RecoveryStopReason.blockedAfterSolve),
-      );
-      return false;
-    }
-    _blockedAfterSolve.remove(error.requestUri.origin);
+    if (_recoveryPaused(error.requestUri, attempt)) return false;
 
     final uriString = error.requestUri.toString();
     final retryCount = _retryAttempts[uriString] ?? 0;
@@ -212,13 +211,19 @@ class HttpProtectionHandler {
         error,
         attempt: attempt,
         challengeUri: challengeUri,
+        onDismissed: () => _pauseRecovery(
+          error.requestUri,
+          RecoveryStopReason.dismissed,
+        ),
       );
 
-      if (solved) {
+      if (solved &&
+          (!(attempt?.receivedPublicJson ?? false) ||
+              attempt?.publicJsonFor(error.requestUri) != null)) {
         _onSolved?.call();
         _retryAttempts[uriString] = retryCount + 1;
-        return true;
       }
+      return solved;
     } catch (e) {
       attempt?.record(
         ProtectionOperationFailed(
@@ -249,13 +254,37 @@ class HttpProtectionHandler {
         _protocolOverrideReported.add(error.requestUri.origin)) {
       _onBlockedWithProtocolOverride?.call(error.requestUri);
     }
-    _blockedAfterSolve[error.requestUri.origin] = _clock.now().add(
-      _blockedAfterSolveCooldown,
-    );
+    _pauseRecovery(error.requestUri, RecoveryStopReason.blockedAfterSolve);
     resetRetryAttempts(error.requestUri);
   }
 
-  void observeSuccess(Uri uri) => _blockedAfterSolve.remove(uri.origin);
+  void observeSuccess(Uri uri) {
+    if (_recoveryCooldown[uri.origin]?.reason ==
+        RecoveryStopReason.blockedAfterSolve) {
+      _recoveryCooldown.remove(uri.origin);
+    }
+  }
+
+  void _pauseRecovery(Uri uri, RecoveryStopReason reason) {
+    if (_recoveryCooldown[uri.origin]?.reason == RecoveryStopReason.dismissed &&
+        reason == RecoveryStopReason.blockedAfterSolve) {
+      return;
+    }
+    _recoveryCooldown[uri.origin] = (
+      until: _clock.now().add(_cooldown),
+      reason: reason,
+    );
+  }
+
+  bool _recoveryPaused(Uri uri, ProtectionAttempt? attempt) {
+    final pause = _recoveryCooldown[uri.origin];
+    if (pause != null && _clock.now().isBefore(pause.until)) {
+      attempt?.record(RecoveryStopped(pause.reason));
+      return true;
+    }
+    _recoveryCooldown.remove(uri.origin);
+    return false;
+  }
 
   bool selectAlternativeClearance(
     HttpError error,

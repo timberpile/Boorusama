@@ -9,6 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../foundation/data_mutation_coordinator.dart';
 import '../../../foundation/filesystem.dart';
@@ -97,7 +98,10 @@ final class MiteMiteService extends ChangeNotifier {
       if (data['version'] != 1) {
         throw const FormatException('Unsupported Sync settings');
       }
-      location = data['location'] as String?;
+      _enabled = data['enabled'] as bool? ?? true;
+      _cleanupPending = data['cleanupPending'] as bool? ?? false;
+      location =
+          (_enabled ? data['location'] : data['pausedLocation']) as String?;
       name = syncLabel(data['name']);
       publishedRoots = Set.unmodifiable((data['roots'] as List).map(syncUuid));
       publishedFollowingRoots = Set.unmodifiable(
@@ -129,6 +133,10 @@ final class MiteMiteService extends ChangeNotifier {
   final _operations = DataMutationCoordinator();
   final _preparation = DataMutationCoordinator();
   String? location;
+  var _enabled = true;
+  var _cleanupPending = false;
+  bool get enabled => _enabled;
+  bool get cleanupPending => _cleanupPending;
   var name = 'Boorusama';
   var discoveryNotifications = true;
   Set<String> publishedRoots = const {};
@@ -254,17 +262,24 @@ final class MiteMiteService extends ChangeNotifier {
     Set<String> roots, {
     Set<String>? followingRoots,
     bool? notifications,
+    bool? enabled,
+    bool? cleanupPending,
   }) => mutations.runExclusive(() async {
     _ensureCurrent();
     final nextFollowingRoots = Set<String>.of(
       followingRoots ?? publishedFollowingRoots,
     );
     final nextNotifications = notifications ?? discoveryNotifications;
+    final nextEnabled = enabled ?? _enabled;
+    final nextCleanupPending = cleanupPending ?? _cleanupPending;
     await preferences.put(
       _settingsKey,
       canonicalSyncJson({
         'version': 1,
-        'location': nextLocation,
+        'location': nextEnabled ? nextLocation : null,
+        if (!nextEnabled) 'pausedLocation': nextLocation,
+        'enabled': nextEnabled,
+        'cleanupPending': nextCleanupPending,
         'name': nextName,
         'discoveryNotifications': nextNotifications,
         'roots': roots.toList()..sort(),
@@ -273,7 +288,7 @@ final class MiteMiteService extends ChangeNotifier {
     );
     // Commit the in-memory settings while still owning the metadata transaction.
     // Local preference changes can then complete during deferred transport I/O.
-    if (location != nextLocation) {
+    if (location != nextLocation || _enabled != nextEnabled) {
       _storageGeneration++;
       _verifiedCatalogs.clear();
       _verifiedOwnCatalog = null;
@@ -282,6 +297,8 @@ final class MiteMiteService extends ChangeNotifier {
       _sourceRequested = true;
     }
     location = nextLocation;
+    _enabled = nextEnabled;
+    _cleanupPending = nextCleanupPending;
     name = nextName;
     publishedRoots = Set.unmodifiable(roots);
     publishedFollowingRoots = Set.unmodifiable(nextFollowingRoots);
@@ -457,24 +474,59 @@ final class MiteMiteService extends ChangeNotifier {
     }, data['at'] is String ? DateTime.parse(data['at'] as String) : now());
   }
 
+  Future<void> setEnabled(bool value) => _action('enabled', () async {
+    if (enabled == value) {
+      if (!value) await _finishCleanup();
+      return;
+    }
+    if (value) {
+      await _finishCleanup();
+      await _save(location, name, publishedRoots, enabled: true);
+      if (location != null) await _sync(await _open(location!));
+    } else {
+      await _save(
+        location,
+        name,
+        publishedRoots,
+        enabled: false,
+        cleanupPending: location != null,
+      );
+      devices = const [];
+      deviceFailures = const {};
+      outgoingFailure = null;
+      retentionFailure = null;
+      _notify();
+      await _finishCleanup();
+    }
+  });
+
+  Future<void> _finishCleanup() async {
+    if (!cleanupPending) return;
+    final storage = await _open(location!);
+    await storage.deleteOwnedDirectory(
+      'devices/${identity.id}',
+      owner: identity.id,
+    );
+    await _save(location, name, publishedRoots, cleanupPending: false);
+  }
+
   /// Explicit setup only. Verify the new transport before replacing settings.
   Future<void> configure(String nextLocation, {String? deviceName}) =>
       _action('location', () async {
+        await _finishCleanup();
         final nextName = syncLabel(deviceName ?? name);
         final storage = await _open(nextLocation);
         await storage.list('');
-        await writeOwnSyncIdentity(storage, identity);
+        if (enabled) await writeOwnSyncIdentity(storage, identity);
         await _save(nextLocation, nextName, publishedRoots);
-        location = nextLocation;
-        name = nextName;
-        await _sync(storage, verifyExisting: true);
+        if (enabled) await _sync(storage, verifyExisting: true);
       });
 
   Future<void> rename(String nextName) => _action('name', () async {
     final checked = syncLabel(nextName);
     await _save(location, checked, publishedRoots);
     name = checked;
-    if (location != null) await _sync(await _open(location!));
+    if (enabled && location != null) await _sync(await _open(location!));
   });
 
   Future<void> setDiscoveryNotifications(bool enabled) =>
@@ -499,6 +551,7 @@ final class MiteMiteService extends ChangeNotifier {
         final id = syncUuid(source);
         if (!publishedRoots.contains(id)) return;
         await _setPublishedRoots({...publishedRoots}..remove(id));
+        if (enabled) unawaited(_scheduleMaintenance(force: true));
       });
 
   Future<void> _setPublishedRoots(Set<String> roots) async {
@@ -514,7 +567,7 @@ final class MiteMiteService extends ChangeNotifier {
     });
     publishedRoots = Set.unmodifiable(captured);
     await markDirty();
-    if (location != null) {
+    if (enabled && location != null) {
       await _sync(await _open(location!));
       if (outgoingFailure != null) throw const SyncPublicationPending();
     }
@@ -569,6 +622,10 @@ final class MiteMiteService extends ChangeNotifier {
             _sourcePass = _sourceRequested;
             _sourceRequested = false;
             await _run(() async {
+              if (!enabled) {
+                await _finishCleanup();
+                return;
+              }
               if (location == null) return;
               await _sync(await _open(location!), reconcileSource: _sourcePass);
             });
@@ -619,10 +676,8 @@ final class MiteMiteService extends ChangeNotifier {
       }
     }
     applying = true;
-    var completed = false;
     try {
       await operation();
-      completed = true;
     } finally {
       try {
         final changed = <SyncDomain>{};
@@ -639,7 +694,7 @@ final class MiteMiteService extends ChangeNotifier {
           }
         }
         try {
-          if (completed && (changed.isNotEmpty || !_aliasesRecovered)) {
+          if (changed.isNotEmpty || !_aliasesRecovered) {
             try {
               await _pruneCollectionAliases(
                 changed.isEmpty ? domains : changed,
@@ -727,6 +782,7 @@ final class MiteMiteService extends ChangeNotifier {
   Future<void> approve(DiscoveredSyncDevice device) => _action(
     'trust:${device.id}',
     () async {
+      if (!enabled) throw const SyncPublisherUnavailable();
       final live = devices.where((d) => d.id == device.id).firstOrNull;
       if (live == null || live.fingerprint != device.fingerprint) {
         throw const SyncTrustRequired();
@@ -751,6 +807,7 @@ final class MiteMiteService extends ChangeNotifier {
   );
   Future<void> subscribe(String publisher, Set<String> roots) =>
       _subscriptionAction(publisher, 'bookmarks', roots, (roots) async {
+        if (!enabled) throw const SyncPublisherUnavailable();
         final storage = await _open(location!);
         final device = devices.singleWhere((device) => device.id == publisher);
         final ticket = await _ticket(storage, device);
@@ -952,12 +1009,20 @@ final class MiteMiteService extends ChangeNotifier {
     outgoingFailure = null;
     try {
       await writeOwnSyncIdentity(storage, identity);
+      final catalogPresent = await _ownCatalogPresent(storage);
       if (reconcileSource ||
           hasUnpublishedChanges ||
           retryOutgoing ||
           _repairSources.isNotEmpty ||
-          !await _ownCatalogPresent(storage)) {
-        await _publish(storage, verifyExisting: verifyExisting);
+          !catalogPresent) {
+        await _publish(
+          storage,
+          verifyExisting:
+              verifyExisting ||
+              retryOutgoing ||
+              !catalogPresent ||
+              _repairSources.isNotEmpty,
+        );
       }
       await mutations.runExclusive(() async {
         _ensureCurrent();
@@ -1046,6 +1111,9 @@ final class MiteMiteService extends ChangeNotifier {
                 sequence: catalog.sequence,
                 roots: roots,
                 at: attempt,
+                activeCollections: catalog.completeSnapshot
+                    ? catalog.entries.map((entry) => entry.id).toSet()
+                    : null,
               );
             } catch (error) {
               activityFailure = error;
@@ -1211,8 +1279,7 @@ final class MiteMiteService extends ChangeNotifier {
       profiles?.call() ?? const [],
     );
     SyncFollowingDefinitions? following;
-    if (publishedFollowingRoots.isNotEmpty ||
-        (prior?.entries.any((e) => e.id.kind == 'following_topics') ?? false)) {
+    if (publishedFollowingRoots.isNotEmpty) {
       following = SyncFollowingDefinitions(
         snapshot: await (await _followingRepository()).readMirrorSnapshot(),
         publisher: identity.id,
@@ -1326,7 +1393,9 @@ final class MiteMiteService extends ChangeNotifier {
           name: group.name,
           state: SyncPublicationState.active,
           revision: revision,
-          parent: group.parentGroupId,
+          parent: covered.contains(group.parentGroupId)
+              ? group.parentGroupId
+              : null,
           position: group.position,
         ),
       );
@@ -1365,30 +1434,20 @@ final class MiteMiteService extends ChangeNotifier {
             name: following.labels[source]!,
             state: SyncPublicationState.active,
             revision: revision,
-            parent: node.parent,
+            // Projected roots can share a name if their source parents differ.
+            // Keep that namespace without advertising an unpublished parent ID.
+            parent:
+                node.parent == null ||
+                    following.scope.covered.contains(node.parent)
+                ? node.parent
+                : const Uuid().v5(
+                    identity.id,
+                    'mitemite-siblings/${node.parent}',
+                  ),
             position: node.position,
           ),
         );
       }
-    }
-    final active = entries.map((e) => e.id).toSet();
-    for (final old in prior?.entries ?? <SyncCatalogEntry>[]) {
-      if (active.contains(old.id)) continue;
-      entries.add(
-        SyncCatalogEntry(
-          id: old.id,
-          name: old.name,
-          state:
-              (old.id.kind == 'bookmarks'
-                  ? local.containsKey(old.id.source)
-                  : following?.nodes.containsKey(old.id.source) ?? false)
-              ? SyncPublicationState.withdrawn
-              : SyncPublicationState.deleted,
-          revision: old.revision,
-          parent: old.parent,
-          position: old.position,
-        ),
-      );
     }
     final roots = <SyncCollectionId>{
       for (final source in publishedRoots)
@@ -1424,6 +1483,7 @@ final class MiteMiteService extends ChangeNotifier {
     });
     final same =
         prior != null &&
+        prior.completeSnapshot &&
         content ==
             canonicalSyncJson({
               'publicationRoots': rootJson(prior.publicationRoots),
@@ -1459,12 +1519,18 @@ final class MiteMiteService extends ChangeNotifier {
       }
     }
     // Even an empty configured publisher needs a signed discovery catalog.
+    await validateSnapshot();
     final complete = await writer.publishCatalog(
       name: name,
       entries: entries,
       publicationRoots: roots,
+      completeSnapshot: true,
     );
+    final published = entries.map((entry) => entry.id).toSet();
     await _completePublication(complete);
+    if (prior?.entries.any((entry) => !published.contains(entry.id)) ?? false) {
+      unawaited(_scheduleMaintenance(force: true));
+    }
     _repairSources.clear();
   }
 
@@ -1492,6 +1558,9 @@ final class _OfflineStorage implements MiteMiteStorage {
     String path, {
     required String owner,
   }) async => _offline();
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      throw UnsupportedError('Directory cleanup');
 }
 
 /// Cancellation is checked again after each transport await, before authority
@@ -1530,6 +1599,16 @@ final class _CurrentStorage implements MiteMiteStorage {
   Future<void> deleteOwnedRevision(String path, {required String owner}) async {
     ensureCurrent();
     await delegate.deleteOwnedRevision(path, owner: owner);
+    ensureCurrent();
+  }
+
+  @override
+  Future<void> deleteOwnedDirectory(
+    String path, {
+    required String owner,
+  }) async {
+    ensureCurrent();
+    await delegate.deleteOwnedDirectory(path, owner: owner);
     ensureCurrent();
   }
 }

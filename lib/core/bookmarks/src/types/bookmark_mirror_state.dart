@@ -314,6 +314,7 @@ abstract interface class BookmarkMirrorStore implements BookmarkMirrorReader {
 
     /// Explicit Local Copy: only fresh Local Groups, with unchanged source authority.
     bool localCopy = false,
+    Set<String> purgedSources = const {},
   });
 }
 

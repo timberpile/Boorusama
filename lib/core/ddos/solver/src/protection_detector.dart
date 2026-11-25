@@ -29,17 +29,21 @@ class CloudflareDetector implements ProtectionDetector {
 
   @override
   double getProtectionConfidence(HttpResponse? response, HttpError? error) {
-    final statusCode = error?.response?.statusCode ?? response?.statusCode;
-    final body = error?.response?.data ?? response?.data;
-
-    if (statusCode == null || body is! String) {
+    final reply = error?.response ?? response;
+    if (reply == null || !_typicalStatusCodes.contains(reply.statusCode)) {
       return 0;
     }
 
-    if (!_typicalStatusCodes.contains(statusCode)) {
-      return 0;
+    for (final header in reply.headers.entries) {
+      final value = header.value;
+      if (header.key.toLowerCase() == 'cf-mitigated' &&
+          (value == 'challenge' ||
+              (value is Iterable && value.contains('challenge')))) {
+        return 1;
+      }
     }
-
+    final body = reply.data;
+    if (body is! String) return 0;
     final bodyLower = body.toLowerCase();
     // Challenge options are only emitted on challenge pages, so this holds even
     // when a site restyles the page with its own title and copy.

@@ -10,10 +10,13 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/browser/cookie_conversion.dart';
 import '../../../../../foundation/browser/flutter_embedded_browser.dart';
 import '../../../../../foundation/browser/types.dart';
+import '../../../boorus/booru/types.dart';
+import '../../../content/anonymous_source_policy.dart';
 import '../../../widgets/embedded_browser_host.dart';
 import 'page_inspection.dart';
 import 'protection_diagnostics.dart';
 import 'protection_overlay.dart';
+import 'public_verification_json.dart';
 
 abstract class ProtectionSolver {
   String get protectionType;
@@ -67,9 +70,10 @@ final class _RawSolverRun {
   var pageFinished = false;
   var mainFrameFailed = false;
   var terminal = false;
+  var publicJsonChecked = false;
   String? effectiveUserAgent;
   final browserReady = ValueNotifier<bool>(false);
-  final blocked = ValueNotifier<bool>(false);
+  final notice = ValueNotifier<ProtectionOverlayNotice?>(null);
   final revealed = ValueNotifier<bool>(false);
 
   void reveal(DialogRevealReason reason) {
@@ -83,7 +87,7 @@ final class _RawSolverRun {
     pollTimer?.cancel();
     revealTimer?.cancel();
     browserReady.dispose();
-    blocked.dispose();
+    notice.dispose();
     revealed.dispose();
   }
 }
@@ -97,6 +101,7 @@ class RawSolver implements ProtectionSolver {
     required this.cookieJar,
     this.pageEvaluator,
     this.clearanceCookieName,
+    this.requireClearanceCookie = false,
     this.cookieRetriever,
     this.revealDelay = const Duration(seconds: 2),
     EmbeddedBrowserFactory? browserFactory,
@@ -113,6 +118,7 @@ class RawSolver implements ProtectionSolver {
   /// The single cookie that carries the clearance. When the browser holds
   /// several values for it, the HTTP retry can try each one.
   final String? clearanceCookieName;
+  final bool requireClearanceCookie;
   final CookieRetriever? cookieRetriever;
 
   /// How long the browser works unseen before the dialog appears. Most
@@ -177,6 +183,7 @@ class RawSolver implements ProtectionSolver {
     }) async {
       if (run.terminal) return;
       run.terminal = true;
+      if (trigger == DialogCloseTrigger.cancel) session.onDismissed?.call();
       run.generation++;
       run.pollTimer?.cancel();
       run.pollTimer = null;
@@ -232,7 +239,7 @@ class RawSolver implements ProtectionSolver {
             child: ProtectionOverlay(
               url: uri.toString(),
               browserReady: run.browserReady,
-              blocked: run.blocked,
+              notice: run.notice,
               browser: EmbeddedBrowserHost(
                 factory: browserFactory,
                 initialUri: uri,
@@ -259,8 +266,11 @@ class RawSolver implements ProtectionSolver {
                   if (run.terminal) return;
                   switch (event.kind) {
                     case BrowserEventKind.navigationStarted:
+                      run.generation++;
                       run.pageFinished = false;
                       run.mainFrameFailed = false;
+                      run.publicJsonChecked = false;
+                      run.notice.value = null;
                       session.record(
                         PageNavigationObserved(
                           PageNavigationPhase.started,
@@ -409,6 +419,7 @@ class RawSolver implements ProtectionSolver {
           );
         },
       );
+      if (result == null) session.onDismissed?.call();
       session.record(DialogClosed(result));
       return result ?? false;
     } catch (error) {
@@ -510,20 +521,73 @@ class RawSolver implements ProtectionSolver {
         outcome = CheckOutcome.pageRejected;
         return false;
       }
+      final publicJsonDocument =
+          requireClearanceCookie &&
+          current == uri &&
+          _isSafeBooruApi(uri) &&
+          await _documentContentType(browser) == 'application/json';
+      if (!_active(run) || run.generation != generation) return false;
       String? source;
-      final evaluation = await inspectChallengePage(
-        readSource: () async => source = await _getPageSource(browser),
-        evaluate: evaluator,
-        diagnostics: check,
-      );
+      final evaluation = publicJsonDocument
+          ? const PageEvaluation.noKnownMarkers()
+          : await inspectChallengePage(
+              readSource: () async => source = await _getPageSource(browser),
+              evaluate: evaluator,
+              diagnostics: check,
+            );
       if (!_active(run) || run.generation != generation) return false;
       final blocked = evaluation.reason == PageDecisionReason.blockedMarker;
-      run.blocked.value = blocked;
+      final clearanceMissing =
+          requireClearanceCookie &&
+          evaluation.accepted &&
+          !cookies.any(
+            (cookie) =>
+                cookie.name == clearanceCookieName && cookie.value.isNotEmpty,
+          );
+      run.notice.value = switch ((blocked, clearanceMissing)) {
+        (true, _) => ProtectionOverlayNotice.blocked,
+        (_, true) => ProtectionOverlayNotice.clearanceMissing,
+        _ => null,
+      };
       if (blocked) run.reveal(DialogRevealReason.blocked);
       if (!evaluation.accepted) {
         outcome = blocked
             ? CheckOutcome.pageBlocked
             : CheckOutcome.pageRejected;
+        return false;
+      }
+      // The public reader can retry with clearance from this site. A readable
+      // document in the WebView does not prove that the API granted clearance.
+      if (clearanceMissing) {
+        if (!run.publicJsonChecked && publicJsonDocument) {
+          run.publicJsonChecked = true;
+          run.notice.value = ProtectionOverlayNotice.checkingPublicJson;
+          String? body;
+          try {
+            body = await readPublicVerificationJson(
+              browser,
+              uri,
+              isCurrent: () => _active(run) && run.generation == generation,
+            );
+          } catch (error) {
+            check.record(
+              ProtectionOperationFailed(
+                ProtectionOperation.pageSource,
+                error.runtimeType.toString(),
+              ),
+            );
+          }
+          if (!_active(run) || run.generation != generation) return false;
+          if (body != null) {
+            run.session.observeLoadedPage(uri, body, publicJson: true);
+            outcome = CheckOutcome.pageAccepted;
+            await finish(check);
+            return true;
+          }
+          run.notice.value = ProtectionOverlayNotice.clearanceMissing;
+        }
+        run.reveal(DialogRevealReason.clearanceMissing);
+        outcome = CheckOutcome.clearanceMissing;
         return false;
       }
       if (source case final page?
@@ -665,11 +729,13 @@ class CloudflareSolver implements ProtectionSolver {
     required this.contextProvider,
     required this.cookieJar,
     this.browserFactory,
+    this.requireClearanceCookie = false,
   });
 
   final ContextProvider contextProvider;
   final LazyAsync<CookieJar> cookieJar;
   final EmbeddedBrowserFactory? browserFactory;
+  final bool requireClearanceCookie;
   RawSolver? _solver;
 
   RawSolver get _solverInstance => _solver ??= RawSolver(
@@ -682,6 +748,7 @@ class CloudflareSolver implements ProtectionSolver {
         cookie.name.toLowerCase() == 'cf_clearance',
     pageEvaluator: evaluateCloudflarePage,
     clearanceCookieName: 'cf_clearance',
+    requireClearanceCookie: requireClearanceCookie,
   );
 
   @override
@@ -764,11 +831,15 @@ Future<String> _getPageSource(EmbeddedBrowserSession session) async {
 // A JSON or text response renders inside a generated HTML wrapper whose source
 // is not the response body.
 Future<bool> _isHtmlDocument(EmbeddedBrowserSession session) async {
+  return await _documentContentType(session) == 'text/html';
+}
+
+Future<String?> _documentContentType(EmbeddedBrowserSession session) async {
   try {
     final result = await session.evaluateJavaScript('document.contentType');
-    return _javaScriptResultAsString(result) == 'text/html';
+    return _javaScriptResultAsString(result);
   } catch (_) {
-    return false;
+    return null;
   }
 }
 
@@ -806,6 +877,13 @@ bool _sameSite(Uri a, Uri b) =>
     (a.host == b.host ||
         a.host.endsWith('.${b.host}') ||
         b.host.endsWith('.${a.host}'));
+
+bool _isSafeBooruApi(Uri uri) =>
+    uri.origin == 'https://safebooru.donmai.us' &&
+    (const AnonymousSourcePolicy()
+            .resolve(BooruType.danbooru, Uri.parse(uri.origin))
+            ?.allowsApi(uri) ??
+        false);
 
 class CaptchaAccessDeniedSolver implements ProtectionSolver {
   CaptchaAccessDeniedSolver({

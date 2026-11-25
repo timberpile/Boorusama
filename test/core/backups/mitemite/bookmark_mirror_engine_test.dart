@@ -1,11 +1,18 @@
+import 'package:boorusama/core/backups/export_import/package/export_package_exception.dart';
+
+import 'dart:math';
+
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
-import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_viewer_entry.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
+import 'package:boorusama/core/posts/details/src/widgets/mixed_post_details_page.dart';
+import 'package:boorusama/core/posts/details/src/widgets/post_details_item.dart';
+import 'package:boorusama/boorus/danbooru/client_provider.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/default_multi_selection_actions.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:clock/clock.dart';
+import 'package:dio/dio.dart';
 import 'package:boorusama/core/backups/mitemite/relative_date.dart';
 
 import 'package:boorusama/core/search/following_topics/src/providers/following_topics_notifier.dart';
@@ -20,6 +27,7 @@ import '../../../application/support/headless_app_harness.dart';
 import '../../../application/support/fake_image_dio.dart';
 
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -364,14 +372,18 @@ void main() {
   Future<HeadlessAppHarness> bookmarkHome(
     WidgetTester tester,
     MiteMiteService service,
-    MiscDataStore preferences,
-  ) async {
+    MiscDataStore preferences, {
+    List<Override> additionalOverrides = const [],
+    List<BooruConfig>? profiles,
+  }) async {
     final harness = await HeadlessAppHarness.mount(
       tester,
       viewportSize: const Size(320, 900),
       additionalOverrides: [
         booruConfigProvider.overrideWith(
-          () => BooruConfigNotifier(initialConfigs: [workAccess().config!]),
+          () => BooruConfigNotifier(
+            initialConfigs: profiles ?? [workAccess().config!],
+          ),
         ),
         booruGroupCapabilityProvider.overrideWith(
           (ref, type) => switch (type) {
@@ -395,6 +407,7 @@ void main() {
           (_, _) => const DefaultImageUrlResolver(),
         ),
         miteMiteServiceProvider.overrideWith((_) => Future.sync(() => service)),
+        ...additionalOverrides,
       ],
     );
     await harness.settle(tester);
@@ -410,7 +423,7 @@ void main() {
   }
 
   testManagementWidgets(
-    'signed Series receive displays its cover and opens through a public reader without the publisher profile',
+    'received SafeBooru Series opens at its saved site on a Danbooru receiver',
     (tester) async {
       final preferences = _Store();
       late MiteMiteService service;
@@ -422,7 +435,7 @@ void main() {
             summary: ContentGroupSummary(
               reference: const ContentReferenceCodec().parse(
                 engine: BooruType.danbooru,
-                site: Uri.parse('https://danbooru.donmai.us'),
+                site: Uri.parse('https://safebooru.donmai.us'),
                 kind: ContentKind.group,
                 sourceKey: 'pool:42',
               ),
@@ -468,7 +481,79 @@ void main() {
         );
       });
       addTearDown(service.dispose);
-      final harness = await bookmarkHome(tester, service, preferences);
+      final requests = <Uri>[];
+      final dio =
+          Dio(
+              BaseOptions(baseUrl: 'https://safebooru.donmai.us'),
+            )
+            ..interceptors.add(
+              InterceptorsWrapper(
+                onRequest: (options, handler) {
+                  requests.add(options.uri);
+                  expect(options.uri.host, 'safebooru.donmai.us');
+                  if (options.path == '/posts.json') {
+                    expect(options.queryParameters['tags'], 'id:101,102');
+                  }
+                  final data = switch (options.path) {
+                    '/pools/42.json' => {
+                      'id': 42,
+                      'name': 'Received Series',
+                      'category': 'series',
+                      'post_count': 2,
+                      'post_ids': [101, 102],
+                    },
+                    '/posts.json' => [
+                      for (final id in [101, 102])
+                        {
+                          'id': id,
+                          'rating': 'g',
+                          'is_deleted': false,
+                          'is_banned': false,
+                          'tag_string': 'cat',
+                          'file_ext': 'jpg',
+                          'image_width': 100,
+                          'image_height': 100,
+                          'file_url': 'https://cdn.donmai.us/original/$id.jpg',
+                          'large_file_url':
+                              'https://cdn.donmai.us/sample/$id.jpg',
+                          'preview_file_url':
+                              'https://cdn.donmai.us/preview/$id.jpg',
+                        },
+                    ],
+                    _ => null,
+                  };
+                  handler.resolve(
+                    Response<dynamic>(
+                      requestOptions: options,
+                      statusCode: data == null ? 404 : 200,
+                      data: data,
+                    ),
+                  );
+                },
+              ),
+            );
+      addTearDown(() => dio.close(force: true));
+      final harness = await bookmarkHome(
+        tester,
+        service,
+        preferences,
+        profiles: [
+          BooruConfig.fromJson({
+            ...BooruConfig.empty.toJson(),
+            'id': '22222222-2222-4222-8222-222222222222',
+            'booruId': BooruType.danbooru.id,
+            'booruIdHint': BooruType.danbooru.id,
+            'url': 'https://danbooru.donmai.us',
+          }),
+        ],
+        additionalOverrides: [
+          danbooruDioProvider.overrideWith((_, auth) {
+            expect(auth.anonymousReadScope, isNotNull);
+            expect(Uri.parse(auth.url).host, 'safebooru.donmai.us');
+            return dio;
+          }),
+        ],
+      );
       final card = find.byKey(ValueKey(('bookmark-card', root)));
       await tester.ensureVisible(card);
       await tester.tap(card);
@@ -490,27 +575,40 @@ void main() {
         tester.widget<BooruImage>(imageFinder).config.anonymousReadScope,
         isNotNull,
       );
-      ViewerEntry? entry;
-      final probe = OverlayEntry(
-        builder: (_) => Consumer(
-          builder: (_, ref, _) {
-            entry = groupViewerEntryForBookmark(
-              ref,
-              pool,
-              occurrenceId: pool.localId,
-            );
-            return const SizedBox();
-          },
-        ),
+      await tester.tap(find.byType(BookmarkPoolCard).first);
+      await harness.settle(tester);
+      final viewer = tester.widget<MixedPostDetailsPage>(
+        find.byType(MixedPostDetailsPage),
       );
-      Overlay.of(tester.element(find.byType(BookmarkPoolCard).first))
-          .insert(probe);
-      await tester.pump();
-      expect(entry, isA<GroupViewerEntry>());
-      expect(entry!.contentReference?.sourceKey, 'pool:42');
-      expect(entry!.source?.publicOrigin, isNotNull);
-      probe.remove();
-      probe.dispose();
+      final entry = viewer.entries![viewer.initialIndex] as GroupViewerEntry;
+      expect(entry.contentReference.sourceKey, 'pool:42');
+      expect(entry.contentReference.site.host, 'safebooru.donmai.us');
+      expect(entry.source?.publicOrigin, isNotNull);
+      final member = find.byWidgetPredicate(
+        (widget) => widget is PostDetailsItem<Post> && widget.post?.id == 101,
+      );
+      final unavailable = find.text('Page unavailable');
+      await pumpIO(
+        tester,
+        () => member.evaluate().isNotEmpty || unavailable.evaluate().isNotEmpty,
+      );
+      expect(unavailable, findsNothing, reason: 'API requests: $requests');
+      expect(member, findsWidgets);
+      expect(
+        tester
+            .widgetList<PostDetailsItem<Post>>(member)
+            .map(
+              (item) => item.post?.origin.sourceHost,
+            ),
+        everyElement('safebooru.donmai.us'),
+      );
+      expect(
+        requests.map((uri) => (uri.host, uri.path)),
+        containsAllInOrder([
+          ('safebooru.donmai.us', '/pools/42.json'),
+          ('safebooru.donmai.us', '/posts.json'),
+        ]),
+      );
     },
   );
 
@@ -1049,6 +1147,63 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  test('publishes and receives an overlapping subtree with large Bookmark snapshots', () async {
+    final random = Random(192);
+    final records = [
+      for (var id = 1; id <= 192; id++)
+        PostBookmark(
+          id: id,
+          booruId: BooruType.danbooru.id,
+          createdAt: at,
+          updatedAt: at,
+          thumbnailUrl: 'https://media.example/$id.jpg',
+          sampleUrl: 'https://media.example/$id.jpg',
+          originalUrl: 'https://media.example/$id.jpg',
+          sourceUrl: 'https://site.example',
+          width: 100,
+          height: 100,
+          md5: '',
+          tags: {
+            for (var tag = 0; tag < 112; tag++)
+              random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0') * 52,
+          },
+          realSourceUrl: null,
+          format: 'jpg',
+          imageUrlResolver: const DefaultImageUrlResolver(),
+          postId: id,
+          metadata: const {},
+        ),
+    ];
+    final a = await publish(parent, records);
+    final b = await publish(child, records);
+    final archive = (await shared.read(a.payloadPath))!;
+    await expectLater(
+      SyncBookmarkPackageValidator(
+        fs: const IoFileSystem(),
+        codec: codec,
+      ).validate(
+        collection: a.collection,
+        bytes: archive,
+        maxPreparedBytes: 64 * 1024 * 1024,
+      ),
+      throwsA(isA<ExportPackageLimitException>()),
+    );
+    final ticket = await advertise(a, b, direct: {parent});
+    await engine.receive(
+      ticket: ticket,
+      publisherKey: identity.publicKey,
+      directRoots: {parent},
+    );
+    final state = await repository.readMirrorState();
+    final mirrors = (await groups.getGroups())
+        .where((group) => state.isReceived(group.id))
+        .toList();
+    expect(mirrors, hasLength(2));
+    expect(mirrors.first.bookmarkIds, hasLength(records.length));
+    expect(mirrors.last.bookmarkIds, mirrors.first.bookmarkIds);
+    expect(await repository.readAll(), hasLength(records.length));
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   test('discovery notification preference persists independently of publication and relocation settings', () async {
     final preferences = _Store();
@@ -4063,6 +4218,9 @@ class _PausedStorage implements MiteMiteStorage {
   @override
   Future<void> deleteOwnedRevision(String path, {required String owner}) =>
       delegate.deleteOwnedRevision(path, owner: owner);
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      delegate.deleteOwnedDirectory(path, owner: owner);
 }
 
 class _SnapshotLibrary extends BookmarkLibraryNotifier {
@@ -4106,4 +4264,7 @@ class _PollStorage implements MiteMiteStorage {
   @override
   Future<void> deleteOwnedRevision(String path, {required String owner}) =>
       delegate.deleteOwnedRevision(path, owner: owner);
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      delegate.deleteOwnedDirectory(path, owner: owner);
 }

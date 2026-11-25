@@ -17,6 +17,7 @@ enum RecoveryStopReason {
   missingSolver,
   busy,
   blockedAfterSolve,
+  dismissed,
 }
 
 enum HeaderPreparationSkipReason { disabled, userAgentUnavailable }
@@ -50,6 +51,7 @@ enum CheckOutcome {
   pageNotFinished,
   pageRejected,
   pageBlocked,
+  clearanceMissing,
   failed,
 }
 
@@ -57,7 +59,13 @@ enum PageNavigationPhase { started, finished }
 
 enum DialogCloseTrigger { timer, pageFinished, manual, cancel }
 
-enum DialogRevealReason { delay, blocked, browserFailure, manualOnly }
+enum DialogRevealReason {
+  delay,
+  blocked,
+  browserFailure,
+  manualOnly,
+  clearanceMissing,
+}
 
 final class AttemptStarted extends ProtectionEvent {
   const AttemptStarted();

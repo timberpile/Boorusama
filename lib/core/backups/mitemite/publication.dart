@@ -74,6 +74,23 @@ final class SyncPublicationSequences {
     final key = 'mitemite.v1.outgoing.${catalog.publisher}.catalog_intent';
     final encoded = store.get(key);
     final barriers = <String, int>{};
+    void retire(SyncCatalogEntry entry) {
+      // Include versions reserved before removal, even if their files never
+      // reached the catalog.
+      final counterKey =
+          'mitemite.v1.outgoing.${catalog.publisher}.${entry.id.key}';
+      final raw = store.get(counterKey);
+      final counter = raw == null ? 0 : jsonDecode(raw);
+      if (counter is! int || counter < 0 || counter > miteMiteMaxSequence) {
+        throw const FormatException('Invalid publication high-water mark');
+      }
+      barriers[entry.id.key] = [
+        barriers[entry.id.key] ?? 0,
+        counter,
+        entry.revision?.revision ?? 0,
+      ].reduce((left, right) => left > right ? left : right);
+    }
+
     if (encoded != null) {
       final raw = jsonDecode(encoded);
       if (raw is! Map<String, dynamic> ||
@@ -93,14 +110,19 @@ final class SyncPublicationSequences {
         }
         barriers[entry.key] = value;
       }
-      if (catalog.sequence <= previous.sequence) {
+      if (catalog.sequence <= previous.sequence ||
+          (previous.completeSnapshot && !catalog.completeSnapshot)) {
         throw const SyncReplayRejected();
       }
       final next = {for (final entry in catalog.entries) entry.id: entry};
       for (final prior in previous.entries) {
         final entry = next[prior.id];
         if (entry == null) {
-          throw const FormatException('Explicit withdrawal required');
+          if (!catalog.completeSnapshot) {
+            throw const FormatException('Explicit withdrawal required');
+          }
+          retire(prior);
+          continue;
         }
         final before = prior.revision;
         final after = entry.revision;
@@ -121,22 +143,7 @@ final class SyncPublicationSequences {
           throw const SyncReplayRejected();
         }
       } else {
-        // Include revisions reserved before a tombstone, even when their
-        // descriptor/catalog was never written. A delayed old writer cannot
-        // resurrect that source through a null-revision withdrawal.
-        final counterKey =
-            'mitemite.v1.outgoing.${catalog.publisher}.${entry.id.key}';
-        final rawCounter = store.get(counterKey);
-        final counter = rawCounter == null ? 0 : jsonDecode(rawCounter);
-        if (counter is! int || counter < 0 || counter > miteMiteMaxSequence) {
-          throw const FormatException('Invalid publication high-water mark');
-        }
-        final candidates = [
-          barrier ?? 0,
-          counter,
-          entry.revision?.revision ?? 0,
-        ]..sort();
-        barriers[entry.id.key] = candidates.last;
+        retire(entry);
       }
     }
     await store.put(
@@ -216,11 +223,12 @@ final class SyncPublicationWriter {
   }
 
   /// Call with the complete locally persisted advertisement set only after all
-  /// referenced revision writes succeed. Omitted sources never mean withdrawal.
+  /// referenced revision writes succeed.
   Future<SyncCatalog> publishCatalog({
     required String name,
     required Iterable<SyncCatalogEntry> entries,
     Set<SyncCollectionId>? publicationRoots,
+    bool completeSnapshot = false,
   }) async {
     final captured = List<SyncCatalogEntry>.of(entries);
     final roots = publicationRoots == null
@@ -233,6 +241,7 @@ final class SyncPublicationWriter {
       name: name,
       entries: captured,
       publicationRoots: roots,
+      completeSnapshot: completeSnapshot,
     );
     final sequence = await sequences.reserve(identity.id);
     final catalog = SyncCatalog(
@@ -241,6 +250,7 @@ final class SyncPublicationWriter {
       name: name,
       entries: captured,
       publicationRoots: roots,
+      completeSnapshot: completeSnapshot,
     );
     // A local advertisement is not proof that its payload survived a partial
     // write. Authenticate exactly the bytes before exposing a commit catalog.

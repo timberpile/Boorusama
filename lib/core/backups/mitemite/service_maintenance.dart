@@ -52,18 +52,18 @@ extension MiteMiteMaintenance on MiteMiteService {
       (jsonDecode(raw) as Map<String, dynamic>)['catalog']
           as Map<String, dynamic>,
     );
-    final bytes = await storage.read(
-      prior.path,
-      maxBytes: miteMiteMaxMetadataBytes,
-    );
-    if (bytes == null) return false;
-    final cached = _verifiedOwnCatalog;
-    if (cached != null &&
-        cached.intent == raw &&
-        listEquals(cached.bytes, bytes)) {
-      return true;
-    }
     try {
+      final bytes = await storage.read(
+        prior.path,
+        maxBytes: miteMiteMaxMetadataBytes,
+      );
+      if (bytes == null) return false;
+      final cached = _verifiedOwnCatalog;
+      if (cached != null &&
+          cached.intent == raw &&
+          listEquals(cached.bytes, bytes)) {
+        return true;
+      }
       final content = await verifySyncDocument(bytes, identity.publicKey);
       final matches =
           canonicalSyncJson(content) == canonicalSyncJson(prior.toJson());
@@ -81,6 +81,7 @@ extension MiteMiteMaintenance on MiteMiteService {
     if (_maintenance case final active?) return active;
     if (_disposed ||
         !_foreground ||
+        !enabled ||
         location == null ||
         (!_auditDue && _activeTime < _nextAudit)) {
       return Future.value();
@@ -93,7 +94,9 @@ extension MiteMiteMaintenance on MiteMiteService {
           try {
             void current() {
               _ensureCurrent();
-              if (!_foreground || generation != _storageGeneration) {
+              if (!_foreground ||
+                  !enabled ||
+                  generation != _storageGeneration) {
                 throw const _MaintenanceObsolete();
               }
             }

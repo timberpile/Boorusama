@@ -460,11 +460,15 @@ final class SyncLocalEvents {
     required int sequence,
     required Iterable<SyncCollectionId> roots,
     required DateTime at,
+    Set<SyncCollectionId>? activeCollections,
   }) {
     final captured = List<SyncCollectionId>.of(roots);
     return mutations.runExclusive(() async {
       final state = _read();
       final outbox = _outbox(state)..prune(now());
+      if (activeCollections != null) {
+        outbox.removeUnavailableCollections(publisher, activeCollections);
+      }
       final added = outbox.observeOffers(
         publisher: publisher,
         fingerprint: fingerprint,

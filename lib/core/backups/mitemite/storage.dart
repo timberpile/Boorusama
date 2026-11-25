@@ -56,6 +56,12 @@ bool isOwnedSyncRevisionPath(String path, String owner) {
   return revision != null && revision <= miteMiteMaxSequence;
 }
 
+bool isOwnedSyncDirectoryPath(String path, String owner) =>
+    path == 'devices/$owner'
+    ? isOwnedSyncRevisionPath('$path/catalog/1.json', owner)
+    : path.split('/').length == 5 &&
+          isOwnedSyncRevisionPath('$path/1.json', owner);
+
 abstract interface class MiteMiteStorage {
   Future<List<String>> list(String path);
   Future<Uint8List?> read(String path, {int maxBytes = miteMiteMaxBytes});
@@ -63,6 +69,9 @@ abstract interface class MiteMiteStorage {
   /// Existing immutable bytes are accepted only when byte-for-byte identical.
   Future<void> writeImmutable(String path, Uint8List bytes);
   Future<void> deleteOwnedRevision(String path, {required String owner});
+
+  /// The caller authorizes retiring a complete owned device or collection.
+  Future<void> deleteOwnedDirectory(String path, {required String owner});
 }
 
 /// Mounted desktop/filesystem directories only. Android SAF needs its own
@@ -153,6 +162,33 @@ final class DirectoryMiteMiteStorage implements MiteMiteStorage {
     }
     final file = File(await _path(path));
     if (await file.exists()) await file.delete();
+  }
+
+  @override
+  Future<void> deleteOwnedDirectory(
+    String path, {
+    required String owner,
+  }) async {
+    if (!isOwnedSyncDirectoryPath(path, owner)) {
+      throw const FormatException('Unsafe sync cleanup path');
+    }
+    final directory = Directory(await _path(path));
+    final type = await FileSystemEntity.type(
+      directory.path,
+      followLinks: false,
+    );
+    if (type == FileSystemEntityType.notFound) return;
+    if (type != FileSystemEntityType.directory) {
+      throw const FormatException('Expected a sync directory');
+    }
+    try {
+      await directory.delete(recursive: true);
+    } on FileSystemException {
+      if (await FileSystemEntity.type(directory.path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        rethrow;
+      }
+    }
   }
 
   @override

@@ -28,6 +28,10 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
         return (resolver.query(query, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE), null, null, null)
             ?: throw IOException("Directory unavailable")).use { cursor ->
+            if (cursor.extras.getBoolean(DocumentsContract.EXTRA_LOADING) ||
+                !cursor.extras.getString(DocumentsContract.EXTRA_ERROR).isNullOrEmpty()) {
+                throw IOException("Directory listing incomplete")
+            }
             val result = mutableListOf<Child>()
             val names = mutableSetOf<String>()
             while (cursor.moveToNext()) {
@@ -87,6 +91,20 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
         if (parts.size == 4 && !file.endsWith(".json")) return false
         return (file.substringBefore('.').toLongOrNull() ?: return false) <= 9007199254740991L
     }
+    private fun deleteTree(tree: Uri, child: Child, depth: Int) {
+        if (depth > 8) throw IOException("Sync directory is too deep")
+        if (child.directory) {
+            // Delete children explicitly. Providers implement directory
+            // deletion themselves and may only remove the directory entry.
+            for (descendant in children(tree, child.uri)) {
+                deleteTree(tree, descendant, depth + 1)
+            }
+        }
+        if (!DocumentsContract.deleteDocument(resolver, child.uri)) {
+            throw IOException("Directory cleanup failed")
+        }
+    }
+
     init {
         channel.setMethodCallHandler { call, result ->
             if (call.method == "privateDataDirectory") {
@@ -95,7 +113,7 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                 result.success(appContext.noBackupFilesDir.resolve("mitemite_private").absolutePath)
                 return@setMethodCallHandler
             }
-            if (call.method !in setOf("list", "read", "writeImmutable", "deleteOwnedRevision")) {
+            if (call.method !in setOf("list", "read", "writeImmutable", "deleteOwnedRevision", "deleteOwnedDirectory")) {
                 result.notImplemented(); return@setMethodCallHandler
             }
             worker.execute {
@@ -118,9 +136,25 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                         require(parts.isNotEmpty())
                         val parent = namespace?.let { directory(tree, it, parts.dropLast(1), create) }
                         val existing = parent?.let { children(tree, it).singleOrNull { child -> child.name == parts.last() } }
-                        if (existing?.directory == true) throw IOException("Expected file")
+                        if (existing?.directory == true && call.method != "deleteOwnedDirectory") {
+                            throw IOException("Expected file")
+                        }
                         when (call.method) {
                             "read" -> existing?.let { read(it.uri, call.argument<Int>("maxBytes") ?: maxBytes) }
+                            "deleteOwnedDirectory" -> {
+                                val owner = call.argument<String>("owner") ?: ""
+                                val allowed = if (path == "devices/$owner") {
+                                    owned("$path/catalog/1.json", owner)
+                                } else {
+                                    parts.size == 5 && owned("$path/1.json", owner)
+                                }
+                                require(allowed)
+                                if (existing != null) {
+                                    if (!existing.directory) throw IOException("Expected directory")
+                                    deleteTree(tree, existing, parts.size)
+                                }
+                                true
+                            }
                             "deleteOwnedRevision" -> {
                                 require(owned(path, call.argument<String>("owner") ?: ""))
                                 if (existing != null && !DocumentsContract.deleteDocument(resolver, existing.uri)) throw IOException("Delete failed")

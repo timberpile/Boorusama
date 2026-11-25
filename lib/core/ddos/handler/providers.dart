@@ -2,6 +2,7 @@
 import 'package:flutter/widgets.dart';
 
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -19,51 +20,69 @@ import '../solver/types.dart';
 import 'protection_handler.dart';
 
 final httpDdosProtectionBypassProvider = Provider<HttpProtectionHandler>(
-  (ref) {
-    final cookieJar = ref.watch(cookieJarProvider);
-    final recorder = ref.watch(protectionLogRecorderProvider);
-    final platform = ref.watch(appPlatformProvider);
-    final supportsEmbeddedWebView = platform.supportsEmbeddedWebView;
-    final browserFactory = supportsEmbeddedWebView
-        ? ref.watch(embeddedBrowserFactoryProvider)
-        : null;
-    BuildContext? contextProvider() {
-      final key = ref.read(appNavigationProvider).navigatorKey;
-      final context = key.currentContext ?? key.currentState?.context;
+  (ref) => _createProtectionHandler(ref, ref.watch(cookieJarProvider)),
+);
 
-      return context;
-    }
+final publicReadProtectionHandlerProvider = Provider<HttpProtectionHandler>(
+  (ref) => _createProtectionHandler(
+    ref,
+    LazyAsync<CookieJar>(() async => PublicCloudflareCookieJar()),
+    cloudflareOnly: true,
+  ),
+);
 
-    return HttpProtectionHandler(
-      onEvent: recorder.record,
-      orchestrator: ProtectionOrchestrator(
-        userAgentProvider: supportsEmbeddedWebView
-            ? WebViewUserAgentProvider(
-                service: ref.watch(webViewUserAgentServiceProvider),
-                onUserAgent: (ua) {
-                  final engine =
-                      RegExp(
-                        '(?:Chrome|AppleWebKit)/[0-9.]+',
-                      ).firstMatch(ua ?? '')?.group(0) ??
-                      'unknown';
-                  ref.read(appLoggerProvider).updateReportContext({
-                    'webViewEngineFromUserAgent': engine,
-                  });
-                },
-              )
-            : const UnavailableUserAgentProvider(),
-        detectors: [
-          CloudflareDetector(),
+HttpProtectionHandler _createProtectionHandler(
+  Ref ref,
+  LazyAsync<CookieJar> cookieJar, {
+  bool cloudflareOnly = false,
+}) {
+  final recorder = ref.watch(protectionLogRecorderProvider);
+  final platform = ref.watch(appPlatformProvider);
+  final supportsEmbeddedWebView = platform.supportsEmbeddedWebView;
+  final browserFactory = supportsEmbeddedWebView
+      ? ref.watch(embeddedBrowserFactoryProvider)
+      : null;
+  BuildContext? contextProvider() {
+    final key = ref.read(appNavigationProvider).navigatorKey;
+    final context = key.currentContext ?? key.currentState?.context;
+
+    return context;
+  }
+
+  return HttpProtectionHandler(
+    onEvent: recorder.record,
+    orchestrator: ProtectionOrchestrator(
+      userAgentProvider: supportsEmbeddedWebView
+          ? WebViewUserAgentProvider(
+              service: ref.watch(webViewUserAgentServiceProvider),
+              onUserAgent: (ua) {
+                final engine =
+                    RegExp(
+                      '(?:Chrome|AppleWebKit)/[0-9.]+',
+                    ).firstMatch(ua ?? '')?.group(0) ??
+                    'unknown';
+                ref.read(appLoggerProvider).updateReportContext({
+                  'webViewEngineFromUserAgent': engine,
+                });
+              },
+            )
+          : const UnavailableUserAgentProvider(),
+      detectors: [
+        CloudflareDetector(),
+        if (!cloudflareOnly) ...[
           AftDetector(),
           CaptchaAccessDeniedDetector(),
         ],
-        solvers: supportsEmbeddedWebView
-            ? [
-                CloudflareSolver(
-                  contextProvider: contextProvider,
-                  cookieJar: cookieJar,
-                  browserFactory: browserFactory,
-                ),
+      ],
+      solvers: supportsEmbeddedWebView
+          ? [
+              CloudflareSolver(
+                contextProvider: contextProvider,
+                cookieJar: cookieJar,
+                browserFactory: browserFactory,
+                requireClearanceCookie: cloudflareOnly,
+              ),
+              if (!cloudflareOnly) ...[
                 AftSolver(
                   contextProvider: contextProvider,
                   cookieJar: cookieJar,
@@ -74,34 +93,52 @@ final httpDdosProtectionBypassProvider = Provider<HttpProtectionHandler>(
                   cookieJar: cookieJar,
                   browserFactory: browserFactory,
                 ),
-              ]
-            : const [],
-      ),
-      contextProvider: contextProvider,
-      cookieJar: cookieJar,
-      onSolved: () {
-        ref.invalidate(bypassDdosHeadersProvider);
-        ref.invalidate(cachedBypassDdosHeadersProvider);
-      },
-      onBlockedWithProtocolOverride: (uri) {
-        ref
-            .read(appLoggerProvider)
-            .warn(
-              'Verification',
-              'host=${uri.host} still blocked with a forced protocol, '
-                  'suggested Auto',
-            );
-        final context = contextProvider();
-        if (context == null || !context.mounted) return;
-        Kurumi.showErrorToast(
-          context,
-          duration: const Duration(seconds: 8),
-          context.t.booru.network.http.blocked_with_protocol_override,
-        );
-      },
-    );
-  },
-);
+              ],
+            ]
+          : const [],
+    ),
+    contextProvider: contextProvider,
+    cookieJar: cookieJar,
+    onSolved: cloudflareOnly
+        ? null
+        : () {
+            ref.invalidate(bypassDdosHeadersProvider);
+            ref.invalidate(cachedBypassDdosHeadersProvider);
+          },
+    onBlockedWithProtocolOverride: (uri) {
+      ref
+          .read(appLoggerProvider)
+          .warn(
+            'Verification',
+            'host=${uri.host} still blocked with a forced protocol, '
+                'suggested Auto',
+          );
+      final context = contextProvider();
+      if (context == null || !context.mounted) return;
+      Kurumi.showErrorToast(
+        context,
+        duration: const Duration(seconds: 8),
+        context.t.booru.network.http.blocked_with_protocol_override,
+      );
+    },
+  );
+}
+
+/// Keep clearance for the challenged HTTPS host in this in-memory jar.
+/// Browser login cookies never enter the public reader.
+final class PublicCloudflareCookieJar extends DefaultCookieJar {
+  @override
+  Future<void> saveFromResponse(Uri uri, List<Cookie> cookies) =>
+      super.saveFromResponse(uri, [
+        for (final cookie in cookies)
+          if (cookie.name == 'cf_clearance')
+            Cookie(cookie.name, cookie.value)
+              ..path = cookie.path
+              ..expires = cookie.expires
+              ..maxAge = cookie.maxAge
+              ..secure = true,
+      ]);
+}
 
 final bypassDdosHeadersProvider =
     FutureProvider.family<Map<String, String>, String>((ref, url) async {

@@ -5,24 +5,24 @@ import 'package:flutter/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+enum ProtectionOverlayNotice { blocked, checkingPublicJson, clearanceMissing }
+
 class ProtectionOverlay extends StatefulWidget {
   const ProtectionOverlay({
     required this.url,
     required this.browser,
     required this.onCancel,
     required this.onSolved,
+    required this.notice,
     this.browserReady,
-    this.blocked,
     super.key,
   });
   final String url;
   final Widget browser;
   final VoidCallback onCancel;
   final VoidCallback onSolved;
+  final ValueListenable<ProtectionOverlayNotice?> notice;
   final ValueListenable<bool>? browserReady;
-
-  /// The site refused this network outright, so no challenge will appear.
-  final ValueListenable<bool>? blocked;
 
   @override
   State<ProtectionOverlay> createState() => _ProtectionOverlayState();
@@ -38,32 +38,45 @@ class _ProtectionOverlayState extends State<ProtectionOverlay> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 16),
-                if (widget.blocked case final blocked?)
-                  ValueListenableBuilder<bool>(
-                    valueListenable: blocked,
-                    builder: (_, isBlocked, _) => isBlocked
-                        ? _buildBlockedNotice()
-                        : const SizedBox.shrink(),
-                  ),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: widget.browser,
-                  ),
+            child: ValueListenableBuilder(
+              valueListenable: widget.notice,
+              builder: (_, notice, _) => LayoutBuilder(
+                builder: (_, constraints) => Column(
+                  children: [
+                    _buildHeader(notice),
+                    const SizedBox(height: 16),
+                    if (notice != null)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: constraints.maxHeight / 3,
+                        ),
+                        child: SingleChildScrollView(
+                          child: _buildNotice(notice),
+                        ),
+                      ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Visibility(
+                          visible: _showBrowser(notice),
+                          maintainState: true,
+                          maintainAnimation: true,
+                          maintainSize: true,
+                          child: widget.browser,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (widget.browserReady case final browserReady?)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: browserReady,
+                        builder: (_, ready, _) => _buildButtons(ready, notice),
+                      )
+                    else
+                      _buildButtons(true, notice),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                if (widget.browserReady case final browserReady?)
-                  ValueListenableBuilder<bool>(
-                    valueListenable: browserReady,
-                    builder: (_, ready, _) => _buildButtons(ready),
-                  )
-                else
-                  _buildButtons(true),
-              ],
+              ),
             ),
           ),
         ),
@@ -71,14 +84,19 @@ class _ProtectionOverlayState extends State<ProtectionOverlay> {
     );
   }
 
-  Widget _buildHeader() {
+  bool _showBrowser(ProtectionOverlayNotice? notice) =>
+      notice == null || notice == ProtectionOverlayNotice.blocked;
+
+  Widget _buildHeader(ProtectionOverlayNotice? notice) {
     return Row(
       children: [
         const Icon(Icons.security, color: Colors.white),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            context.t.captcha.title,
+            _showBrowser(notice)
+                ? context.t.captcha.title
+                : context.t.captcha.verification_title,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -94,16 +112,30 @@ class _ProtectionOverlayState extends State<ProtectionOverlay> {
     );
   }
 
-  Widget _buildBlockedNotice() {
+  Widget _buildNotice(ProtectionOverlayNotice notice) {
+    final (icon, message) = switch (notice) {
+      ProtectionOverlayNotice.blocked => (
+        Icons.block,
+        context.t.captcha.blocked_by_site,
+      ),
+      ProtectionOverlayNotice.clearanceMissing => (
+        Icons.info_outline,
+        context.t.captcha.clearance_missing,
+      ),
+      ProtectionOverlayNotice.checkingPublicJson => (
+        Icons.info_outline,
+        context.t.captcha.checking_public_response,
+      ),
+    };
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          const Icon(Icons.block, color: Colors.orange),
+          Icon(icon, color: Colors.orange),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              context.t.captcha.blocked_by_site,
+              message,
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -112,9 +144,11 @@ class _ProtectionOverlayState extends State<ProtectionOverlay> {
     );
   }
 
-  Widget _buildButtons(bool browserReady) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  Widget _buildButtons(bool browserReady, ProtectionOverlayNotice? notice) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 8,
       children: [
         OutlinedButton(
           onPressed: widget.onCancel,
@@ -124,10 +158,11 @@ class _ProtectionOverlayState extends State<ProtectionOverlay> {
           ),
           child: Text(context.t.generic.action.cancel),
         ),
-        FilledButton(
-          onPressed: browserReady ? widget.onSolved : null,
-          child: Text(context.t.captcha.i_have_solved_it),
-        ),
+        if (_showBrowser(notice))
+          FilledButton(
+            onPressed: browserReady ? widget.onSolved : null,
+            child: Text(context.t.captcha.i_have_solved_it),
+          ),
       ],
     );
   }

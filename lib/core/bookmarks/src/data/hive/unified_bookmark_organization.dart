@@ -292,6 +292,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     BookmarkMirrorState? received,
     List<Bookmark> upserts, {
     bool localCopy = false,
+    Set<String> purgedSources = const {},
   }) async {
     final before = _mirrors();
     if (before.owners.isEmpty && received == null) return;
@@ -382,6 +383,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     }
     for (final entry in before.checkpoints.entries) {
       final next = received.checkpoints[entry.key];
+      if (next == null && purgedSources.contains(entry.key)) continue;
       if (next == null ||
           next.revision < entry.value.revision ||
           (entry.value.retired &&

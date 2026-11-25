@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 
 import '../../bookmarks/src/types/bookmark_mirror_state.dart';
 import '../../search/following_topics/src/types/following_mirror_state.dart';
+import '../export_import/package/export_package_exception.dart';
+import '../types/types.dart' show InvalidBackupFormatException;
 import 'activity_log.dart';
 import 'bookmark_mirror_engine.dart' show SyncRevisionUnavailable;
 import 'identity_file.dart';
@@ -26,6 +28,9 @@ SyncFailureKind syncFailureKind(Object error) => switch (error) {
     SyncFailureKind.permission,
   PlatformException(code: 'sync_storage_failed') => SyncFailureKind.retryableIo,
   FileSystemException() => SyncFailureKind.unavailable,
-  FormatException() => SyncFailureKind.invalidData,
+  ExportPackageLimitException() => SyncFailureKind.sizeLimit,
+  FormatException() ||
+  ExportPackageException() ||
+  InvalidBackupFormatException() => SyncFailureKind.invalidData,
   _ => SyncFailureKind.unknown,
 };

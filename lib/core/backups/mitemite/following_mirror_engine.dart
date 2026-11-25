@@ -155,7 +155,8 @@ final class SyncFollowingMirrorEngine {
             (sourceUnit == null || sourceUnit.contains(e.value.source)))
           e.value.source: e,
     };
-    if (unitRoots.any((id) => !entries.containsKey(id))) {
+    if (!catalog.completeSnapshot &&
+        unitRoots.any((id) => !entries.containsKey(id))) {
       throw const SyncConflict();
     }
     final scope = BookmarkSyncScope(
@@ -171,12 +172,12 @@ final class SyncFollowingMirrorEngine {
       ],
       directRoots: {
         for (final id in unitRoots)
-          if (entries[id]!.state == SyncPublicationState.active) id,
+          if (entries[id]?.state == SyncPublicationState.active) id,
       },
     );
     final withdrawn = {
       for (final id in unitRoots)
-        if (entries[id]!.state != SyncPublicationState.active) id,
+        if (entries[id]?.state != SyncPublicationState.active) id,
     };
     bool throughWithdrawal(String source) {
       final seen = <String>{};
@@ -189,14 +190,22 @@ final class SyncFollowingMirrorEngine {
     }
 
     for (final owner in owned.values) {
-      if (!entries.containsKey(owner.value.source) &&
+      if (!catalog.completeSnapshot &&
+          !entries.containsKey(owner.value.source) &&
           !throughWithdrawal(owner.value.source)) {
         throw const SyncConflict();
       }
     }
-    final checkpoints = Map<String, FollowingMirrorOwner>.of(
-      initial.checkpoints,
-    );
+    final purgedSources = {
+      if (catalog.completeSnapshot)
+        for (final checkpoint in initial.checkpoints.values)
+          if (checkpoint.publisher == ticket.publisher &&
+              (sourceUnit == null || sourceUnit.contains(checkpoint.source)) &&
+              !entries.containsKey(checkpoint.source))
+            checkpoint.sourceKey,
+    };
+    final checkpoints = {...initial.checkpoints}
+      ..removeWhere((key, _) => purgedSources.contains(key));
     for (final entry in entries.values) {
       if (sourceUnit != null && !sourceUnit.contains(entry.id.source)) continue;
       if (entry.state == SyncPublicationState.active) continue;
@@ -484,14 +493,18 @@ final class SyncFollowingMirrorEngine {
         ),
     ];
     final next = FollowingMirrorState(
-      activity: initial.activity.append(
-        changes,
-        observedMembers: {
-          for (final id in receivedIds)
-            if (owners[id]!.kind == FollowingMirrorKind.topic)
-              '${ticket.publisher}/${owners[id]!.source}': {owners[id]!.source},
-        },
-      ),
+      activity: initial.activity
+          .append(
+            changes,
+            observedMembers: {
+              for (final id in receivedIds)
+                if (owners[id]!.kind == FollowingMirrorKind.topic)
+                  '${ticket.publisher}/${owners[id]!.source}': {
+                    owners[id]!.source,
+                  },
+            },
+          )
+          .withoutSources(purgedSources),
       epoch: initial.epoch + 1,
       owners: owners,
       checkpoints: checkpoints,
@@ -531,6 +544,7 @@ final class SyncFollowingMirrorEngine {
         topics: topics,
         organization: organization,
         removeTopicIds: remove.where(oldTopics.containsKey).toSet(),
+        purgedSources: purgedSources,
       );
     });
   }
@@ -754,24 +768,33 @@ final class SyncFollowingMirrorEngine {
     } else {
       subscriptions[publisher] = roots;
     }
+    final purgedSources = {
+      if (forget)
+        for (final checkpoint in current.checkpoints.values)
+          if (checkpoint.publisher == publisher) checkpoint.sourceKey,
+    };
     await store.commitMirrorDefinitions(
+      purgedSources: purgedSources,
       expected: current,
       expectedStructureDigest: before.structureDigest,
       next: FollowingMirrorState(
-        activity: current.activity.append([
-          if (!forget)
-            SyncEvent(
-              kind: SyncEventKind.unsubscribed,
-              at: now(),
-              publisher: publisher,
-              source: source,
-              sourceKind: 'following_topics',
-            ),
-        ]),
+        activity: current.activity
+            .append([
+              if (!forget)
+                SyncEvent(
+                  kind: SyncEventKind.unsubscribed,
+                  at: now(),
+                  publisher: publisher,
+                  source: source,
+                  sourceKind: 'following_topics',
+                ),
+            ])
+            .withoutSources(purgedSources),
         epoch: current.epoch + 1,
         owners: {...current.owners}
           ..removeWhere((id, _) => remove.contains(id)),
-        checkpoints: current.checkpoints,
+        checkpoints: {...current.checkpoints}
+          ..removeWhere((key, _) => purgedSources.contains(key)),
         subscriptions: subscriptions,
         publisherNames: names,
       ),

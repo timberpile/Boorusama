@@ -677,6 +677,10 @@ final class _Storage implements MiteMiteStorage {
     deletes++;
     return Future.error(StateError('No deletion authority'));
   }
+
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      throw UnsupportedError('Directory cleanup');
 }
 
 final class _CountingFileSystem extends IoFileSystem {

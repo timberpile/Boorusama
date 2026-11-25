@@ -8,6 +8,7 @@ import '../export_import/package/export_package_writer.dart';
 import '../export_import/models/export_selection.dart';
 import '../export_import/package/export_package_reader.dart';
 import '../export_import/package/export_package_limits.dart';
+import '../export_import/package/export_package_exception.dart';
 import '../sources/bookmark_backup_codec.dart';
 import '../sources/bookmark_backup_schema.dart';
 import '../sources/detached_bookmark_codec.dart';
@@ -58,7 +59,7 @@ final class SyncBookmarkPackageValidator {
   Future<ValidatedSyncBookmarkPackage> validate({
     required SyncCollectionId collection,
     required Uint8List bytes,
-    int maxPreparedBytes = 64 * 1024 * 1024,
+    int maxPreparedBytes = miteMiteMaxBookmarkPackagePreparationBytes,
   }) async {
     if (useWorker && fs.runtimeType == IoFileSystem) {
       return Isolate.run(
@@ -70,17 +71,26 @@ final class SyncBookmarkPackageValidator {
         ).run,
       );
     }
-    if (collection.kind != 'bookmarks' ||
-        bytes.isEmpty ||
-        bytes.length > miteMiteMaxBytes) {
+    if (collection.kind != 'bookmarks' || bytes.isEmpty) {
       throw const FormatException('Invalid Bookmark sync package');
+    }
+    if (bytes.length > miteMiteMaxBytes) {
+      throw const ExportPackageLimitException(
+        'Bookmark sync archive is too large',
+      );
     }
     // Bound expansion before reading JSON, including space for detached input,
     // UTF-16 text and the parsed domain snapshot. The transport limit alone
     // cannot constrain a small, highly compressed archive.
-    final expandedBudget = (maxPreparedBytes - bytes.length * 2) ~/ 8;
+    final budget = maxPreparedBytes.clamp(
+      0,
+      miteMiteMaxBookmarkPackagePreparationBytes,
+    );
+    final expandedBudget = (budget - bytes.length * 2) ~/ 8;
     if (expandedBudget <= 0) {
-      throw const FormatException('Sync package exceeds preparation budget');
+      throw const ExportPackageLimitException(
+        'Sync package exceeds preparation budget',
+      );
     }
     final captured = Uint8List.fromList(bytes);
     final scratch = await fs.createTempDirectory('boorusama_sync_validate_');

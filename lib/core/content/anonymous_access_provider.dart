@@ -2,9 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../blacklists/providers.dart';
 import '../configs/config/types.dart';
+import '../ddos/handler/providers.dart';
 import '../http/client/providers.dart';
 import '../http/client/src/coordination/coordinated_dio.dart';
 import '../http/client/src/data/public_read_http_adapter.dart';
+import '../http/client/src/interceptors/dio_protection_interceptor.dart';
 import 'anonymous_read_scope.dart';
 import 'anonymous_source_policy.dart';
 import 'content_access.dart';
@@ -64,14 +66,23 @@ anonymousContentAccessProvider = Provider.autoDispose
               userAgent: ref.read(defaultUserAgentProvider),
               headers: {'Referer': source.site.toString()},
             );
-            // Use the ordinary transport and coordination. No stored challenge
-            // cookies, account headers, profile proxy or native cookie jar enter it.
+            final protection = DioProtectionInterceptor(
+              protectionHandler: ref.read(publicReadProtectionHandlerProvider),
+              dio: dio,
+              canRecoverPublicRead: (request) =>
+                  scope.isCurrent &&
+                  request.cancelToken?.isCancelled != true &&
+                  request.uri.isScheme('https') &&
+                  request.uri.origin == source.site.origin,
+            );
             dio.httpClientAdapter = PublicReadHttpClientAdapter(
               delegate: dio.httpClientAdapter,
               source: source,
               current: () => scope.isCurrent,
+              prepareHeaders: protection.prepareTransportHeaders,
             );
             coordinateApiDio(dio, coordinator);
+            dio.interceptors.add(protection);
             return dio;
           },
         );
@@ -87,6 +98,7 @@ anonymousContentAccessProvider = Provider.autoDispose
         globalBlacklistedTagsProvider,
         contentAccessEpochsProvider,
         apiRequestCoordinatorProvider,
+        publicReadProtectionHandlerProvider,
         defaultUserAgentProvider,
       ],
     );

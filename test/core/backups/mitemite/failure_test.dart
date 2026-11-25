@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:boorusama/core/backups/export_import/package/export_package_exception.dart';
 import 'package:boorusama/core/backups/mitemite/activity_log.dart';
 import 'package:boorusama/core/backups/mitemite/bookmark_mirror_engine.dart';
 import 'package:boorusama/core/backups/mitemite/failure.dart';
@@ -30,6 +31,14 @@ void main() {
       SyncFailureKind.unavailable,
     ),
     (const FormatException('private content'), SyncFailureKind.invalidData),
+    (
+      const ExportPackageException('private archive'),
+      SyncFailureKind.invalidData,
+    ),
+    (
+      const ExportPackageLimitException('private limit'),
+      SyncFailureKind.sizeLimit,
+    ),
     (StateError('private diagnostic'), SyncFailureKind.unknown),
   ]) {
     test(

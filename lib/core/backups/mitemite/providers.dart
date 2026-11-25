@@ -39,7 +39,10 @@ final miteMiteActivationProvider = StateProvider<bool>(
     if (raw == null) return false;
     try {
       final settings = jsonDecode(raw);
-      return settings is Map<String, dynamic> && settings['location'] is String;
+      return settings is Map<String, dynamic> &&
+          (settings['location'] is String ||
+              (settings['cleanupPending'] == true &&
+                  settings['pausedLocation'] is String));
     } on FormatException {
       return false;
     }
@@ -249,6 +252,8 @@ final miteMiteManagementViewProvider = Provider.autoDispose
       final following = service.receiverFollowing;
       return _ManagementView([
         service.location,
+        service.enabled,
+        service.cleanupPending,
         service.name,
         service.discoveryNotifications,
         service.publishedRoots,
@@ -330,6 +335,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   void _attach(MiteMiteService? service) {
     if (identical(_service, service)) return;
     _poll?.cancel();
+    _poll = null;
     _dirty?.cancel();
     _stopWatcher();
     _service?.removeListener(_changed);
@@ -338,10 +344,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     service?.setForeground(_foreground);
     service?.addListener(_changed);
     if (service != null && _foreground) {
-      _poll = Timer.periodic(const Duration(minutes: 1), (_) {
-        _watchDirectory();
-        unawaited(_sync());
-      });
+      _updatePoll();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _foreground && identical(service, _currentService)) {
           ref.invalidate(publishedFollowingRootsProvider);
@@ -352,9 +355,26 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     }
   }
 
+  void _updatePoll() {
+    if (!_foreground ||
+        !(_currentService?.enabled ?? false) ||
+        _currentService?.location == null) {
+      _poll?.cancel();
+      _poll = null;
+      _dirty?.cancel();
+      return;
+    }
+    _poll ??= Timer.periodic(const Duration(minutes: 1), (_) {
+      _watchDirectory();
+      unawaited(_sync());
+    });
+  }
+
   void _changed() {
+    _updatePoll();
     _watchDirectory();
-    if (_requested &&
+    if ((_currentService?.enabled ?? false) &&
+        _requested &&
         !identical(_syncingService, _currentService) &&
         !(_currentService?.busy ?? true)) {
       _debounce(SyncTrigger.watcher);
@@ -362,6 +382,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   }
 
   void _debounce([SyncTrigger trigger = SyncTrigger.localChange]) {
+    if (!(_currentService?.enabled ?? false)) return;
     _requested = true;
     if (trigger == SyncTrigger.localChange) _dirtySource = true;
     _dirty?.cancel();
@@ -383,6 +404,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     }
     // A poll/resume during an update joins that update. A real local mutation
     // independently retains _requested through _debounce and its durable epoch.
+    if (!service.enabled && !service.cleanupPending) return;
     if (identical(_syncingService, service) || service.isReconciling) {
       if (trigger == SyncTrigger.resume || trigger == SyncTrigger.startup) {
         unawaited(service.synchronize(trigger: trigger));
@@ -421,6 +443,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     final service = _currentService;
     final location = service?.location;
     if (!_foreground ||
+        !(service?.enabled ?? false) ||
         location == null ||
         ref.read(appPlatformProvider).isAndroid) {
       _stopWatcher();
@@ -461,13 +484,11 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     _foreground = state == AppLifecycleState.resumed;
     _currentService?.setForeground(_foreground);
     _poll?.cancel();
+    _poll = null;
     _dirty?.cancel();
     _stopWatcher();
     if (_foreground && _currentService != null) {
-      _poll = Timer.periodic(const Duration(minutes: 1), (_) {
-        _watchDirectory();
-        unawaited(_sync());
-      });
+      _updatePoll();
       _watchDirectory();
       unawaited(_sync(SyncTrigger.resume));
     }
@@ -494,6 +515,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
         final before = previous?.valueOrNull;
         final after = next.valueOrNull;
         if (service == null ||
+            !service.enabled ||
             before == null ||
             after == null ||
             !hasLocalSyncChanges(before, after)) {
@@ -518,7 +540,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
 
   void _localChanged() {
     final service = _currentService;
-    if (service == null) return;
+    if (service == null || !service.enabled) return;
     unawaited(() async {
       try {
         await service.markDirty();
@@ -535,6 +557,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     _service?.removeListener(_changed);
     _service?.setForeground(false);
     _poll?.cancel();
+    _poll = null;
     _dirty?.cancel();
     _stopWatcher();
     super.dispose();

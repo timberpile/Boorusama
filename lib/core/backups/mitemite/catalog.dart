@@ -1,7 +1,7 @@
 import 'bookmark_scope.dart';
 import 'protocol.dart';
 
-/// Only explicit signed states carry withdrawal evidence. Absence has no state.
+/// Legacy catalogs use explicit retirement entries.
 enum SyncPublicationState { active, withdrawn, deleted }
 
 String syncLabel(Object? value) {
@@ -90,6 +90,7 @@ final class SyncCatalog {
     required String name,
     required Iterable<SyncCatalogEntry> entries,
     Set<SyncCollectionId>? publicationRoots,
+    this.completeSnapshot = false,
   }) : publisher = syncUuid(publisher),
        name = syncLabel(name),
        entries = List.unmodifiable(entries),
@@ -104,6 +105,13 @@ final class SyncCatalog {
       throw const FormatException('Invalid sync catalog entries');
     }
     final roots = this.publicationRoots;
+    if (completeSnapshot &&
+        (roots == null ||
+            this.entries.any(
+              (entry) => entry.state != SyncPublicationState.active,
+            ))) {
+      throw const FormatException('Invalid complete publication snapshot');
+    }
     if (roots != null) {
       final active = {
         for (final entry in this.entries)
@@ -153,6 +161,7 @@ final class SyncCatalog {
       sequence: syncPositiveInteger(json['sequence']),
       name: syncLabel(json['deviceName']),
       publicationRoots: _readPublicationRoots(json),
+      completeSnapshot: json['publicationScopeVersion'] == 2,
       entries: [
         for (final entry in raw)
           if (entry is Map<String, dynamic>)
@@ -167,6 +176,7 @@ final class SyncCatalog {
   final int sequence;
   final String name;
   final List<SyncCatalogEntry> entries;
+  final bool completeSnapshot;
 
   /// Null means an older publisher did not advertise directness. It is never
   /// inferred from hierarchy; existing subscriptions may still reconcile.
@@ -184,7 +194,8 @@ final class SyncCatalog {
         !json.containsKey('publicationRoots')) {
       return null;
     }
-    if (json['publicationScopeVersion'] != 1) throw const SyncUpdateRequired();
+    final version = json['publicationScopeVersion'];
+    if (version != 1 && version != 2) throw const SyncUpdateRequired();
     final raw = json['publicationRoots'];
     if (raw is! List || raw.length > miteMiteMaxEntries) {
       throw const FormatException('Invalid explicit publication roots');
@@ -207,7 +218,7 @@ final class SyncCatalog {
     'deviceName': name,
     'collections': [for (final entry in entries) entry.toJson()],
     if (publicationRoots != null) ...{
-      'publicationScopeVersion': 1,
+      'publicationScopeVersion': completeSnapshot ? 2 : 1,
       'publicationRoots': [
         for (final root
             in publicationRoots!.toList()

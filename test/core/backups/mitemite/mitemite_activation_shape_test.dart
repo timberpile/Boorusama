@@ -17,6 +17,10 @@ void main() {
     '{"location":null}': false,
     '{"location":7}': false,
     '{"location":"/synthetic-sync"}': true,
+    '{"location":null,"pausedLocation":"/synthetic-sync","cleanupPending":true}':
+        true,
+    '{"location":null,"pausedLocation":"/synthetic-sync","cleanupPending":false}':
+        false,
   };
   for (final entry in cases.entries) {
     test('activation handles stored shape ${entry.key}', () {

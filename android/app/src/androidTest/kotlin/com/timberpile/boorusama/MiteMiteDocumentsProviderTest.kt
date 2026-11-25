@@ -176,6 +176,23 @@ class MiteMiteDocumentsProviderTest {
         assertNull(channel.read("$prefix/1.json"))
     }
 
+    @Test fun completeCleanupIsConfinedToOwnedDeviceOrCollection() = withChannel { channel ->
+        val other = "devices/$foreign/collections/bookmarks/$source/1.json"
+        val identity = "devices/$owner/identity.json"
+        channel.write("$prefix/1.json")
+        channel.write(other)
+        channel.write(identity)
+        failure { channel.invoke("deleteOwnedDirectory", arguments("devices/$foreign")) }
+        failure { channel.invoke("deleteOwnedDirectory", arguments("devices/$owner/collections")) }
+        assertEquals(true, channel.invoke("deleteOwnedDirectory", arguments(prefix)))
+        assertNull(channel.read("$prefix/1.json"))
+        assertArrayEquals(bytes, channel.read(identity))
+        assertEquals(true, channel.invoke("deleteOwnedDirectory", arguments("devices/$owner")))
+        assertEquals(true, channel.invoke("deleteOwnedDirectory", arguments("devices/$owner")))
+        assertNull(channel.read(identity))
+        assertArrayEquals(bytes, channel.read(other))
+    }
+
     @Test fun concurrentChannelsKeepExistingWinnersAndIndependentNewFiles() = withChannel { channel ->
         channel.write("$prefix/1.bsexport")
         val second = TestMessenger()

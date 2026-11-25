@@ -54,11 +54,12 @@ extension MiteMiteFollowing on MiteMiteService {
         await _save(location, name, publishedRoots, followingRoots: roots);
         publishedFollowingRoots = Set.unmodifiable(roots);
         await _publishFollowingChange();
+        if (enabled) unawaited(_scheduleMaintenance(force: true));
       });
 
   Future<void> _publishFollowingChange() async {
     await markDirty();
-    if (location != null) {
+    if (enabled && location != null) {
       await _sync(await _open(location!));
       if (outgoingFailure != null) throw const SyncPublicationPending();
     }
@@ -66,6 +67,7 @@ extension MiteMiteFollowing on MiteMiteService {
 
   Future<void> subscribeFollowing(String publisher, Set<String> roots) =>
       _subscriptionAction(publisher, 'following_topics', roots, (roots) async {
+        if (!enabled) throw const SyncPublisherUnavailable();
         final storage = await _open(location!);
         final device = devices.singleWhere((d) => d.id == publisher);
         final ticket = await _ticket(storage, device);

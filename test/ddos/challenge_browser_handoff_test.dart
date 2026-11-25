@@ -13,9 +13,14 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 
 // Project imports:
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/ddos/diagnostics/data.dart';
+import 'package:boorusama/core/ddos/handler/providers.dart';
 import 'package:boorusama/core/ddos/handler/types.dart';
 import 'package:boorusama/core/ddos/solver/src/protection_overlay.dart';
 import 'package:boorusama/core/ddos/solver/types.dart';
+import 'package:boorusama/core/http/client/src/data/public_read_http_adapter.dart';
 import 'package:boorusama/core/http/client/src/interceptors/dio_protection_interceptor.dart';
 import 'package:boorusama/foundation/browser/types.dart';
 
@@ -338,6 +343,223 @@ void main() {
     );
   }
 
+  testWidgets('a public SafeBooru challenge is revealed on the saved site', (
+    tester,
+  ) async {
+    final source = const AnonymousSourcePolicy().resolve(
+      BooruType.danbooru,
+      Uri.parse('https://safebooru.donmai.us'),
+    )!;
+    final site = _Site(
+      blockedBody: _turnstileCaptchaPage,
+      browserBody: _browserChallengePage,
+    );
+    final harness = await _Harness.pump(
+      tester,
+      site: site,
+      publicSource: source,
+    );
+
+    final sent = await harness.send(tester, '/pools/42.json');
+
+    expect(sent.challengeVisible, isTrue);
+    expect(site.browserPaths, ['/pools/42.json']);
+    expect(site.appRequests, 1);
+    await harness.cancelChallenge(tester);
+    expect(site.appRequests, 1);
+  });
+
+  testWidgets('a public SafeBooru retry carries only same-site clearance', (
+    tester,
+  ) async {
+    final source = const AnonymousSourcePolicy().resolve(
+      BooruType.danbooru,
+      Uri.parse('https://safebooru.donmai.us'),
+    )!;
+    final site = _Site(
+      blockedBody: _turnstileCaptchaPage,
+      unblockedBy: 'cf_clearance=valid',
+    );
+    final harness = await _Harness.pump(
+      tester,
+      site: site,
+      publicSource: source,
+      browserCookies: const [
+        BrowserCookie(
+          name: 'cf_clearance',
+          value: 'valid',
+          domain: '.donmai.us',
+          path: '/',
+        ),
+        BrowserCookie(
+          name: 'session',
+          value: 'private',
+          domain: '.donmai.us',
+          path: '/',
+        ),
+      ],
+    );
+
+    final sent = await harness.send(tester, '/pools/42.json');
+
+    expect(sent.result, 'HTTP 200 "done"');
+    expect(site.cookieHeaders, ['', 'cf_clearance=valid']);
+    expect(site.browserPaths, ['/pools/42.json']);
+    expect(site.requestHosts, everyElement(source.site.host));
+  });
+
+  testWidgets(
+    'a cookie-free SafeBooru response opens the pool and members without a dialog',
+    (tester) async {
+      final source = const AnonymousSourcePolicy().resolve(
+        BooruType.danbooru,
+        Uri.parse('https://safebooru.donmai.us'),
+      )!;
+      final site = _Site(
+        blockedBody: _turnstileCaptchaPage,
+        publicJson: (uri) => switch (uri.path) {
+          '/pools/42.json' => '{"id":42,"post_ids":[17]}',
+          '/posts.json' when uri.queryParameters['tags'] == 'id:17' =>
+            '[{"id":17}]',
+          _ => null,
+        },
+      );
+      final harness = await _Harness.pump(
+        tester,
+        site: site,
+        publicSource: source,
+        browserCookies: const [
+          BrowserCookie(
+            name: 'session',
+            value: 'private',
+            domain: '.donmai.us',
+            path: '/',
+          ),
+        ],
+      );
+      final pool = await harness.send(tester, '/pools/42.json', json: true);
+      expect(pool.result, 'HTTP 200 "{id: 42, post_ids: [17]}"');
+      expect(pool.challengeVisible, isFalse);
+      final posts = await harness.send(
+        tester,
+        '/posts.json?tags=id%3A17',
+        json: true,
+      );
+      expect(posts.result, 'HTTP 200 "[{id: 17}]"');
+      expect(posts.challengeVisible, isFalse);
+      expect(site.browserPaths, ['/pools/42.json', '/posts.json']);
+      expect(site.cookieHeaders, ['', '']);
+      expect(site.requestHosts, everyElement(source.site.host));
+    },
+  );
+
+  testWidgets(
+    'concurrent public SafeBooru reads each receive their own pool response',
+    (tester) async {
+      final source = const AnonymousSourcePolicy().resolve(
+        BooruType.danbooru,
+        Uri.parse('https://safebooru.donmai.us'),
+      )!;
+      final site = _Site(
+        blockedBody: _turnstileCaptchaPage,
+        publicJson: (uri) => switch (uri.path) {
+          '/pools/27640.json' => '{"id":27640}',
+          '/pools/20291.json' => '{"id":20291}',
+          _ => null,
+        },
+      );
+      final events = <ProtectionRecord>[];
+      final harness = await _Harness.pump(
+        tester,
+        site: site,
+        publicSource: source,
+        onEvent: (event, {sensitive}) => events.add(event),
+      );
+      final results = <String, Object>{};
+      for (final path in ['/pools/27640.json', '/pools/20291.json']) {
+        unawaited(
+          harness.dio
+              .get<dynamic>(path)
+              .then(
+                (response) => results[path] = response.data as Object,
+                onError: (Object error) => results[path] = error,
+              ),
+        );
+      }
+      for (var frame = 0; frame < 200 && results.length < 2; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+      expect(
+        results,
+        {
+          '/pools/27640.json': {'id': 27640},
+          '/pools/20291.json': {'id': 20291},
+        },
+        reason: events.map(formatProtectionRecord).join('\n'),
+      );
+      expect(site.browserPaths, ['/pools/27640.json', '/pools/20291.json']);
+      expect(site.cookieHeaders, ['', '']);
+      expect(find.byType(ProtectionOverlay), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a SafeBooru page without a public response can be dismissed at large text',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 640);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final source = const AnonymousSourcePolicy().resolve(
+        BooruType.danbooru,
+        Uri.parse('https://safebooru.donmai.us'),
+      )!;
+      final site = _Site(
+        blockedBody: _turnstileCaptchaPage,
+        unblockedBy: 'cf_clearance=valid',
+      );
+      final browserCookies = [
+        const BrowserCookie(
+          name: 'session',
+          value: 'private',
+          domain: '.donmai.us',
+          path: '/',
+        ),
+      ];
+      final harness = await _Harness.pump(
+        tester,
+        site: site,
+        publicSource: source,
+        browserCookies: browserCookies,
+      );
+
+      final sent = await harness.send(tester, '/pools/42.json');
+
+      expect(sent.challengeVisible, isTrue);
+      expect(sent.result, isNull);
+      expect(site.appRequests, 1);
+      expect(
+        find.text(
+          'The site still blocks the app’s request. Close verification to return.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Reload'), findsNothing);
+      final cancel = find.text('Cancel').hitTestable();
+      expect(cancel, findsOneWidget);
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProtectionOverlay), findsNothing);
+      expect(site.browserPaths, ['/pools/42.json']);
+      expect(site.cookieHeaders, ['']);
+      expect(site.requestHosts, everyElement(source.site.host));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('a challenge shown to the browser is revealed to the user', (
     tester,
   ) async {
@@ -352,6 +574,62 @@ void main() {
 
     expect(sent.challengeVisible, isTrue);
   });
+
+  for (final useClose in [false, true]) {
+    testWidgets(
+      '${useClose ? 'Close' : 'Cancel'} dismisses verification for late requests',
+      (tester) async {
+        final site = _Site(
+          blockedBody: _turnstileCaptchaPage,
+          browserBody: _browserChallengePage,
+        );
+        final source = const AnonymousSourcePolicy().resolve(
+          BooruType.danbooru,
+          Uri.parse('https://safebooru.donmai.us'),
+        )!;
+        final harness = await _Harness.pump(
+          tester,
+          site: site,
+          publicSource: source,
+        );
+        expect(
+          (await harness.send(tester, '/pools/42.json')).challengeVisible,
+          isTrue,
+        );
+
+        await tester.tap(
+          useClose ? find.byIcon(Icons.close) : find.text('Cancel'),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ProtectionOverlay), findsNothing);
+        // An unrelated success must not interrupt the dismissal period.
+        harness.dio.interceptors.insert(
+          0,
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              if (options.uri.path == '/posts/1.json') {
+                handler.resolve(
+                  Response<String>(
+                    requestOptions: options,
+                    data: 'ok',
+                    statusCode: 200,
+                  ),
+                  true,
+                );
+              } else {
+                handler.next(options);
+              }
+            },
+          ),
+        );
+        await harness.send(tester, '/posts/1.json');
+        final late = await harness.send(tester, '/pools/43.json');
+        expect(late.result, 'HTTP 403');
+        expect(late.challengeShown, isFalse);
+        expect(site.browserPaths, ['/pools/42.json']);
+      },
+    );
+  }
 
   testWidgets(
     'after a solve that leaves the app blocked, later requests fail without reopening the challenge',
@@ -457,6 +735,8 @@ class _Harness {
     List<Cookie> requestCookies = const [],
     Clock clock = const Clock(),
     bool protocolOverridden = false,
+    AnonymousSource? publicSource,
+    ProtectionEventSink? onEvent,
   }) async {
     final protocolHints = <String>[];
     late BuildContext pageContext;
@@ -477,7 +757,9 @@ class _Harness {
       ),
     );
 
-    final jar = CookieJar();
+    final jar = publicSource == null
+        ? CookieJar()
+        : PublicCloudflareCookieJar();
     await jar.saveFromResponse(
       Uri.parse('https://example.com/'),
       requestCookies,
@@ -492,6 +774,7 @@ class _Harness {
     final handler = HttpProtectionHandler(
       clock: clock,
       onBlockedWithProtocolOverride: (uri) => protocolHints.add(uri.host),
+      onEvent: onEvent,
       orchestrator: ProtectionOrchestrator(
         detectors: _detectors(),
         solvers: [
@@ -499,6 +782,7 @@ class _Harness {
             contextProvider: contextProvider,
             cookieJar: cookieJar,
             browserFactory: browsers,
+            requireClearanceCookie: publicSource != null,
           ),
           AftSolver(
             contextProvider: contextProvider,
@@ -516,15 +800,28 @@ class _Harness {
       contextProvider: contextProvider,
       cookieJar: cookieJar,
     );
-    final dio = Dio(BaseOptions(baseUrl: 'https://example.com'))
-      ..httpClientAdapter = site;
-    dio.interceptors.add(
-      DioProtectionInterceptor(
-        protectionHandler: handler,
-        dio: dio,
-        protocolOverridden: protocolOverridden,
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: publicSource?.site.toString() ?? 'https://example.com',
       ),
+    )..httpClientAdapter = site;
+    final protection = DioProtectionInterceptor(
+      protectionHandler: handler,
+      dio: dio,
+      protocolOverridden: protocolOverridden,
+      canRecoverPublicRead: publicSource == null
+          ? null
+          : (request) => request.uri.origin == publicSource.site.origin,
     );
+    if (publicSource != null) {
+      dio.httpClientAdapter = PublicReadHttpClientAdapter(
+        delegate: site,
+        source: publicSource,
+        current: () => true,
+        prepareHeaders: protection.prepareTransportHeaders,
+      );
+    }
+    dio.interceptors.add(protection);
     return _Harness._(dio, protocolHints);
   }
 
@@ -540,15 +837,17 @@ class _Harness {
     WidgetTester tester,
     String path, {
     bool stateChanging = false,
+    bool json = false,
   }) async {
     String? result;
     var challengeShown = false;
     var challengeVisible = false;
     unawaited(
       dio
-          .get<String>(
+          .get<dynamic>(
             path,
             options: Options(
+              responseType: json ? ResponseType.json : ResponseType.plain,
               extra: stateChanging ? stateChangingRequestExtra : null,
             ),
           )
@@ -597,6 +896,7 @@ class _Site implements HttpClientAdapter {
     this.rateLimitRetry = false,
     this.unblockedBy,
     this.browserBody,
+    this.publicJson,
   });
 
   final String blockedBody;
@@ -606,9 +906,11 @@ class _Site implements HttpClientAdapter {
   /// What the browser sees instead of the requested page, if anything.
   final String? browserBody;
   final String? unblockedBy;
+  final String? Function(Uri)? publicJson;
   var appRequests = 0;
   var actionsPerformedByBrowser = 0;
   final browserPaths = <String>[];
+  final requestHosts = <String>[];
   final cookieHeaders = <String>[];
 
   String browserPage(Uri uri) => switch ((browserPaths..add(uri.path)).last) {
@@ -628,6 +930,7 @@ class _Site implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     appRequests++;
+    requestHosts.add(options.uri.host);
     final cookie = options.headers.entries
         .where((e) => e.key.toLowerCase() == 'cookie')
         .map((e) => '${e.value}')
@@ -723,11 +1026,23 @@ class _Browser implements EmbeddedBrowserSession {
   @override
   Future<Object?> evaluateJavaScript(String source) async =>
       jsonEncode(switch (source) {
-        'document.contentType' when _current?.path.endsWith('.json') ?? false =>
+        final script when script.contains('boorusamaPublicVerificationJson') =>
+          _publicJson(script),
+        'document.contentType'
+            when (_current?.path.endsWith('.json') ?? false) &&
+                site.browserBody == null =>
           'application/json',
         'document.contentType' => 'text/html',
         _ => _page,
       });
+
+  String _publicJson(String script) {
+    expect(script, contains("credentials: 'omit'"));
+    expect(script, contains("cache: 'no-store'"));
+    expect(script, contains("redirect: 'error'"));
+    expect(script, contains(jsonEncode(_current.toString())));
+    return site.publicJson?.call(_current!) ?? '';
+  }
 
   @override
   Future<List<BrowserCookie>> getCookies(Uri uri) async =>

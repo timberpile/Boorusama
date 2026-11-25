@@ -82,6 +82,20 @@ final class SyncOwnedRetention {
     if (numbers.isEmpty || numbers.first != current.sequence) {
       throw const SyncConflict();
     }
+    final active = current.entries.map((entry) => entry.id).toSet();
+    String? collectionReservation(SyncCollectionId collection) => preferences
+        .get('mitemite.v1.outgoing.${identity.id}.${collection.key}');
+    bool retiredParent(SyncCatalogEntry entry) {
+      final parent = entry.parent;
+      if (parent == null) return false;
+      final id = SyncCollectionId(
+        publisher: identity.id,
+        kind: entry.id.kind,
+        source: parent,
+      );
+      return !active.contains(id) && collectionReservation(id) != null;
+    }
+
     final kept = <int, SyncCatalog>{};
     final invalid = <int>[];
     final verified = <String>{};
@@ -104,6 +118,14 @@ final class SyncOwnedRetention {
                 canonicalSyncJson(catalog.toJson()) !=
                     canonicalSyncJson(current.toJson()))) {
           throw const SyncConflict();
+        }
+        if (current.completeSnapshot &&
+            number != current.sequence &&
+            catalog.entries.any(
+              (entry) => !active.contains(entry.id) || retiredParent(entry),
+            )) {
+          invalid.add(number);
+          continue;
         }
         for (final entry in catalog.entries) {
           if (entry.state != SyncPublicationState.active) continue;
@@ -159,6 +181,7 @@ final class SyncOwnedRetention {
           ],
     };
     final candidates = <String>[];
+    final retiredDirectories = <String>{};
     final remaining = maxDeletes - deleted;
     for (final kind in const ['bookmarks', 'following_topics']) {
       if (candidates.length > remaining) break;
@@ -187,6 +210,12 @@ final class SyncOwnedRetention {
             highWater > miteMiteMaxSequence) {
           throw const FormatException('Invalid retention reservation');
         }
+        final path = '$prefix/collections/$kind/$source';
+        if (current.completeSnapshot && !active.contains(collection)) {
+          candidates.add(path);
+          retiredDirectories.add(path);
+          continue;
+        }
         final cacheKey = 'mitemite.v1.outgoing.${collection.key}.published';
         final cache = preferences.get(cacheKey);
         captured[cacheKey] = cache;
@@ -200,7 +229,6 @@ final class SyncOwnedRetention {
           }
           protected.addAll([revision.payloadPath, revision.descriptorPath]);
         }
-        final path = '$prefix/collections/$kind/$source';
         final files =
             (await storage.list(path))
                 .where(
@@ -229,7 +257,21 @@ final class SyncOwnedRetention {
       }
     }
     for (final path in candidates.take(remaining)) {
-      await remove(path);
+      if (retiredDirectories.contains(path)) {
+        Future<void> removeDirectory() async {
+          checkCurrent();
+          await storage.deleteOwnedDirectory(path, owner: identity.id);
+          deleted++;
+        }
+
+        if (withDeletion case final serialize?) {
+          await serialize(removeDirectory);
+        } else {
+          await removeDirectory();
+        }
+      } else {
+        await remove(path);
+      }
     }
     return SyncRetentionResult(deleted, hasMore: candidates.length > remaining);
   }

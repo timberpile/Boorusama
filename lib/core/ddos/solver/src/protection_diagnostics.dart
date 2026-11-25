@@ -77,9 +77,19 @@ class ProtectionAttempt extends ProtectionTrace {
   /// The document the challenge browser loaded for [uri], if it loaded that
   /// exact page without being challenged.
   String? loadedPageFor(Uri uri) => switch (session?._loadedPage) {
-    (uri: final pageUri, :final html) when pageUri == uri => html,
+    (uri: final pageUri, :final body, publicJson: false) when pageUri == uri =>
+      body,
     _ => null,
   };
+
+  /// A fresh cookie-free browser response for this exact public GET.
+  String? publicJsonFor(Uri uri) => switch (session?._loadedPage) {
+    (uri: final pageUri, :final body, publicJson: true) when pageUri == uri =>
+      body,
+    _ => null,
+  };
+
+  bool get receivedPublicJson => session?._loadedPage?.publicJson ?? false;
 
   /// Each joined request selects independently from the browser's cookies.
   bool selectNextClearanceCookie() {
@@ -149,15 +159,20 @@ class ProtectionAttempt extends ProtectionTrace {
 }
 
 class ProtectionSession extends ProtectionTrace {
-  ProtectionSession({required super.host, required this.type, super.onEvent})
-    : id = ++_nextDiagnosticId;
+  ProtectionSession({
+    required super.host,
+    required this.type,
+    super.onEvent,
+    this.onDismissed,
+  }) : id = ++_nextDiagnosticId;
   final int id;
   final String type;
+  final void Function()? onDismissed;
   var _activeChecks = 0;
   Map<String, String>? _cookies;
   List<Cookie> _clearanceCookies = const [];
   String? _userAgent;
-  ({Uri uri, String html})? _loadedPage;
+  ({Uri uri, String body, bool publicJson})? _loadedPage;
   @override
   ProtectionScope get scope =>
       ProtectionScope(host: host, solverId: id, protectionType: type);
@@ -183,9 +198,9 @@ class ProtectionSession extends ProtectionTrace {
     record(CredentialsObserved(cookies.length, userAgent != null));
   }
 
-  void observeLoadedPage(Uri uri, String html) {
-    _loadedPage = (uri: uri, html: html);
-    record(LoadedPageKept(html.length));
+  void observeLoadedPage(Uri uri, String body, {bool publicJson = false}) {
+    _loadedPage = (uri: uri, body: body, publicJson: publicJson);
+    record(LoadedPageKept(body.length));
   }
 }
 

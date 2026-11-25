@@ -174,6 +174,7 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
         if (!mounted) return;
         final service = ref.read(currentMiteMiteServiceProvider);
         if (service == null ||
+            !service.enabled ||
             service.busy ||
             service.isReconciling ||
             service.events.pendingNotifications.isEmpty) {
@@ -193,6 +194,7 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
               identical(ref.read(currentMiteMiteServiceProvider), service) &&
               _foreground &&
               ref.read(miteMiteActivationProvider) &&
+              service.enabled &&
               !service.busy &&
               !service.isReconciling,
           requestPermission: notifications.requestDeviceNotificationPermission,

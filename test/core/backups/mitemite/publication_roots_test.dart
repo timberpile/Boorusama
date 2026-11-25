@@ -58,6 +58,24 @@ void main() {
       expect(decoded.offeredEntries.single.id.source, parent);
     },
   );
+  test('complete scope is versioned and requires an explicit root set', () {
+    final original = catalog({id(parent)}).toJson();
+    final decoded = SyncCatalog.fromJson({
+      ...original,
+      'publicationScopeVersion': 2,
+    });
+    expect(decoded.completeSnapshot, isTrue);
+    expect(decoded.toJson()['publicationScopeVersion'], 2);
+    expect(
+      () => SyncCatalog.fromJson(
+        {
+          ...original,
+          'publicationScopeVersion': 2,
+        }..remove('publicationRoots'),
+      ),
+      throwsFormatException,
+    );
+  });
   test('legacy catalog is not guessed from parent IDs', () {
     final legacy = SyncCatalog.fromJson(
       Map<String, dynamic>.from(catalog(null).toJson()),
@@ -73,7 +91,7 @@ void main() {
   test('unknown root schema, duplicate and missing roots fail closed', () {
     final original = catalog({id(parent)}).toJson();
     expect(
-      () => SyncCatalog.fromJson({...original, 'publicationScopeVersion': 2}),
+      () => SyncCatalog.fromJson({...original, 'publicationScopeVersion': 3}),
       throwsA(isA<SyncUpdateRequired>()),
     );
     expect(

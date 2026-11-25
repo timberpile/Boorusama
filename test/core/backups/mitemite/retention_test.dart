@@ -326,6 +326,9 @@ class _ReadFailure implements MiteMiteStorage {
   @override
   Future<void> deleteOwnedRevision(String path, {required String owner}) =>
       delegate.deleteOwnedRevision(path, owner: owner);
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      delegate.deleteOwnedDirectory(path, owner: owner);
 }
 
 class _AfterDelete implements MiteMiteStorage {
@@ -345,4 +348,8 @@ class _AfterDelete implements MiteMiteStorage {
     await delegate.deleteOwnedRevision(path, owner: owner);
     await changed();
   }
+
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      delegate.deleteOwnedDirectory(path, owner: owner);
 }

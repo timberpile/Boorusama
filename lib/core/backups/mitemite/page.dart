@@ -23,6 +23,7 @@ import 'catalog.dart';
 import 'local_events.dart';
 import 'protocol.dart';
 import 'providers.dart';
+import 'receive_units.dart';
 import 'service.dart';
 import 'following_actions.dart';
 import 'location_subtitle.dart';
@@ -209,16 +210,34 @@ class MiteMitePage extends ConsumerWidget {
                   await chooseSyncFolder(context, ref, service);
                 }),
         ),
-        if (service.failure case final failure?)
+        if (service.cleanupPending)
           ListTile(
             leading: const Icon(Icons.sync_problem),
-            title: Text(syncErrorMessage(context, failure)),
-          )
-        else if (service.followingFailure != null ||
+            title: Text(t.cleanup_pending),
+          ),
+        if (service.failure != null ||
+            service.followingFailure != null ||
             service.deviceFailures.isNotEmpty)
           ListTile(
             leading: const Icon(Icons.sync_problem),
-            title: Text(t.partial),
+            title: Text(
+              switch (service.failure) {
+                final Object failure => syncErrorMessage(context, failure),
+                null => t.partial,
+              },
+            ),
+            subtitle:
+                service.failure == null ||
+                    service.failure is SyncPartialReceiveFailure
+                ? Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      onPressed: () =>
+                          _showPartialSyncDetails(context, service),
+                      child: Text(t.view_error_details),
+                    ),
+                  )
+                : null,
           ),
         ListTile(
           title: Text(t.local_identity),
@@ -363,6 +382,20 @@ class MiteMitePage extends ConsumerWidget {
         title: Text(title),
         actions: [
           if (section == null)
+            Tooltip(
+              message: t.sync_enabled,
+              child: Semantics(
+                label: t.sync_enabled,
+                child: Switch(
+                  value: service.enabled,
+                  onChanged: service.isActionPending('enabled')
+                      ? null
+                      : (enabled) =>
+                            changeMiteMiteEnabled(context, service, enabled),
+                ),
+              ),
+            ),
+          if (section == null)
             IconButton(
               tooltip: t.sync_now,
               icon: service.isReconciling
@@ -374,7 +407,9 @@ class MiteMitePage extends ConsumerWidget {
                       ),
                     )
                   : const Icon(Icons.sync),
-              onPressed: !service.configured
+              onPressed:
+                  !service.cleanupPending &&
+                      (!service.configured || !service.enabled)
                   ? null
                   : () => runCurrentSyncAction(
                       context,
@@ -1049,4 +1084,80 @@ class MiteMitePage extends ConsumerWidget {
         ),
     ];
   }
+}
+
+Future<void> _showPartialSyncDetails(
+  BuildContext context,
+  MiteMiteService service,
+) async {
+  final t = context.t;
+  final details = [
+    if (service.failure case final SyncPartialReceiveFailure failure)
+      _syncErrorDetails(failure),
+    if (service.followingFailure case final failure?)
+      '${t.mitemite.following_category}\n${_syncErrorDetails(failure)}',
+    for (final MapEntry(key: publisher, value: failure)
+        in service.deviceFailures.entries)
+      '${t.mitemite.device_id} $publisher\n${_syncErrorDetails(failure)}',
+  ].join('\n\n');
+  if (details.isEmpty) return;
+
+  await showDialog<void>(
+    context: context,
+    builder: (context) => KurumiDialog(
+      screenInset: 16,
+      semanticLabel: t.mitemite.error_details,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            t.mitemite.error_details,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          Flexible(
+            child: SingleChildScrollView(child: SelectableText(details)),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(t.generic.done),
+              ),
+              FilledButton.icon(
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: details)),
+                icon: const Icon(Icons.copy),
+                label: Text(t.post.action.copy),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String _syncErrorDetails(Object error) {
+  if (error case SyncPartialReceiveFailure(
+    :final sourceKind,
+    :final failures,
+  )) {
+    return [
+      sourceKind,
+      for (final MapEntry(key: source, value: failure) in failures.entries)
+        '$source\n${_syncErrorDetails(failure)}',
+    ].join('\n');
+  }
+  if (error case FormatException(:final message, :final offset)) {
+    // FormatException.toString can include the original shared document.
+    final location = offset == null ? '' : ' (at offset $offset)';
+    return '${error.runtimeType}: $message$location';
+  }
+  return error.toString();
 }

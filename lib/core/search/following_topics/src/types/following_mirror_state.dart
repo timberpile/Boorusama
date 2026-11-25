@@ -481,6 +481,7 @@ abstract interface class FollowingMirrorStore {
     required List<FollowingTopic> topics,
     required TopicOrganization organization,
     Set<String> removeTopicIds = const {},
+    Set<String> purgedSources = const {},
   });
   Future<void> acknowledgeMirrorDefinition(
     String localId, {

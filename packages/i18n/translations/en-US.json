@@ -2319,6 +2319,9 @@
   "captcha": {
     "title": "Solve the captcha",
     "i_have_solved_it": "I have solved it",
+    "verification_title": "Site verification",
+    "checking_public_response": "Checking the bookmark request…",
+    "clearance_missing": "The site still blocks the app’s request. Close verification to return.",
     "blocked_by_site": "This site blocked access from your network. Try turning off your VPN or proxy, or switching networks."
   },
   "select": {
@@ -3102,9 +3105,11 @@
     "receive": "Subscriptions",
     "activity": "Activity",
     "sync_now": "Update Now",
+    "sync_enabled": "Enable MiteMite",
+    "cleanup_pending": "Shared folder cleanup is pending. Use Update Now to retry.",
     "ready": "Ready",
     "working": "Updating…",
-    "failed": "Sync could not finish. Check the shared folder and its permissions.",
+    "failed": "Sync could not finish.",
     "empty_devices": "No devices found.",
     "empty_publication": "No collections published",
     "trust": "Trust Device",
@@ -3162,6 +3167,8 @@
     "event_copied": "Local copy created",
     "event_changes": "Added: $added · Removed: $removed",
     "partial": "Some updates could not finish. Existing content is preserved.",
+    "view_error_details": "Details",
+    "error_details": "Sync Error Details",
     "permission_required": "Shared-folder permission required",
     "invalid_data": "Invalid or incomplete Sync data; existing content is preserved.",
     "conflict": "Conflict; received content was not overwritten.",
@@ -3179,6 +3186,7 @@
     "rollback_rejected": "An older revision was rejected. Existing content is preserved.",
     "revision_unavailable": "The advertised revision is not available yet. Try again after the folder finishes syncing.",
     "storage_failed": "The storage provider could not finish the operation. Try again.",
+    "share_too_large": "This share is too large to sync. Try sharing smaller groups separately.",
     "maintenance_pending": "Storage Maintenance Pending",
     "maintenance_pending_detail": "Old publication files could not yet be cleaned. Current publications and received data are preserved."
   }

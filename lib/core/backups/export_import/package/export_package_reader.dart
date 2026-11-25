@@ -130,8 +130,11 @@ class ExportPackageReader {
 
   void _validateHeaders(ZipDecoder decoder) {
     final headers = decoder.directory.fileHeaders;
-    if (headers.isEmpty || headers.length > limits.maxFileCount) {
+    if (headers.isEmpty) {
       throw const ExportPackageException('Archive file count is invalid');
+    }
+    if (headers.length > limits.maxFileCount) {
+      throw const ExportPackageLimitException('Too many archive entries');
     }
     final paths = <String>{};
     var totalExpandedBytes = 0;
@@ -148,13 +151,17 @@ class ExportPackageReader {
       if (header.compressionMethod != 0 && header.compressionMethod != 8) {
         throw const ExportPackageException('Unsupported ZIP compression');
       }
-      if (header.uncompressedSize < 0 ||
-          header.uncompressedSize > limits.maxPartBytes) {
-        throw const ExportPackageException('Archive entry is too large');
+      if (header.uncompressedSize < 0) {
+        throw const ExportPackageException('Invalid archive entry size');
+      }
+      if (header.uncompressedSize > limits.maxPartBytes) {
+        throw const ExportPackageLimitException('Archive entry is too large');
       }
       totalExpandedBytes += header.uncompressedSize;
       if (totalExpandedBytes > limits.maxExpandedBytes) {
-        throw const ExportPackageException('Expanded archive is too large');
+        throw const ExportPackageLimitException(
+          'Expanded archive is too large',
+        );
       }
       if (header.uncompressedSize > 0 &&
           (header.compressedSize == 0 ||

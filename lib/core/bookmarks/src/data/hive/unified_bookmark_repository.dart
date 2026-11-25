@@ -583,11 +583,20 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     List<BookmarkGroup> groups = const [],
     Set<String> removeGroupIds = const {},
     bool localCopy = false,
+    Set<String> purgedSources = const {},
   }) => _ready(() async {
     final current = _mirrors();
     if (!_same(current.toJson(), expected.toJson()) ||
         next.epoch != expected.epoch + 1 ||
-        !next.activity.follows(expected.activity)) {
+        purgedSources.any(
+          (key) =>
+              !expected.checkpoints.containsKey(key) ||
+              next.checkpoints.containsKey(key),
+        ) ||
+        !next.activity.follows(
+          expected.activity,
+          purgedSources: purgedSources,
+        )) {
       throw StateError('Bookmark mirror state changed before commit');
     }
     await _mutate(
@@ -597,6 +606,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       removedOrganizationGroups: removeGroupIds,
       mirrorState: next,
       localCopy: localCopy,
+      purgedSources: purgedSources,
     );
   });
 
@@ -697,6 +707,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     bool restoreLocalPreimage = false,
     BookmarkMirrorState? mirrorState,
     bool localCopy = false,
+    Set<String> purgedSources = const {},
   }) async {
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
@@ -775,6 +786,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       mirrorState,
       normalized,
       localCopy: localCopy,
+      purgedSources: purgedSources,
     );
     if (upserts.isEmpty &&
         deletes.isEmpty &&

@@ -31,6 +31,7 @@ enum SyncFailureKind {
   conflict,
   retryableIo,
   invalidData,
+  sizeLimit,
   unknown,
 }
 
@@ -305,7 +306,29 @@ final class SyncActivityLog extends Equatable {
     );
   }
 
-  bool follows(SyncActivityLog previous) {
+  SyncActivityLog withoutSources(Set<String> sources) {
+    if (sources.isEmpty) return this;
+    return SyncActivityLog._(
+      sequence,
+      entries,
+      notificationCursor: notificationCursor,
+      pendingPosts: pendingPosts.where(
+        (record) => !sources.contains(
+          '${record.event.publisher}/${record.event.source}',
+        ),
+      ),
+      notificationKnown: {
+        for (final entry in notificationKnown.entries)
+          if (!sources.contains(entry.key)) entry.key: entry.value,
+      },
+      notificationState: _notificationState,
+    );
+  }
+
+  bool follows(
+    SyncActivityLog previous, {
+    Set<String> purgedSources = const {},
+  }) {
     if (sequence < previous.sequence ||
         notificationCursor < previous.notificationCursor ||
         previous._notificationState && !_notificationState) {
@@ -322,6 +345,7 @@ final class SyncActivityLog extends Equatable {
       return false;
     }
     for (final entry in previous.notificationKnown.entries) {
+      if (purgedSources.contains(entry.key)) continue;
       if (!(notificationKnown[entry.key] ?? const <String>{}).containsAll(
         entry.value,
       )) {
@@ -334,6 +358,9 @@ final class SyncActivityLog extends Equatable {
     return previous.pendingPosts.every(
       (record) =>
           record.sequence <= notificationCursor ||
+          purgedSources.contains(
+            '${record.event.publisher}/${record.event.source}',
+          ) ||
           pending[record.sequence] == record,
     );
   }

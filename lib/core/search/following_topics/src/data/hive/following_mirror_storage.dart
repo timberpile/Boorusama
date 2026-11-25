@@ -146,6 +146,7 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
     required List<FollowingTopic> topics,
     required TopicOrganization organization,
     Set<String> removeTopicIds = const {},
+    Set<String> purgedSources = const {},
   }) async {
     final journal = _followingJournal;
     final storage = _organizationBox;
@@ -156,7 +157,15 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
     if (current.mirrors != expected ||
         current.structureDigest != expectedStructureDigest ||
         next.epoch != expected.epoch + 1 ||
-        !next.activity.follows(expected.activity)) {
+        purgedSources.any(
+          (key) =>
+              !expected.checkpoints.containsKey(key) ||
+              next.checkpoints.containsKey(key),
+        ) ||
+        !next.activity.follows(
+          expected.activity,
+          purgedSources: purgedSources,
+        )) {
       throw const FollowingMirrorConflict();
     }
     final currentDigests = followingSnapshotDefinitionDigests(current);
@@ -168,6 +177,7 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
     for (final entry in expected.checkpoints.entries) {
       final after = next.checkpoints[entry.key];
       final before = entry.value;
+      if (after == null && purgedSources.contains(entry.key)) continue;
       if (after == null ||
           after.kind != before.kind ||
           after.revision < before.revision ||

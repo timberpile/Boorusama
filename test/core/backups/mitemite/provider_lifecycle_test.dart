@@ -26,6 +26,7 @@ import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/receive_units.dart';
 import 'package:boorusama/core/backups/mitemite/storage.dart';
 import 'package:boorusama/core/backups/mitemite/service.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
@@ -37,6 +38,7 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -570,6 +572,145 @@ void main() {
     },
   );
 
+  testWidgets('MiteMite partial status opens and copies current sync errors', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 480);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final source = _ServiceSource(library);
+    await tester.pumpWidget(
+      _testApp(
+        library,
+        [
+          source.override,
+          bookmarkProvider.overrideWith(() => _SnapshotLibrary(_emptyLibrary)),
+        ],
+        const MiteMitePage(),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MiteMitePage)),
+    );
+    final service = (await tester.runAsync(
+      () => source.complete(container, pump: false),
+    ))!;
+    service.deviceFailures = {'publisher-a': StateError('Previous failure')};
+    service.followingFailure = StateError('Could not read the Following store');
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Some updates could not finish. Existing content is preserved.',
+      ),
+      findsOneWidget,
+    );
+
+    // Details must read the current errors even if the status did not rebuild.
+    service.deviceFailures = {
+      'publisher-a': SyncPartialReceiveFailure('bookmarks', {
+        'group-1': const FormatException(
+          'Invalid membership',
+          'Raw shared document',
+          3,
+        ),
+        'group-2': StateError('Could not open revision'),
+      }),
+      'publisher-b': StateError('Directory listing failed'),
+    };
+    String? copied;
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await tester.scrollUntilVisible(find.text('Details'), 100);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sync Error Details'), findsOneWidget);
+    final details = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(details.data, contains('Following\nBad state: Could not read'));
+    expect(details.data, contains('publisher-a\nbookmarks'));
+    expect(
+      details.data,
+      contains('group-1\nFormatException: Invalid membership'),
+    );
+    expect(
+      details.data,
+      contains('group-2\nBad state: Could not open revision'),
+    );
+    expect(
+      details.data,
+      contains('publisher-b\nBad state: Directory listing failed'),
+    );
+    expect(details.data, isNot(contains('Previous failure')));
+    expect(details.data, isNot(contains('Raw shared document')));
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
+    expect(copied, details.data);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectableText), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('MiteMite header switch works at narrow width and large text', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final source = _ServiceSource(library);
+    await tester.pumpWidget(
+      _testApp(
+        library,
+        [
+          source.override,
+          bookmarkProvider.overrideWith(() => _SnapshotLibrary(_emptyLibrary)),
+        ],
+        const MediaQuery(
+          data: MediaQueryData(
+            size: Size(320, 800),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: MiteMitePage(),
+        ),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MiteMitePage)),
+    );
+    final service = (await tester.runAsync(
+      () => source.complete(container, pump: false),
+    ))!;
+    await tester.pumpAndSettle();
+    final control = find.descendant(
+      of: find.byType(KurumiAppBar),
+      matching: find.byType(Switch),
+    );
+    expect(tester.widget<Switch>(control).value, isTrue);
+    await tester.tap(control);
+    await _pumpUntil(
+      tester,
+      () => !service.enabled && !service.isActionPending('enabled'),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(control).value, isFalse);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'management shows replacement loading and failure without using previous data',
     (tester) async {
@@ -923,6 +1064,10 @@ class _ObsoleteStorage implements MiteMiteStorage {
     calls.add(invocation);
     throw StateError('Obsolete transport I/O');
   }
+
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      throw UnsupportedError('Directory cleanup');
 }
 
 Future<void> _pumpUntil(WidgetTester tester, bool Function() complete) async {

@@ -45,20 +45,23 @@ class WebsiteLogo extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final url = this.url;
     final required = ref.watch(contentAccessRequiredProvider);
     final key = ref.watch(currentContentAccessKeyProvider);
     final access = key == null
         ? null
         : ref.watch(contentAccessContextProvider(key));
-    final publicSource = access?.config?.anonymousReadScope?.source;
+    final publicScope = access?.config?.anonymousReadScope;
     final trustedPublicIcon =
-        publicSource != null &&
-        PostSource.from(publicSource.site.toString()).whenWeb(
-          (source) => source.faviconUrl == this.url,
-          () => false,
-        );
-    // Reuse the registered site's existing favicon through the dedicated,
-    // credential-free icon client. Imported/custom icon URLs grant no access.
+        publicScope != null &&
+        publicScope.isCurrent &&
+        (PostSource.from(publicScope.source.site.toString()).whenWeb(
+              (source) => source.faviconUrl == url,
+              () => false,
+            ) ||
+            _usesFaviconService(url));
+    // Source links can use the standard favicon service. Arbitrary icon URLs
+    // from an imported bookmark do not grant a new network destination.
     if (required &&
         (access == null || (key?.profileId == null && !trustedPublicIcon))) {
       return SizedBox.square(dimension: size, child: _buildFallback());
@@ -70,7 +73,6 @@ class WebsiteLogo extends ConsumerWidget {
         : ref.watch(
             contentMediaCacheManagerProvider((manager: delegate, access: key)),
           );
-    final url = this.url;
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
     );
@@ -110,6 +112,17 @@ class WebsiteLogo extends ConsumerWidget {
         _ => _buildFallback(),
       },
     );
+  }
+
+  bool _usesFaviconService(String? url) {
+    final uri = Uri.tryParse(url ?? '');
+    if (uri == null ||
+        uri.host != 'www.google.com' ||
+        uri.path != '/s2/favicons') {
+      return false;
+    }
+    final domain = uri.queryParameters['domain'];
+    return domain != null && isWebSource(domain) && getFavicon(domain) == url;
   }
 
   Widget _buildFallback() {

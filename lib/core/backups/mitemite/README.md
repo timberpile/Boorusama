@@ -5,9 +5,8 @@ Bookmark Groups and Following Topics/folders/Feeds. Each device can publish its 
 collections and receive another device's collections through a user-selected shared
 directory. Received definitions are source-owned and read-only; this is **not**
 bidirectional editing. MiteMite naming applies to source paths, feature-specific
-symbols, localization, native channels and persisted identifiers. This feature
-has not shipped; the owner approved renaming all identifiers without a naming
-migration, compatibility aliases or fallback to the previous development state.
+symbols, localization, native channels and persisted identifiers. MiteMite
+first shipped in Boorusama Timber v4.6.1-timberpile.4.
 
 **Status:** Integrated into `develop` after owner approval for #144. See the
 [canonical v5 specification](../../../../docs/designs/2026-11-03-folder-based-collection-sync.md),
@@ -17,6 +16,27 @@ migration, compatibility aliases or fallback to the previous development state.
 and [verification handoff](../../../../docs/handoffs/144-interrupted-web-remediation-2026-11-14.md).
 Those documents supersede historical implementation notes. This README describes
 the current integration, not an independent test or release approval.
+
+## Removing shares and recovering the folder
+
+Updated publishers advertise their complete current set in signed catalog
+scope version 2. Subscribers on updated apps remove uncovered mirrors after
+verifying a catalog that omits them. A saved direct subscription retains its
+source ID so a later publication of the same source can reconnect. Older
+catalogs retain their explicit withdrawal rules. Older apps need an update to
+interpret scope version 2.
+
+The publisher removes obsolete catalogs and retired collection directories only
+after committing the new signed catalog. Turning MiteMite off stops normal
+sync and deletes this device's directory. Pending deletion survives restart.
+Turning it back on reuses the saved configuration. A missing remote device
+preserves received copies and trust, and Forget Device clears those copies
+and subscriptions. Enabled devices rebuild all active missing revisions after
+a folder wipe when the selected location is accessible.
+
+Host tests exercise two independent libraries against a shared desktop folder.
+The Android SAF cleanup instrumentation suite builds. Live Android and
+file-replication acceptance are pending.
 
 ## Application and management flow
 

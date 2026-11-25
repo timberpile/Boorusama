@@ -606,7 +606,7 @@ void main() {
     snapshot = await repository.readMirrorSnapshot();
     expect(snapshot.mirrors.owners, isEmpty);
     expect(snapshot.mirrors.subscriptions, isEmpty);
-    expect(snapshot.mirrors.checkpoints, hasLength(2));
+    expect(snapshot.mirrors.checkpoints, isEmpty);
     expect(snapshot.topics, hasLength(2));
     expect((await repository.getById(copiedId))!.name, 'Independent');
   });

@@ -1,3 +1,4 @@
+import '../export_import/package/export_package_exception.dart';
 import 'activity_log.dart';
 import 'receive_units.dart';
 
@@ -33,7 +34,7 @@ final class SyncBookmarkMirrorEngine {
     required this.preparation,
     DateTime Function()? now,
     String Function()? newId,
-    this.maxPreparedBytes = 64 * 1024 * 1024,
+    this.maxPreparedBytes = miteMiteMaxBookmarkBatchPreparationBytes,
     this.ensureCurrent,
   }) : now = now ?? DateTime.now,
        newId = newId ?? (() => const Uuid().v4().toLowerCase()) {
@@ -179,7 +180,7 @@ final class SyncBookmarkMirrorEngine {
     };
     for (final root in unitRoots) {
       final entry = entries[root];
-      if (entry == null) {
+      if (entry == null && !catalog.completeSnapshot) {
         throw const SyncConflict();
       }
     }
@@ -196,12 +197,12 @@ final class SyncBookmarkMirrorEngine {
       ],
       directRoots: {
         for (final root in unitRoots)
-          if (entries[root]!.state == SyncPublicationState.active) root,
+          if (entries[root]?.state == SyncPublicationState.active) root,
       },
     );
     final withdrawnRoots = {
       for (final root in unitRoots)
-        if (entries[root]!.state != SyncPublicationState.active) root,
+        if (entries[root]?.state != SyncPublicationState.active) root,
     };
     bool lostThroughWithdrawal(String source) {
       final seen = <String>{};
@@ -215,11 +216,21 @@ final class SyncBookmarkMirrorEngine {
 
     for (final prior in owned.values) {
       final entry = entries[prior.value.source];
-      if (entry == null && !lostThroughWithdrawal(prior.value.source)) {
+      if (!catalog.completeSnapshot &&
+          entry == null &&
+          !lostThroughWithdrawal(prior.value.source)) {
         // Missing metadata never carries signed deletion authority.
         throw const SyncConflict();
       }
     }
+    final purgedSources = {
+      if (catalog.completeSnapshot)
+        for (final checkpoint in initial.checkpoints.values)
+          if (checkpoint.publisher == ticket.publisher &&
+              (sourceUnit == null || sourceUnit.contains(checkpoint.source)) &&
+              !entries.containsKey(checkpoint.source))
+            checkpoint.sourceKey,
+    };
     final retired = <String, BookmarkMirrorOwner>{};
     for (final entry in entries.values) {
       if (sourceUnit != null && !sourceUnit.contains(entry.id.source)) continue;
@@ -269,7 +280,9 @@ final class SyncBookmarkMirrorEngine {
       }
       advertisedBytes += revision.length;
       if (advertisedBytes > maxPreparedBytes) {
-        throw const FormatException('Sync batch exceeds preparation budget');
+        throw const ExportPackageLimitException(
+          'Sync batch exceeds preparation budget',
+        );
       }
       final value = await preparation.prepare(
         catalog: ticket,
@@ -280,7 +293,9 @@ final class SyncBookmarkMirrorEngine {
       if (value == null) throw const SyncRevisionUnavailable();
       retainedBytes += value.package.retainedByteLength;
       if (retainedBytes > maxPreparedBytes) {
-        throw const FormatException('Sync batch exceeds preparation budget');
+        throw const ExportPackageLimitException(
+          'Sync batch exceeds preparation budget',
+        );
       }
       prepared[source] = value;
     }
@@ -533,10 +548,13 @@ final class SyncBookmarkMirrorEngine {
           );
         }
         final next = BookmarkMirrorState(
-          activity: current.activity.append(changes, observedMembers: observed),
+          activity: current.activity
+              .append(changes, observedMembers: observed)
+              .withoutSources(purgedSources),
           epoch: current.epoch + 1,
           owners: nextOwners,
-          checkpoints: {...current.checkpoints, ...retired},
+          checkpoints: {...current.checkpoints, ...retired}
+            ..removeWhere((key, _) => purgedSources.contains(key)),
           subscriptions: {...current.subscriptions, ticket.publisher: roots},
           publisherNames: {
             ...current.publisherNames,
@@ -559,6 +577,7 @@ final class SyncBookmarkMirrorEngine {
           records: writes,
           groups: updated,
           removeGroupIds: removeGroups,
+          purgedSources: purgedSources,
           removeIds: removedMembers,
         );
       }),
@@ -707,30 +726,38 @@ final class SyncBookmarkMirrorEngine {
     } else {
       subscriptions[publisher] = roots;
     }
+    final purgedSources = {
+      if (forget)
+        for (final checkpoint in current.checkpoints.values)
+          if (checkpoint.publisher == publisher) checkpoint.sourceKey,
+    };
     await mirrors.commitMirrorOrganization(
       expected: current,
       next: BookmarkMirrorState(
-        activity: current.activity.append([
-          if (forget && !current.forgotten.contains(publisher))
-            SyncEvent(
-              kind: SyncEventKind.forgotten,
-              at: now(),
-              publisher: publisher,
-            ),
-          if (!forget)
-            for (final source
-                in (current.subscriptions[publisher] ?? const <String>{})
-                    .difference(roots))
-              SyncEvent(
-                kind: SyncEventKind.unsubscribed,
-                at: now(),
-                publisher: publisher,
-                source: source,
-              ),
-        ]),
+        activity: current.activity
+            .append([
+              if (forget && !current.forgotten.contains(publisher))
+                SyncEvent(
+                  kind: SyncEventKind.forgotten,
+                  at: now(),
+                  publisher: publisher,
+                ),
+              if (!forget)
+                for (final source
+                    in (current.subscriptions[publisher] ?? const <String>{})
+                        .difference(roots))
+                  SyncEvent(
+                    kind: SyncEventKind.unsubscribed,
+                    at: now(),
+                    publisher: publisher,
+                    source: source,
+                  ),
+            ])
+            .withoutSources(purgedSources),
         epoch: current.epoch + 1,
         owners: owners,
-        checkpoints: current.checkpoints,
+        checkpoints: {...current.checkpoints}
+          ..removeWhere((key, _) => purgedSources.contains(key)),
         subscriptions: subscriptions,
         publisherNames: names,
         aliases: aliases,
@@ -740,6 +767,7 @@ final class SyncBookmarkMirrorEngine {
       ),
       groups: changed,
       removeGroupIds: remove,
+      purgedSources: purgedSources,
       removeIds: orphaned,
     );
   }

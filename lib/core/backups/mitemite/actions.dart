@@ -87,6 +87,7 @@ String syncFailureMessage(BuildContext context, SyncFailureKind failure) {
     SyncFailureKind.conflict => t.conflict,
     SyncFailureKind.retryableIo => t.storage_failed,
     SyncFailureKind.invalidData => t.invalid_data,
+    SyncFailureKind.sizeLimit => t.share_too_large,
     SyncFailureKind.unknown => t.failed,
   };
 }
@@ -124,6 +125,24 @@ Future<void> runCurrentSyncAction(
   if (context.mounted && isCurrentSyncService(context, service)) await action();
 });
 
+Future<void> changeMiteMiteEnabled(
+  BuildContext context,
+  MiteMiteService service,
+  bool enabled,
+) => runCurrentSyncAction(context, service, () async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final activation = container.read(miteMiteActivationProvider.notifier);
+  try {
+    await service.setEnabled(enabled);
+  } finally {
+    if (activation.mounted &&
+        identical(container.read(currentMiteMiteServiceProvider), service)) {
+      activation.state =
+          service.configured && (service.enabled || service.cleanupPending);
+    }
+  }
+});
+
 Future<bool> chooseSyncFolder(
   BuildContext context,
   WidgetRef ref,
@@ -144,7 +163,8 @@ Future<bool> chooseSyncFolder(
     if (context.mounted &&
         isCurrentSyncService(context, service) &&
         service.configured) {
-      ref.read(miteMiteActivationProvider.notifier).state = true;
+      ref.read(miteMiteActivationProvider.notifier).state =
+          service.enabled || service.cleanupPending;
     }
   }
   return service.configured;

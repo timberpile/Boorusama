@@ -161,4 +161,7 @@ final class _Storage implements MiteMiteStorage {
     String path, {
     required String owner,
   }) async => throw StateError('No deletion authority');
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
+      throw UnsupportedError('Directory cleanup');
 }

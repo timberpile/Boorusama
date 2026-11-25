@@ -13,8 +13,11 @@ import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/ddos/handler/providers.dart';
+import 'package:boorusama/core/debug/data.dart';
+import 'package:boorusama/core/debug/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/foundation/platform.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -93,6 +96,14 @@ ProviderContainer makeContainer({bool allowDio = false}) => ProviderContainer(
     httpDdosProtectionBypassProvider.overrideWith(
       (ref) => throw StateError('Unexpected bypass read'),
     ),
+    if (allowDio) ...[
+      appPlatformProvider.overrideWithValue(AppPlatform.linux),
+      appLoggerProvider.overrideWith((ref) {
+        final logger = AppLogger();
+        ref.onDispose(logger.dispose);
+        return logger;
+      }),
+    ],
     defaultUserAgentProvider.overrideWith(
       (ref) => allowDio
           ? 'fixture-agent'

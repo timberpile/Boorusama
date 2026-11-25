@@ -87,6 +87,7 @@ class HiveFollowingTopicRepository
     required List<FollowingTopic> topics,
     required TopicOrganization organization,
     Set<String> removeTopicIds = const {},
+    Set<String> purgedSources = const {},
   }) => _serialize(
     () => _commitFollowingMirrors(
       expected: expected,
@@ -95,6 +96,7 @@ class HiveFollowingTopicRepository
       topics: topics,
       organization: organization,
       removeTopicIds: removeTopicIds,
+      purgedSources: purgedSources,
     ),
   );
 

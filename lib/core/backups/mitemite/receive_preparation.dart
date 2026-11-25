@@ -74,7 +74,7 @@ final class SyncReceivePreparation {
     required VerifiedSyncCatalog catalog,
     required SyncCollectionId collection,
     required List<int> publisherKey,
-    int maxPreparedBytes = 64 * 1024 * 1024,
+    int maxPreparedBytes = miteMiteMaxBookmarkPackagePreparationBytes,
   }) async {
     final key = List<int>.unmodifiable(publisherKey);
     if (collection.publisher != catalog.publisher ||

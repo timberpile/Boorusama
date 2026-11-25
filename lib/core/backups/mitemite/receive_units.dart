@@ -89,8 +89,8 @@ List<Set<String>> syncReceiveUnits({
 
   ({...roots, ...old.keys, ...scope.covered}).forEach(add);
   for (final id in checkpoints) {
-    if (entries[id] != null &&
-        entries[id]!.state != SyncPublicationState.active) {
+    if (entries[id]?.state != SyncPublicationState.active &&
+        (catalog.completeSnapshot || entries.containsKey(id))) {
       add(id);
     }
   }

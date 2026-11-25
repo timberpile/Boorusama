@@ -37,6 +37,7 @@ class ProtectionOrchestrator {
     Uri challengeUri,
     ProtectionDetector? Function() detectProtection,
     ProtectionAttempt? attempt,
+    void Function()? onDismissed,
   ) async {
     if (challengeUri.origin != uri.origin) {
       throw ArgumentError.value(
@@ -76,6 +77,7 @@ class ProtectionOrchestrator {
       host: uri.host,
       type: detector.protectionType,
       onEvent: attempt?.onEvent,
+      onDismissed: onDismissed,
     );
     attempt?.session = session;
     attempt?.record(
@@ -139,12 +141,14 @@ class ProtectionOrchestrator {
     HttpError error, {
     ProtectionAttempt? attempt,
     Uri? challengeUri,
+    void Function()? onDismissed,
   }) {
     return _handleProtection(
       error.requestUri,
       challengeUri ?? error.requestUri,
       () => _detectError(error, attempt),
       attempt,
+      onDismissed,
     );
   }
 
@@ -174,6 +178,7 @@ class ProtectionOrchestrator {
     HttpResponse response, {
     ProtectionAttempt? attempt,
     Uri? challengeUri,
+    void Function()? onDismissed,
   }) {
     final responseDetectors = _detectors
         .where((d) => d.detectionPhase == DetectionPhase.response)
@@ -197,6 +202,7 @@ class ProtectionOrchestrator {
         return null;
       },
       attempt,
+      onDismissed,
     );
   }
 

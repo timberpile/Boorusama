@@ -12,11 +12,13 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
     required this.delegate,
     required this.source,
     required this.current,
+    this.prepareHeaders,
   });
 
   final HttpClientAdapter delegate;
   final AnonymousSource source;
   final bool Function() current;
+  final Future<Map<String, dynamic>> Function(RequestOptions)? prepareHeaders;
   var _closed = false;
 
   @override
@@ -43,8 +45,15 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
         );
       }
       // Native/IO automatic redirect following must never bypass this guard.
+      final Map<String, dynamic>? headers;
+      if (prepareHeaders case final prepare?) {
+        headers = await prepare(request);
+        _requireCurrent(options);
+      } else {
+        headers = null;
+      }
       final body = await delegate.fetch(
-        request.copyWith(followRedirects: false),
+        request.copyWith(headers: headers, followRedirects: false),
         null,
         cancelFuture,
       );

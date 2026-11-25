@@ -161,7 +161,7 @@ void main() {
 
   for (final kind in ['bookmarks', 'following_topics']) {
     test(
-      '$kind publication ignores historical withdrawal parent cycles',
+      '$kind unpublishes a child and can reparent its still-published ancestor',
       () async {
         const child = futureId;
         Future<void> organize({
@@ -221,22 +221,22 @@ void main() {
             .singleWhere((d) => d.id == a.identity.id)
             .catalog!;
         expect(
-          withdrawn.entries.singleWhere((e) => e.id.source == child).state,
-          SyncPublicationState.withdrawn,
+          withdrawn.entries.any((e) => e.id.source == child),
+          isFalse,
         );
         await organize(rootParent: child, childParent: null);
         await b.service.synchronize();
         final catalog = b.service.devices
             .singleWhere((d) => d.id == a.identity.id)
             .catalog!;
-        expect(catalog.sequence, greaterThan(withdrawn.sequence));
+        expect(catalog.sequence, greaterThanOrEqualTo(withdrawn.sequence));
         expect(
           catalog.entries.singleWhere((e) => e.id.source == rootId).parent,
-          child,
+          isNot(child),
         );
         expect(
-          catalog.entries.singleWhere((e) => e.id.source == child).parent,
-          rootId,
+          catalog.entries.any((e) => e.id.source == child),
+          isFalse,
         );
         if (kind == 'bookmarks') {
           expect(
@@ -245,18 +245,18 @@ void main() {
           );
           expect(
             b.service.receiverMirrors!.checkpoints.values.any(
-              (o) => o.source == child && o.retired,
+              (o) => o.source == child,
             ),
-            isTrue,
+            isFalse,
           );
         } else {
           final snapshot = await b.following.readMirrorSnapshot();
           expect(snapshot.mirrors.owners.values.map((o) => o.source), [rootId]);
           expect(
             snapshot.mirrors.checkpoints.values.any(
-              (o) => o.source == child && o.retired,
+              (o) => o.source == child,
             ),
-            isTrue,
+            isFalse,
           );
         }
         // A global catalog must continue to serve unrelated domain changes.
@@ -849,6 +849,175 @@ void main() {
     await b.service.forget(a.identity.id);
     expect(b.service.collectionAliases, isEmpty);
   });
+
+  test('unsharing leaves only subscription IDs and re-sharing uses fresh revisions', () async {
+    await publishAndReceive();
+    final transport = DirectoryMiteMiteStorage('${directory.path}/shared');
+    final initial = b.service.devices
+        .singleWhere((d) => d.id == a.identity.id)
+        .catalog!;
+    await a.service.stopPublishingGroup(rootId);
+    await a.service.stopPublishingFollowing(rootId);
+    await a.service.synchronize(trigger: SyncTrigger.audit);
+    await a.service.synchronize(trigger: SyncTrigger.audit);
+    for (final kind in syncSourceKinds) {
+      expect(
+        await transport.list('devices/${a.identity.id}/collections/$kind'),
+        isEmpty,
+      );
+    }
+    for (final name in await transport.list(
+      'devices/${a.identity.id}/catalog',
+    )) {
+      final path = 'devices/${a.identity.id}/catalog/$name';
+      final document = await verifySyncDocument(
+        (await transport.read(path))!,
+        a.identity.publicKey,
+      );
+      expect(SyncCatalog.fromJson(document).entries, isEmpty);
+    }
+    await b.service.synchronize();
+    final bookmarks = await b.bookmarks.readMirrorState();
+    final following = (await b.following.readMirrorSnapshot()).mirrors;
+    expect(bookmarks.owners, isEmpty);
+    expect(bookmarks.checkpoints, isEmpty);
+    expect(following.owners, isEmpty);
+    expect(following.checkpoints, isEmpty);
+    expect(bookmarks.subscriptions[a.identity.id], {rootId});
+    expect(following.subscriptions[a.identity.id], {rootId});
+
+    await a.service.publishGroup(rootId);
+    await a.service.publishFollowing(rootId);
+    await b.service.synchronize();
+    final restored = b.service.devices
+        .singleWhere((d) => d.id == a.identity.id)
+        .catalog!;
+    for (final entry in initial.entries) {
+      expect(
+        restored.entries
+            .singleWhere((e) => e.id == entry.id)
+            .revision!
+            .revision,
+        greaterThan(entry.revision!.revision),
+      );
+    }
+    expect(
+      (await b.bookmarks.readMirrorState()).owners.values.single.source,
+      rootId,
+    );
+    expect(
+      (await b.following.readMirrorSnapshot()).mirrors.owners,
+      hasLength(2),
+    );
+  });
+
+  test('the same shared folder recovers from a wipe on both devices', () async {
+    await publishAndReceive();
+    final transport = DirectoryMiteMiteStorage('${directory.path}/shared');
+    final before = (await b.bookmarks.readMirrorState()).localIdFor(
+      a.identity.id,
+      rootId,
+    );
+    final oldCatalog = b.service.devices
+        .singleWhere((d) => d.id == a.identity.id)
+        .catalog!;
+    await a.service.maintenanceCompletion;
+    await b.service.maintenanceCompletion;
+    await transport.root.delete(recursive: true);
+
+    await b.service.synchronize();
+    expect(
+      (await b.bookmarks.readMirrorState()).localIdFor(a.identity.id, rootId),
+      before,
+    );
+    await a.service.synchronize();
+    await b.service.synchronize();
+    expect(a.service.outgoingFailure, isNull);
+    expect(b.service.outgoingFailure, isNull);
+    final rebuilt = b.service.devices
+        .singleWhere((d) => d.id == a.identity.id)
+        .catalog!;
+    expect(rebuilt.sequence, greaterThan(oldCatalog.sequence));
+    expect(b.service.gate.approvedKey(a.identity.id), a.identity.publicKey);
+    expect(
+      (await b.bookmarks.readMirrorState()).localIdFor(a.identity.id, rootId),
+      before,
+    );
+    for (final entry in rebuilt.entries) {
+      expect(await transport.read(entry.revision!.payloadPath), isNotNull);
+    }
+
+    for (final entry in rebuilt.entries) {
+      await transport.deleteOwnedRevision(
+        entry.revision!.payloadPath,
+        owner: a.identity.id,
+      );
+    }
+    await a.service.synchronize(trigger: SyncTrigger.audit);
+    expect(a.service.outgoingFailure, isNull);
+    await b.service.synchronize();
+    final repaired = b.service.devices
+        .singleWhere((d) => d.id == a.identity.id)
+        .catalog!;
+    expect(repaired.sequence, greaterThan(rebuilt.sequence));
+    expect(repaired.entries, hasLength(rebuilt.entries.length));
+    for (final entry in repaired.entries) {
+      expect(await transport.read(entry.revision!.payloadPath), isNotNull);
+    }
+  });
+
+  test(
+    'Off survives interrupted cleanup and keeps other devices intact',
+    () async {
+      await publishAndReceive();
+      final transport = _CountingStorage(
+        DirectoryMiteMiteStorage('${directory.path}/shared'),
+      );
+      a.service.dispose();
+      a.recreateService(storageFor: (_) async => transport);
+      transport.failDirectoryDelete = true;
+      await expectLater(a.service.setEnabled(false), throwsStateError);
+      expect(a.service.enabled, isFalse);
+      expect(a.service.cleanupPending, isTrue);
+      expect(
+        jsonDecode(a.preferences.get('mitemite.v1.settings')!)['location'],
+        isNull,
+      );
+
+      a.service.dispose();
+      a.recreateService(storageFor: (_) async => transport);
+      await a.service.synchronize(trigger: SyncTrigger.startup);
+      expect(a.service.enabled, isFalse);
+      expect(a.service.cleanupPending, isFalse);
+      expect(await transport.list('devices'), [b.identity.id]);
+      transport.clear();
+      await a.service.synchronize();
+      expect(transport.writes, isEmpty);
+
+      await b.service.synchronize();
+      expect(
+        (await b.bookmarks.readMirrorState()).subscriptions[a.identity.id],
+        {rootId},
+      );
+      expect((await b.bookmarks.readMirrorState()).owners, isNotEmpty);
+      await b.service.forget(a.identity.id);
+      expect(
+        (await b.bookmarks.readMirrorState()).subscriptions[a.identity.id],
+        isNull,
+      );
+      expect((await b.bookmarks.readMirrorState()).checkpoints, isEmpty);
+      expect(
+        (await b.following.readMirrorSnapshot()).mirrors.checkpoints,
+        isEmpty,
+      );
+      await a.service.setEnabled(true);
+      expect(
+        await transport.list('devices'),
+        unorderedEquals([a.identity.id, b.identity.id]),
+      );
+      expect(a.service.publishedRoots, {rootId});
+    },
+  );
 
   test(
     'verified withdrawal removes aliases while retaining subscription rules',
@@ -1687,12 +1856,10 @@ void main() {
       SyncPublicationState.active,
     );
     expect(
-      fresh.entries
-          .singleWhere(
-            (e) => e.id.kind == 'following_topics' && e.id.source == rootId,
-          )
-          .state,
-      SyncPublicationState.withdrawn,
+      fresh.entries.any(
+        (e) => e.id.kind == 'following_topics' && e.id.source == rootId,
+      ),
+      isFalse,
     );
   });
 
@@ -1726,7 +1893,7 @@ void main() {
     await b.service.synchronize();
     final after = await b.following.readMirrorSnapshot();
     expect(after.mirrors.owners, isEmpty);
-    expect(after.mirrors.checkpoints, hasLength(2));
+    expect(after.mirrors.checkpoints, isEmpty);
     expect(after.organization.folders.single.id, copy);
     expect(after.topics.single.name, 'Cats');
     expect(b.service.gate.approvedKey(a.identity.id), isNull);
@@ -2548,6 +2715,7 @@ class _FailingStore
     required List<FollowingTopic> topics,
     required TopicOrganization organization,
     Set<String> removeTopicIds = const {},
+    Set<String> purgedSources = const {},
   }) {
     if (failCommit) throw StateError('Injected second-domain interruption');
     return delegate.commitMirrorDefinitions(
@@ -2557,6 +2725,7 @@ class _FailingStore
       topics: topics,
       organization: organization,
       removeTopicIds: removeTopicIds,
+      purgedSources: purgedSources,
     );
   }
 }
@@ -2569,6 +2738,7 @@ class _CountingStorage implements MiteMiteStorage {
   final writes = <String>[];
   final deleted = <String>[];
   var pauseNextDevices = false;
+  var failDirectoryDelete = false;
   final entered = Completer<void>();
   final release = Completer<void>();
   void clear() {
@@ -2605,6 +2775,15 @@ class _CountingStorage implements MiteMiteStorage {
   Future<void> deleteOwnedRevision(String path, {required String owner}) {
     deleted.add(path);
     return delegate.deleteOwnedRevision(path, owner: owner);
+  }
+
+  @override
+  Future<void> deleteOwnedDirectory(String path, {required String owner}) {
+    if (failDirectoryDelete) {
+      failDirectoryDelete = false;
+      throw StateError('Interrupted directory cleanup');
+    }
+    return delegate.deleteOwnedDirectory(path, owner: owner);
   }
 }
 

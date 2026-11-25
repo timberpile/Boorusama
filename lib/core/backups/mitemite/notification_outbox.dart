@@ -400,6 +400,27 @@ final class SyncNotificationOutbox {
     return true;
   }
 
+  void removeUnavailableCollections(
+    String publisher,
+    Set<SyncCollectionId> active,
+  ) {
+    for (final notice in _pending.values.toList()) {
+      _replaceItems(
+        notice,
+        notice.items.where((item) {
+          if (item.publisher != publisher || item.source == null) return true;
+          return active.contains(
+            SyncCollectionId(
+              publisher: publisher,
+              kind: item.sourceKind!,
+              source: item.source!,
+            ),
+          );
+        }),
+      );
+    }
+  }
+
   void removePublisher(String publisher) {
     syncUuid(publisher);
     _offers.removeWhere((key, _) => key.startsWith('$publisher/'));

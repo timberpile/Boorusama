@@ -17,9 +17,11 @@ class DioProtectionInterceptor extends Interceptor {
     required HttpProtectionHandler protectionHandler,
     required Dio dio,
     bool protocolOverridden = false,
+    bool Function(RequestOptions)? canRecoverPublicRead,
   }) : _protectionHandler = protectionHandler,
        _dio = dio,
-       _protocolOverridden = protocolOverridden;
+       _protocolOverridden = protocolOverridden,
+       _canRecoverPublicRead = canRecoverPublicRead;
 
   static const _attemptKey = 'boorusama.protection_attempt';
 
@@ -38,6 +40,19 @@ class DioProtectionInterceptor extends Interceptor {
   final HttpProtectionHandler _protectionHandler;
   final Dio _dio;
   final bool _protocolOverridden;
+  final bool Function(RequestOptions)? _canRecoverPublicRead;
+
+  /// Public transport calls this after checking the original request headers.
+  Future<Map<String, dynamic>> prepareTransportHeaders(
+    RequestOptions options,
+  ) async {
+    if (_canRecoverPublicRead?.call(options) != true) return options.headers;
+    return _protectionHandler.prepareRequestHeaders(
+      options.uri,
+      options.headers.map((key, value) => MapEntry(key, value.toString())),
+      attempt: _attempt(options),
+    );
+  }
 
   @override
   Future<void> onRequest(
@@ -55,6 +70,7 @@ class DioProtectionInterceptor extends Interceptor {
           ? null
           : ProtectionRequestDetails(options.uri),
     );
+    if (_canRecoverPublicRead != null) return super.onRequest(options, handler);
     try {
       final requestCookie = options.extra[preferRequestCookiesKey] == true
           ? options.headers['cookie']?.toString()
@@ -161,13 +177,29 @@ class DioProtectionInterceptor extends Interceptor {
       return handler.next(err);
     }
 
-    final bool solved;
+    var solved = false;
     try {
-      solved = await _protectionHandler.handleError(
-        DioErrorAdapter(err),
-        attempt: attempt,
-        challengeUri: challengeUriFor(err.requestOptions),
-      );
+      final request = err.requestOptions;
+      for (
+        var sharedReads = 0;
+        sharedReads <= _protectionHandler.maxRetries;
+        sharedReads++
+      ) {
+        if (sharedReads > 0 && _skipProtectionRecovery(request)) break;
+        final recovered = await _protectionHandler.handleError(
+          DioErrorAdapter(err),
+          attempt: attempt,
+          challengeUri: challengeUriFor(request),
+        );
+        if (!recovered) break;
+        if (!attempt.receivedPublicJson ||
+            attempt.publicJsonFor(request.uri) != null) {
+          solved = true;
+          break;
+        }
+        // A cookie-free browser response serves one URL. A joined read for
+        // another URL can start its own recovery after the shared one ends.
+      }
     } catch (e) {
       attempt.record(
         ProtectionOperationFailed(
@@ -212,6 +244,7 @@ class DioProtectionInterceptor extends Interceptor {
   bool _skipProtectionRecovery(RequestOptions options) =>
       _isProtectionRetry(options) ||
       !isApiSafeRead(options) ||
+      _canRecoverPublicRead?.call(options) == false ||
       apiRequestContextFor(options).requestClass ==
           ApiRequestClass.bulkTransfer;
 
@@ -260,7 +293,25 @@ class DioProtectionInterceptor extends Interceptor {
   ) async {
     options.extra[apiNegotiatedKey] = true;
     final attempt = _attempt(options);
-    final browserPage = switch (attempt.loadedPageFor(options.uri)) {
+    if (_canRecoverPublicRead != null) {
+      if (!_canRecoverPublicRead(options)) {
+        throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.cancel,
+        );
+      }
+      if (attempt.publicJsonFor(options.uri) case final json?
+          when options.method.toUpperCase() == 'GET') {
+        final response = _browserJsonResponse(options, json);
+        if (response != null) {
+          attempt.record(const LoadedPageUsed());
+          return response;
+        }
+      }
+    }
+    final browserPage = switch (_canRecoverPublicRead == null
+        ? attempt.loadedPageFor(options.uri)
+        : null) {
       final html? when challengeUriFor(options) == options.uri =>
         _browserPageResponse(options, html),
       _ => null,
@@ -292,15 +343,16 @@ class DioProtectionInterceptor extends Interceptor {
       while (true) {
         attempt.retries++;
         attempt.record(RetryDispatched(attempt.retries));
-        final headers = await _protectionHandler.prepareRequestHeaders(
-          options.uri,
-          options.headers.map((k, v) => MapEntry(k, v.toString())),
-          attempt: attempt,
-        );
-
-        options.headers
-          ..clear()
-          ..addAll(headers);
+        if (_canRecoverPublicRead == null) {
+          final headers = await _protectionHandler.prepareRequestHeaders(
+            options.uri,
+            options.headers.map((k, v) => MapEntry(k, v.toString())),
+            attempt: attempt,
+          );
+          options.headers
+            ..clear()
+            ..addAll(headers);
+        }
 
         try {
           final response = await _dio.fetch(options);
@@ -363,6 +415,24 @@ Response<dynamic>? _browserPageResponse(RequestOptions options, String html) {
     statusCode: 200,
     headers: Headers.fromMap({
       Headers.contentTypeHeader: ['text/html; charset=utf-8'],
+    }),
+  );
+}
+
+Response<dynamic>? _browserJsonResponse(RequestOptions options, String body) {
+  final data = switch (options.responseType) {
+    ResponseType.json => jsonDecode(body),
+    ResponseType.plain => body,
+    ResponseType.bytes => utf8.encode(body),
+    ResponseType.stream => null,
+  };
+  if (data == null) return null;
+  return Response(
+    requestOptions: options,
+    data: data,
+    statusCode: 200,
+    headers: Headers.fromMap({
+      Headers.contentTypeHeader: ['application/json; charset=utf-8'],
     }),
   );
 }

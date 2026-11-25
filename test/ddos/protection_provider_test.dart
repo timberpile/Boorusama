@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,6 +20,26 @@ void main() {
     final handler = container.read(httpDdosProtectionBypassProvider);
 
     expect(handler.isDisabled, isFalse);
+  });
+
+  test('public Cloudflare clearance stays on the challenged host', () async {
+    final jar = PublicCloudflareCookieJar();
+    final safe = Uri.parse('https://safebooru.donmai.us/pools/42.json');
+    await jar.saveFromResponse(safe, [
+      Cookie('cf_clearance', 'verified')..domain = '.donmai.us',
+      Cookie('session', 'private')..domain = '.donmai.us',
+    ]);
+
+    expect(
+      (await jar.loadForRequest(safe)).map((cookie) => cookie.name),
+      ['cf_clearance'],
+    );
+    expect(
+      await jar.loadForRequest(
+        Uri.parse('https://danbooru.donmai.us/pools/42.json'),
+      ),
+      isEmpty,
+    );
   });
 }
 

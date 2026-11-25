@@ -67,6 +67,7 @@ class ProtectionPollLogBuffer {
           (event.outcome == CheckOutcome.pageRejected ||
               event.outcome == CheckOutcome.pageBlocked ||
               event.outcome == CheckOutcome.pageNotFinished ||
+              event.outcome == CheckOutcome.clearanceMissing ||
               event.outcome == CheckOutcome.cookieOnly);
       if (check.detailed || !pending) {
         session.state = null;

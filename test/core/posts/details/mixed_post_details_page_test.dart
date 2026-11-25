@@ -26,6 +26,8 @@ import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_actions.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page_indicator.dart';
+import 'package:boorusama/foundation/networking.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../boorus/pixiv/works/work_test_fixtures.dart' as works;
 
@@ -2216,7 +2218,9 @@ void main() {
   testWidgets(
     'failed Single membership keeps Group actions and retries the captured occurrence',
     (tester) async {
-      _mobileViewport(tester);
+      _mobileViewport(tester, size: const Size(320, 640));
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       final entry = _groupEntry(
         'retry-group',
         10,
@@ -2229,10 +2233,18 @@ void main() {
         initialMemberKey: 'slot:2',
       );
       late _ReadingGroupSource source;
+      final connection = StateProvider(
+        (_) => [ConnectivityResult.none],
+      );
       final harness = _Harness(
         posts: const [],
         entries: [target],
-        overrides: [bookmarkProvider.overrideWith(_ViewerBookmarks.new)],
+        overrides: [
+          bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+          currentConnectivityProvider.overrideWith(
+            (ref) => Future.value(ref.watch(connection)),
+          ),
+        ],
         mediaCapability: BooruGroupCapability(
           engine: BooruType.danbooru,
           keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
@@ -2245,6 +2257,7 @@ void main() {
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Network unavailable'), findsOneWidget);
       expect(
         harness.container.read(mediaGroupProvider(target)).postAt(0),
         isNull,
@@ -2257,6 +2270,11 @@ void main() {
           .firstWhere((button) => button.scope == BookmarkTargetScope.group);
       expect(member.request, isNull);
       expect(group.request, isNotNull);
+      harness.container.read(connection.notifier).state = [
+        ConnectivityResult.wifi,
+      ];
+      await tester.pumpAndSettle();
+      expect(find.text('Network unavailable'), findsNothing);
       source.fail = false;
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();

@@ -89,6 +89,20 @@ final class AndroidMiteMiteStorage implements MiteMiteStorage {
   }
 
   @override
+  Future<void> deleteOwnedDirectory(
+    String path, {
+    required String owner,
+  }) async {
+    if (!isOwnedSyncDirectoryPath(path, owner)) {
+      throw const FormatException('Unsafe sync cleanup path');
+    }
+    if (await _call<bool>('deleteOwnedDirectory', path, {'owner': owner}) !=
+        true) {
+      throw StateError('SAF cleanup failed');
+    }
+  }
+
+  @override
   Future<void> deleteOwnedRevision(String path, {required String owner}) async {
     if (!isOwnedSyncRevisionPath(path, owner)) {
       throw const FormatException('Unsafe retention path');

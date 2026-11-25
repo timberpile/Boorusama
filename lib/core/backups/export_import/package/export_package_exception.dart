@@ -7,3 +7,8 @@ class ExportPackageException implements Exception {
   @override
   String toString() => 'ExportPackageException: $message';
 }
+
+/// A supported export exceeded a configured read or preparation bound.
+final class ExportPackageLimitException extends ExportPackageException {
+  const ExportPackageLimitException(super.message);
+}

@@ -1,9 +1,11 @@
 import '../../../../boorus/booru/types.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../../../foundation/networking.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../configs/manage/widgets.dart';
@@ -232,9 +234,9 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         final index = members == null
             ? null
             : widget.checkpoint.indexIn(members);
+        final loadFailed = state.failed || state.members?.nextPageError != null;
         final unavailable =
-            state.failed ||
-            state.members?.nextPageError != null ||
+            loadFailed ||
             (members != null && state.members?.next == null && index == null);
         // The first Work may already have a decoded timeline cover when its
         // Page manifest arrives. Keep that same cover element mounted over
@@ -297,6 +299,13 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         );
         if (index == null || (state.details == null && !state.failed)) {
           if (index == null && state.members?.next != null) _loadNext(state);
+          final connection = loadFailed
+              ? ref.watch(currentConnectivityProvider).asData?.value
+              : null;
+          final offline =
+              connection != null &&
+              (connection.isEmpty ||
+                  connection.contains(ConnectivityResult.none));
           return withCover(
             GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -307,9 +316,8 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(context.t.content_viewer.page_unavailable),
-                          if ((state.failed ||
-                                  state.members?.nextPageError != null) &&
-                              state.access != null)
+                          if (offline) Text(context.t.network.unavailable),
+                          if (loadFailed && state.access != null)
                             TextButton(
                               onPressed: () => _retry(state),
                               child: Text(context.t.generic.action.retry),
