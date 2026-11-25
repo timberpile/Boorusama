@@ -61,6 +61,16 @@ class BooruType extends Equatable {
     isSingleSite: true,
   );
 
+  // Local Media has no entry in the remote website catalog.
+  static const localMedia = BooruType._(
+    name: 'localMedia',
+    yamlName: '',
+    id: 38,
+    displayName: 'Local Media',
+    canDownloadMultipleFiles: false,
+    isSingleSite: true,
+  );
+
 {{#booruTypes}}
   static const {{{name}}} = BooruType._(
     {{{params}}}
@@ -70,6 +80,7 @@ class BooruType extends Equatable {
   /// Maps legacy IDs to the corresponding BooruType
   static BooruType fromLegacyId(int? value) => switch (value) {
 {{{legacyIdMap}}}
+    38 => localMedia,
     _ => unknown,
   };
 

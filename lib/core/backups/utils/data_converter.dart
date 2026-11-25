@@ -22,10 +22,11 @@ class DataBackupConverter {
 
   String encode({
     required List<dynamic> payload,
+    int? schemaVersion,
     Map<String, dynamic> extraFields = const {},
   }) {
     return encodeData(
-      version: version,
+      version: schemaVersion ?? version,
       exportDate: DateTime.now(),
       exportVersion: exportVersion,
       payload: payload,

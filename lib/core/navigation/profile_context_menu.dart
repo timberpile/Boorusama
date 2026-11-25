@@ -8,11 +8,23 @@ final class ProfileMenuEntry {
   const ProfileMenuEntry({
     required this.id,
     required this.caption,
-    required this.url,
-  });
+    this.url,
+    this.icon,
+  }) : assert(
+         url != null || icon != null,
+         'A source icon or website is required',
+       );
+  const ProfileMenuEntry.localMedia({required this.caption})
+    : id = localMediaId,
+      url = null,
+      icon = Icons.perm_media_outlined;
+
+  static const localMediaId = 'local-media';
+
   final String id;
   final String caption;
-  final String url;
+  final String? url;
+  final IconData? icon;
 }
 
 class ProfileContextMenuButton extends StatefulWidget {
@@ -47,7 +59,7 @@ class _ProfileContextMenuButtonState extends State<ProfileContextMenuButton> {
   }
 
   String _caption(ProfileMenuEntry entry) {
-    final host = Uri.tryParse(entry.url)?.host ?? '';
+    final host = Uri.tryParse(entry.url ?? '')?.host ?? '';
     final name = entry.caption.trim();
     return name.isEmpty ? host : name;
   }
@@ -154,7 +166,9 @@ class _ProfileContextMenuButtonState extends State<ProfileContextMenuButton> {
                               SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: ConfigAwareWebsiteLogo(url: entry.url),
+                                child: entry.icon == null
+                                    ? ConfigAwareWebsiteLogo(url: entry.url)
+                                    : Icon(entry.icon, size: 22),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -191,7 +205,9 @@ class _ProfileContextMenuButtonState extends State<ProfileContextMenuButton> {
             : SizedBox(
                 width: 24,
                 height: 24,
-                child: ConfigAwareWebsiteLogo(url: current.url),
+                child: current.icon == null
+                    ? ConfigAwareWebsiteLogo(url: current.url)
+                    : Icon(current.icon, size: 22),
               ),
       ),
     );

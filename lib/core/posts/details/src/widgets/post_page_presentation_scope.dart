@@ -11,6 +11,9 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../content/content_access.dart';
+import '../../../../local_media/local_media_models.dart';
+import '../../../../local_media/local_media_providers.dart';
+import '../../../../local_media/local_media_reference.dart';
 import '../providers/viewer_source_access_provider.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
@@ -59,6 +62,29 @@ class PostPagePresentationScope extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final local = post?.booruData;
+    if (local case LocalMediaPostData(:final reference)) {
+      final media = ref.watch(localMediaPresentationProvider(reference));
+      final localPost =
+          media.valueOrNull?.item.toPost() ??
+          (media.isLoading ? post! : localMediaPost(reference));
+      final presentation = PostPagePresentation(
+        context: PostPresentationContext.generic(localPost),
+        config: null,
+        fallbackReason: null,
+      );
+      return CurrentBooruConfigScope(
+        config: BooruConfig.empty,
+        child: InheritedPost(
+          presentationContext: presentation.context,
+          child: _PostPagePresentationBuilder(
+            presentation: presentation,
+            builder: builder,
+            groupBuilder: groupBuilder,
+          ),
+        ),
+      );
+    }
     final binding = sourceBinding;
     final access = binding == null
         ? null

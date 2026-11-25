@@ -27,6 +27,7 @@ import 'app_navigation.dart';
 import 'navigation_account_discovery.dart';
 import 'app_navigation_shell.dart';
 import 'destination_id.dart';
+import '../local_media/local_media_providers.dart';
 import 'destination_activity.dart';
 import 'navigation_chrome_controller.dart';
 import 'navigation_chrome_route_sync.dart';
@@ -56,7 +57,9 @@ GoRouter createProductionNavigationRouter(Ref ref, AppNavigation navigation) {
   late final DestinationRouterBinding binding;
   String normalize(String location, Object? extra) => resolveLegacyNavigation(
     location,
-    browse: controller.browseDestination,
+    browse: Uri.parse(location).path == '/'
+        ? controller.browseDestination
+        : controller.remoteBrowseDestination,
     destinations: binding.destinations,
     favoritesProfileId: ref
         .read(navigationControllerProvider)
@@ -77,7 +80,9 @@ GoRouter createProductionNavigationRouter(Ref ref, AppNavigation navigation) {
     final catalog = ref.read(navigationCatalogProvider);
     final ids = [
       for (final destination in AppDestination.values)
-        DestinationId.app(destination),
+        if (destination != AppDestination.localMedia ||
+            ref.read(localMediaAvailableProvider))
+          DestinationId.app(destination),
       for (final profile in ref.read(navigationProfilesProvider))
         DestinationId.browse(profile.id),
       for (final id in catalog.eligibleFavoritesProfileIds)

@@ -26,6 +26,7 @@ final class ValidatedSyncBookmarkPackage {
     this._payload,
     this._codec,
     this.semanticHash,
+    this.schemaVersion,
     Uint8List bytes, {
     this.forPublication = false,
   }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
@@ -43,7 +44,11 @@ final class ValidatedSyncBookmarkPackage {
   );
   final String semanticHash;
   final Uint8List bytes;
-  static const schema = kBookmarksBackupVersion;
+  final int schemaVersion;
+
+  // Existing remote-only revisions retain the published version.
+  static const schema = kRemoteBookmarksBackupVersion;
+  static bool supportsSchema(int version) => isNestedBookmarkBackup(version);
 }
 
 final class SyncBookmarkPackageValidator {
@@ -117,7 +122,9 @@ final class SyncBookmarkPackageValidator {
         }
         final source = manifest.sources.single;
         if (source.id != collection.kind ||
-            source.schemaVersion != ValidatedSyncBookmarkPackage.schema) {
+            !ValidatedSyncBookmarkPackage.supportsSchema(
+              source.schemaVersion,
+            )) {
           throw const SyncUpdateRequired();
         }
         if (source.parts.length != 1) {
@@ -137,6 +144,7 @@ final class SyncBookmarkPackageValidator {
           encoded,
           codec,
           syncBookmarkSemanticHash(data, codec),
+          source.schemaVersion,
           captured,
         );
       } finally {
@@ -280,6 +288,7 @@ final class SyncBookmarkPackageBuilder {
         ).run,
       );
     }
+    final schemaVersion = bookmarkTransferVersion(data.records);
     final scratch = await fs.createTempDirectory('boorusama_sync_build_');
     try {
       final path = await ExportPackageWriter(fs: fs).write(
@@ -289,7 +298,7 @@ final class SyncBookmarkPackageBuilder {
           sources: [
             ExportPackageSourceBuild(
               id: 'bookmarks',
-              schemaVersion: ValidatedSyncBookmarkPackage.schema,
+              schemaVersion: schemaVersion,
               selection: ExportNodeSelection.explicit('bookmarks', {
                 collection.source,
               }),
@@ -299,7 +308,7 @@ final class SyncBookmarkPackageBuilder {
                   write: (path) => fs.writeString(
                     path,
                     jsonEncode({
-                      'version': ValidatedSyncBookmarkPackage.schema,
+                      'version': schemaVersion,
                       'data': codec
                           .encode(data)
                           .map(
@@ -328,6 +337,7 @@ final class SyncBookmarkPackageBuilder {
         validated._payload,
         codec,
         validated.semanticHash,
+        validated.schemaVersion,
         validated.bytes,
         forPublication: true,
       );

@@ -15,6 +15,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
+import '../../../../local_media/local_media_reference.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/widgets.dart';
@@ -167,7 +168,7 @@ List<PostActionDefinition> postActionDefinitions(
       ? null
       : ref.watch(booruLoginDetailsProvider(config.auth));
   return [
-    if (post != null)
+    if (post != null && post.booruData is! LocalMediaPostData)
       PostActionDefinition(
         id: PostActionId.findOnOtherProfiles,
         label: context.t.post.cross_profile.action,

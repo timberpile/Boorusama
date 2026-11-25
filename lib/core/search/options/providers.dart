@@ -11,6 +11,7 @@ import 'catalog/e621.dart';
 import 'catalog/gelbooru.dart';
 import 'catalog/hybooru.dart';
 import 'catalog/hydrus.dart';
+import 'catalog/local_media.dart';
 import 'catalog/moebooru.dart';
 import 'catalog/nozomi.dart';
 import 'catalog/philomena.dart';
@@ -72,6 +73,7 @@ SearchCapabilities capabilitiesFor(BooruType type, String url) =>
       BooruType.philomena => philomenaOptions(),
       BooruType.hybooru => hybooruOptions(),
       BooruType.hydrus => hydrusOptions(),
+      BooruType.localMedia => localMediaSearchOptions,
       BooruType.nozomi => nozomiOptions(),
       BooruType.eshuushuu => eshuushuuOptions(),
       BooruType.animePictures => animePicturesOptions(),

@@ -7,8 +7,10 @@ class FileDetailTile extends StatelessWidget {
     required this.title,
     super.key,
     this.valueLabel,
+    this.valueMaxLines,
     this.value,
     this.valueTrailing,
+    this.onValueTap,
   }) : assert(
          valueLabel != null || value != null,
          'valueLabel or value must be provided',
@@ -16,8 +18,10 @@ class FileDetailTile extends StatelessWidget {
 
   final String title;
   final String? valueLabel;
+  final int? valueMaxLines;
   final Widget? value;
   final Widget? valueTrailing;
+  final VoidCallback? onValueTap;
 
   @override
   Widget build(BuildContext context) {
@@ -28,12 +32,8 @@ class FileDetailTile extends StatelessWidget {
       style: Kurumi.themeOf(context).textTheme.titleLarge
           ?.copyWith(fontSize: 14, fontWeight: FontWeight.w700),
     );
-    final content = Container(
+    final valueContent = Padding(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: const BorderRadius.all(Radius.circular(4)),
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -43,6 +43,8 @@ class FileDetailTile extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
+                maxLines: valueMaxLines,
+                overflow: valueMaxLines == null ? null : TextOverflow.ellipsis,
                 style: TextStyle(
                   color: colorScheme.onSecondaryContainer,
                   fontSize: 14,
@@ -53,6 +55,24 @@ class FileDetailTile extends StatelessWidget {
         ],
       ),
     );
+    const radius = BorderRadius.all(Radius.circular(4));
+    final content = onValueTap == null
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainer,
+              borderRadius: radius,
+            ),
+            child: valueContent,
+          )
+        : Material(
+            color: colorScheme.surfaceContainer,
+            borderRadius: radius,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: onValueTap,
+              child: valueContent,
+            ),
+          );
     return LayoutBuilder(
       builder: (context, constraints) {
         final stacked =

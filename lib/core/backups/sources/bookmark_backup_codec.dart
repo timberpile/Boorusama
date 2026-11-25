@@ -9,6 +9,7 @@ import '../../bookmarks/src/data/stored_group_codec.dart';
 import '../../bookmarks/src/types/bookmark_record_fields.dart';
 import '../../content/types.dart';
 import '../../groups/folder_tree.dart';
+import '../../local_media/local_media_reference.dart';
 import '../../posts/post/types.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
@@ -36,7 +37,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
 
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
-    final nested = metadata.version == kBookmarksBackupVersion;
+    final nested = isNestedBookmarkBackup(metadata.version);
     if (metadata.version != 4 && metadata.version != 5 && !nested) {
       throw InvalidBackupFormatException(
         'Unsupported bookmark backup version ${metadata.version}',
@@ -77,6 +78,13 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         final record = nested
             ? records.decode(value)
             : _parseVersion4Bookmark(value, index);
+        if (record is PostBookmark &&
+            record.post.booruData is LocalMediaPostData &&
+            metadata.version != kBookmarksBackupVersion) {
+          throw const InvalidBackupFormatException(
+            'Local Media references require the current bookmark version',
+          );
+        }
         final identity = bookmarkContentIdentity(record);
         if (identity != null && !bookmarkIdentities.add(identity)) {
           throw InvalidBackupFormatException(

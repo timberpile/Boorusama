@@ -10,6 +10,8 @@ import '../../../../foundation/caching/types.dart';
 import '../../../../foundation/utils/file_utils.dart';
 import '../../../cache/cache_notifier.dart';
 import '../../../cache/providers.dart';
+import '../../../local_media/local_media_providers.dart';
+import '../../../local_media/local_media_storage_section.dart';
 import '../../../search/following_topics/src/providers/following_topics_notifier.dart';
 import '../../../../foundation/caching/cache_limit_options.dart';
 import '../../../cache/cache_limit_dialog.dart';
@@ -64,6 +66,8 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       ),
       children: [
         _buildDiskSpace(),
+        if (ref.watch(localMediaAvailableProvider))
+          const LocalMediaStorageSection(),
         const CacheLocationsSection(),
         _buildCacheSection(settings, notifier),
       ],

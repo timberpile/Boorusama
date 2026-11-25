@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../danbooru.dart';
 import 'providers/tag_edit_notifier.dart';
@@ -53,18 +54,20 @@ class TagEditExpandContent extends ConsumerWidget {
   const TagEditExpandContent({
     required this.viewController,
     required this.maxHeight,
+    this.searchConfig,
     super.key,
   });
 
   final TagEditViewController viewController;
   final double maxHeight;
+  final BooruConfigAuth? searchConfig;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final params = TagEditParamsProvider.of(context);
-    final config = ref.watchConfigAuth;
-    final booru = ref.watch(danbooruProvider);
-    final aiTagSupport = booru.hasAiTagSupported(config.url);
+    final aiTagSupport =
+        searchConfig == null &&
+        ref.watch(danbooruProvider).hasAiTagSupported(ref.watchConfigAuth.url);
 
     final notifier = ref.watch(tagEditProvider(params).notifier);
     final expandMode = ref.watch(
@@ -102,6 +105,8 @@ class TagEditExpandContent extends ConsumerWidget {
                 goToQuickSearchPage(
                   context,
                   ref: ref,
+                  initialConfig: searchConfig,
+                  showInputSelector: searchConfig == null,
                   onSelected: (tag, isRaw) {
                     if (isRaw) {
                       final tags = tag.split(' ');

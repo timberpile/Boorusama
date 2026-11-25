@@ -9,6 +9,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../../../local_media/local_media_reference.dart';
+
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
 import '../../../../../foundation/loggers/logger.dart';
@@ -325,8 +327,15 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     if (kind == null ||
         site.isEmpty ||
         key.isEmpty ||
-        normalizePostSourceHost(site) != site) {
+        (site != LocalMediaReference.namespace &&
+            normalizePostSourceHost(site) != site)) {
       throw const FormatException('Invalid content index identity');
+    }
+    if (site == LocalMediaReference.namespace) {
+      if (kind != ContentKind.post) {
+        throw const FormatException('Invalid Local Media index kind');
+      }
+      LocalMediaReference.parse(key);
     }
     return (siteNamespace: site, kind: kind, sourceKey: key);
   }
@@ -1137,8 +1146,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
             dataCodec: postDataCodec?.call(post.origin.booruType),
           ),
           post: post,
-          postId: post.id,
-          sourceUrl: postLinkGenerator(booruId).getLink(post),
+          postId: post.booruData is LocalMediaPostData ? null : post.id,
+          sourceUrl: post.booruData is LocalMediaPostData
+              ? null
+              : postLinkGenerator(booruId).getLink(post),
         ),
     ]);
   }

@@ -42,6 +42,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
     super.key,
     this.blockOverlay,
     this.leadingIcons,
+    this.selectionEnabled = true,
   });
 
   final T post;
@@ -53,6 +54,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
   final int? score;
   final BlockOverlayItem? blockOverlay;
   final bool multiSelectEnabled;
+  final bool selectionEnabled;
   final List<Widget>? leadingIcons;
   final BooruConfigAuth config;
 
@@ -89,7 +91,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
     );
 
     return GestureDetector(
-      onLongPress: multiSelectEnabled || longPressOpensMenu
+      onLongPress: !selectionEnabled || multiSelectEnabled || longPressOpensMenu
           ? null
           : () {
               final action = gestures?.longPress;

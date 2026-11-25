@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/images/providers.dart';
 import '../../../../../core/posts/details/widgets.dart';
 import '../../../../../core/settings/providers.dart';
@@ -21,10 +22,14 @@ class TagEditPageScaffold extends ConsumerStatefulWidget {
     required this.submitButton,
     required this.content,
     required this.scrollController,
+    this.preview,
+    this.searchConfig,
     super.key,
   });
 
   final Widget submitButton;
+  final Widget? preview;
+  final BooruConfigAuth? searchConfig;
   final Widget content;
   final ScrollController scrollController;
 
@@ -146,6 +151,7 @@ class _TagEditPageScaffoldState extends ConsumerState<TagEditPageScaffold> {
               final expandContent = TagEditExpandContent(
                 viewController: viewController,
                 maxHeight: constraints.maxHeight,
+                searchConfig: widget.searchConfig,
               );
 
               return Screen.of(context).size == ScreenSize.small
@@ -154,7 +160,8 @@ class _TagEditPageScaffoldState extends ConsumerState<TagEditPageScaffold> {
                         Expanded(
                           child: TagEditSplitLayout(
                             viewController: viewController,
-                            imageBuilder: () => const TagEditImageSection(),
+                            imageBuilder: () =>
+                                widget.preview ?? const TagEditImageSection(),
                             contentBuilder: (_) => widget.content,
                           ),
                         ),
@@ -163,7 +170,8 @@ class _TagEditPageScaffoldState extends ConsumerState<TagEditPageScaffold> {
                     )
                   : TagEditSplitLayout(
                       viewController: viewController,
-                      imageBuilder: () => const TagEditImageSection(),
+                      imageBuilder: () =>
+                          widget.preview ?? const TagEditImageSection(),
                       contentBuilder: (_) => Column(
                         children: [
                           Expanded(child: widget.content),

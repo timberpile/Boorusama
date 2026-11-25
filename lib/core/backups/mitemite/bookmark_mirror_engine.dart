@@ -240,7 +240,7 @@ final class SyncBookmarkMirrorEngine {
       if (prior == null) continue;
       final revision = entry.revision;
       if (revision != null) {
-        if (revision.schema != ValidatedSyncBookmarkPackage.schema) {
+        if (!ValidatedSyncBookmarkPackage.supportsSchema(revision.schema)) {
           throw const SyncUpdateRequired();
         }
         _checkRevision(prior, revision);
@@ -262,7 +262,7 @@ final class SyncBookmarkMirrorEngine {
           owned[source]?.value ??
           initial.checkpoints['${ticket.publisher}/$source'];
       final revision = entry.revision!;
-      if (revision.schema != ValidatedSyncBookmarkPackage.schema) {
+      if (!ValidatedSyncBookmarkPackage.supportsSchema(revision.schema)) {
         throw const SyncUpdateRequired();
       }
       final descriptorDigest = syncDigest(syncJsonBytes(revision.toJson()));

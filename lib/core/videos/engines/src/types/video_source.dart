@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// Video source information for players
 sealed class VideoSource {
   const VideoSource({required this.originalUrl});
@@ -60,4 +62,14 @@ class CachedVideoSource extends VideoSource {
   @override
   String toString() =>
       'CachedVideoSource(filePath: $filePath, originalUrl: $originalUrl)';
+}
+
+/// App-managed original bytes, independent of cache and HTTP transport.
+final class LocalFileVideoSource extends VideoSource {
+  LocalFileVideoSource(this.file) : super(originalUrl: file.uri.toString());
+
+  final File file;
+
+  @override
+  String get url => originalUrl;
 }

@@ -99,6 +99,7 @@ class SearchAppBar extends ConsumerWidget {
       submitEmpty: submitEmpty,
     );
 
+    final destination = DestinationScope.maybeOf(context)?.id;
     return LayoutBuilder(
       builder: (context, constraints) => KurumiAppBar(
         automaticallyImplyLeading: false,
@@ -117,8 +118,7 @@ class SearchAppBar extends ConsumerWidget {
             ),
             if (SearchProfileSession.maybeOf(context)?.local ?? false)
               const SearchContextProfilePicker()
-            else if (DestinationScope.maybeOf(context)?.id.kind ==
-                DestinationKind.browse)
+            else if (destination?.kind == DestinationKind.browse)
               const NavigationProfilePicker(favorites: false),
             if (trailingSearchButton != null)
               Padding(
@@ -133,12 +133,15 @@ class SearchAppBar extends ConsumerWidget {
 }
 
 class SearchAppBarBackButton extends StatelessWidget {
-  const SearchAppBarBackButton({super.key});
+  const SearchAppBarBackButton({super.key, this.onPressed});
+
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => IconButton(
     splashRadius: 16,
+    tooltip: MaterialLocalizations.of(context).backButtonTooltip,
     icon: const Icon(Symbols.arrow_back),
-    onPressed: () => Navigator.of(context).pop(),
+    onPressed: onPressed ?? () => Navigator.of(context).pop(),
   );
 }

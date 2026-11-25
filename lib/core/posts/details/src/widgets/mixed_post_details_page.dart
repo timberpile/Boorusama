@@ -29,6 +29,8 @@ import '../../../../content/groups/group_summary.dart';
 import '../../../../content/types.dart' show GroupMetadataKey;
 import '../../../../configs/config/types.dart';
 import '../../../../navigation/destination_activity.dart';
+import '../../../../local_media/local_media_details.dart';
+import '../../../../local_media/local_media_reference.dart';
 import '../../../../developer_options/providers.dart';
 import 'group_viewer_scope.dart';
 import 'adjacent_group_preparation.dart';
@@ -1034,22 +1036,20 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
             ? mediaGroup
                   ? _groupSummaryUiBuilder
                   : null
-            : presentation.usesGenericPresentation
-            ? widget.fallbackUiBuilderDecorator?.call(
-                    _genericPostDetailsUiBuilder,
-                    post!,
-                  ) ??
-                  _genericPostDetailsUiBuilder
-            : presentation.context.presentation.detailsBuilder(post!);
+            : _detailsUi(presentation);
         Widget result = PostDetailsPageConfiguration(
           uiBuilder: ui,
           layout: presentation?.effectiveConfig.layout,
           // Default Post statistics require an InheritedPost. An unresolved
           // Work has only Group metadata, even when a neighbor already has
           // a fully resolved Post presentation.
-          preferredParts: mediaGroup && post == null
-              ? _groupSummaryDetailsParts
-              : null,
+          canCustomize:
+              presentation?.context.post.booruData is! LocalMediaPostData,
+          preferredParts: switch (presentation?.context.post.booruData) {
+            LocalMediaPostData() => localMediaDetailsParts,
+            _ when mediaGroup && post == null => _groupSummaryDetailsParts,
+            _ => null,
+          },
           child: child,
         );
         if (mediaGroup) {
@@ -1119,11 +1119,27 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       fallbackConfig: widget.fallbackConfig,
       builder: (context, ref, presentation) {
         final config = presentation.effectiveConfig;
-        final resolver = ref.watch(mediaUrlResolverProvider(config.auth));
+        final presentedPost = presentation.context.post;
+        final isLocal = presentedPost.booruData is LocalMediaPostData;
+        if (isLocal && details.controller.postAtPage(index) != presentedPost) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted || !mounted) return;
+            final previous = details.controller.postAtPage(index);
+            if (previous != null &&
+                previous != presentedPost &&
+                postViewerIdentity(previous) ==
+                    postViewerIdentity(presentedPost)) {
+              details.controller.replacePost(index, presentedPost);
+            }
+          });
+        }
+        final resolver = isLocal
+            ? null
+            : ref.watch(mediaUrlResolverProvider(config.auth));
         final engine = presentation.context.presentation;
         return PostDetailsItem<Post>(
           index: index,
-          post: post,
+          post: presentedPost,
           posts: details.posts,
           transformController: _transformController,
           isInitPageListenable: _isInitPage,
@@ -1143,14 +1159,28 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
                 },
           detailsController: details.controller,
           imageUrlBuilder: (post) =>
-              resolver.resolveMediaUrl(post, config.viewer),
+              resolver?.resolveMediaUrl(post, config.viewer) ?? '',
           mediaAspectRatioBuilder: (post) =>
-              resolver.resolveMediaAspectRatio(post, config.viewer),
+              resolver?.resolveMediaAspectRatio(post, config.viewer),
           videoAspectRatioBuilder: (post) =>
-              resolver.resolveVideoAspectRatio(post, config.viewer),
+              resolver?.resolveVideoAspectRatio(post, config.viewer),
         );
       },
     );
+  }
+
+  PostDetailsUIBuilder _detailsUi(PostPagePresentation presentation) {
+    final post = presentation.context.post;
+    if (post.booruData case LocalMediaPostData(:final reference)) {
+      return localMediaDetailsUi(reference);
+    }
+    return presentation.usesGenericPresentation
+        ? widget.fallbackUiBuilderDecorator?.call(
+                _genericPostDetailsUiBuilder,
+                post,
+              ) ??
+              _genericPostDetailsUiBuilder
+        : presentation.context.presentation.detailsBuilder(post);
   }
 
   Widget _buildViewer(
@@ -1167,8 +1197,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final viewer = config.viewer;
     final layout = config.layout;
     final gestures = config.postGestures;
-    final booruRepo = ref.watch(booruRepoProvider(auth));
     final currentPost = currentPresentation.context.post;
+    final local = switch (currentPost.booruData) {
+      final LocalMediaPostData data => data,
+      _ => null,
+    };
+    final booruRepo = local == null ? ref.watch(booruRepoProvider(auth)) : null;
     final currentIndex = controller.currentPage.value;
     final fallbackReason =
         _fallbackReasons[currentIndex] ?? currentPresentation.fallbackReason;
@@ -1209,14 +1243,6 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     }
     final hideWarning =
         startAutomaticRecovery || _recovering.contains(currentIndex);
-    final uiBuilder = currentPresentation.usesGenericPresentation
-        ? widget.fallbackUiBuilderDecorator?.call(
-                _genericPostDetailsUiBuilder,
-                currentPost,
-              ) ??
-              _genericPostDetailsUiBuilder
-        : currentPresentation.context.presentation.detailsBuilder(currentPost);
-
     final scaffold = PostDetailsPageScaffold<Post>(
       key: _viewerScaffoldKey,
       sequence: widget.sequence,
@@ -1238,7 +1264,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       onLoadMoreNext: widget.onLoadMoreNext,
       onPageChanged: widget.onPageChanged,
       postGestureHandlerBuilder: booruRepo?.handlePostGesture,
-      uiBuilder: uiBuilder,
+      uiBuilder: _detailsUi(currentPresentation),
       gestureConfig: gestures,
       layoutConfig: layout,
       viewerWarning: currentPresentation.usesGenericPresentation && !hideWarning
@@ -1255,20 +1281,22 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
                     ),
             )
           : null,
-      actions: defaultActions(
-        note: currentPresentation.usesGenericPresentation
-            ? null
-            : NoteActionButtonWithProvider(
-                currentPost: controller.currentPost,
-                config: auth,
+      actions: local != null
+          ? const []
+          : defaultActions(
+              note: currentPresentation.usesGenericPresentation
+                  ? null
+                  : NoteActionButtonWithProvider(
+                      currentPost: controller.currentPost,
+                      config: auth,
+                    ),
+              fallbackMoreButton: DefaultFallbackBackupMoreButton<Post>(
+                layoutConfig: layout,
+                controller: controller,
+                authConfig: auth,
+                viewerConfig: viewer,
               ),
-        fallbackMoreButton: DefaultFallbackBackupMoreButton<Post>(
-          layoutConfig: layout,
-          controller: controller,
-          authConfig: auth,
-          viewerConfig: viewer,
-        ),
-      ),
+            ),
       itemBuilder: (context, index) {
         if (widget.sequence != null && widget.sequence!.postAt(index) == null) {
           return _entryItem(context, index);
@@ -1291,7 +1319,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       post: post,
       viewerConfig: viewer,
       authConfig: auth,
-      enabled: !currentPresentation.usesGenericPresentation,
+      enabled: local == null && !currentPresentation.usesGenericPresentation,
       child: Stack(
         children: [
           scaffold,

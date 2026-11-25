@@ -66,9 +66,11 @@ class TagEditParams extends Equatable {
     required this.placeholderMedia,
     required this.initialRating,
     required this.post,
+    this.initialTagCategories = const {},
   });
 
   final Set<String> initialTags;
+  final Map<String, String> initialTagCategories;
   final int postId;
   final double imageAspectRatio;
   final String imageUrl;
@@ -79,6 +81,7 @@ class TagEditParams extends Equatable {
   @override
   List<Object?> get props => [
     initialTags,
+    initialTagCategories,
     postId,
     imageAspectRatio,
     imageUrl,

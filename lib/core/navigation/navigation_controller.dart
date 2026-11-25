@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../cache/providers.dart';
 import '../configs/manage/providers.dart';
+import '../local_media/local_media_providers.dart';
 import 'destination_id.dart';
 import 'destination_router.dart';
 import 'favorites_entry.dart';
@@ -70,12 +71,18 @@ class NavigationController extends Notifier<NavigationPreferences> {
         ref.read(navigationChromeProvider).selectionActive) {
       return false;
     }
-    if (registry.currentDestination == id) return true;
+    if (registry.currentDestination == id) {
+      _rememberLocalBrowse(id);
+      return true;
+    }
     _selecting = true;
     try {
       if (!await registry.dismissTransientRoutes()) return false;
       final accepted = registry.select(id);
-      if (accepted) ref.read(navigationChromeProvider.notifier).show();
+      if (accepted) {
+        _rememberLocalBrowse(id);
+        ref.read(navigationChromeProvider.notifier).show();
+      }
       return accepted;
     } finally {
       _selecting = false;
@@ -140,12 +147,27 @@ class NavigationController extends Notifier<NavigationPreferences> {
     return true;
   }
 
-  DestinationId get browseDestination => switch (state.lastBrowseProfileId) {
-    final id?
-        when ref.read(booruConfigProvider).any((config) => config.id == id) =>
-      DestinationId.browse(id),
-    _ => const DestinationId.app(AppDestination.browseRecovery),
-  };
+  void _rememberLocalBrowse(DestinationId id) {
+    if (id.appDestination == AppDestination.localMedia &&
+        !state.localMediaSelected) {
+      state = state.selectLocalMedia();
+    }
+  }
+
+  DestinationId get browseDestination =>
+      state.localMediaSelected && ref.read(localMediaAvailableProvider)
+      ? const DestinationId.app(AppDestination.localMedia)
+      : remoteBrowseDestination;
+
+  DestinationId get remoteBrowseDestination =>
+      switch (state.lastBrowseProfileId) {
+        final id?
+            when ref
+                .read(booruConfigProvider)
+                .any((config) => config.id == id) =>
+          DestinationId.browse(id),
+        _ => const DestinationId.app(AppDestination.browseRecovery),
+      };
 
   Future<bool> openFavorites(
     List<String> eligible, {

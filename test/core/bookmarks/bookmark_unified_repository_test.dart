@@ -11,6 +11,9 @@ import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
+import 'package:boorusama/core/local_media/local_media_models.dart';
+import 'package:boorusama/core/local_media/local_media_reference.dart';
+import 'package:boorusama/core/posts/post/types.dart' show StoredPostCodec;
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,6 +122,37 @@ void main() {
     await restart();
     expect((await repository.readAll()).map((record) => record.id), [0, 1, 2]);
     expect(await repository.read(1), isA<ContentGroupBookmark>());
+  });
+
+  test('Local Media bookmarks reopen and deduplicate by hash alongside remote posts', () async {
+    final reference = LocalMediaReference.parse(List.filled(64, 'a').join());
+    final at = DateTime.utc(2026);
+    PostBookmark local(int rowId) {
+      final post = localMediaPost(reference, id: rowId);
+      return PostBookmark.fromSnapshot(
+        id: 0,
+        createdAt: at,
+        updatedAt: at,
+        snapshot: const StoredPostCodec().encode(post),
+        post: post,
+        postId: null,
+      );
+    }
+
+    final saved = await repository.addBookmarkWithBookmarks([
+      testPoolPost(7),
+      local(7),
+    ]);
+    await restart();
+    final restored = await repository.readAll();
+    expect(
+      restored.map((record) => record.id),
+      saved.map((record) => record.id),
+    );
+    expect((restored.last as PostBookmark).identity, local(89).identity);
+    final repeated = await repository.addBookmarkWithBookmarks([local(89)]);
+    expect(repeated.single.id, saved.last.id);
+    expect(await repository.readAll(), hasLength(2));
   });
 
   test('delete and Undo recreation never recycle an issued ID', () async {

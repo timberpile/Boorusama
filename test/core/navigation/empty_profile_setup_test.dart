@@ -2,6 +2,7 @@ import 'package:boorusama/core/backups/export_import/clipboard/export_clipboard_
 import 'package:boorusama/core/backups/export_import/export/export_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/export_import_page.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/local_media/local_media_providers.dart';
 import 'package:boorusama/core/navigation/navigation_catalog.dart';
 import 'package:boorusama/core/navigation/navigation_catalog_provider.dart';
 import 'package:boorusama/core/navigation/navigation_destination_pages.dart';
@@ -22,6 +23,7 @@ void main() {
         final profiles = StateProvider<List<BooruConfig>>((ref) => []);
         final container = ProviderContainer(
           overrides: [
+            localMediaAvailableProvider.overrideWithValue(true),
             navigationProfilesProvider.overrideWith(
               (ref) => ref.watch(profiles),
             ),
@@ -59,6 +61,10 @@ void main() {
           ),
         );
         expect(find.text('No profiles available'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('browse-recovery-local-media')),
+          favorites ? findsNothing : findsOneWidget,
+        );
         expect(find.text('Choose a profile'), findsNothing);
         final add = find.byKey(const ValueKey('empty-profile-add'));
         final importAction = find.byKey(const ValueKey('empty-profile-import'));

@@ -1487,7 +1487,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
       );
-      if (rollbackBookmarkVersion == kBookmarksBackupVersion) {
+      if (isNestedBookmarkBackup(rollbackBookmarkVersion)) {
         await service.restoreLocalSnapshot(data);
       } else {
         await service.replace(data);

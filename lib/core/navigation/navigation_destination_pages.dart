@@ -15,6 +15,8 @@ import '../configs/config/providers.dart';
 import '../configs/create/routes.dart';
 import '../donate/src/donation_page.dart';
 import '../download_manager/widgets.dart';
+import '../local_media/local_media_page.dart';
+import '../local_media/local_media_providers.dart';
 import '../posts/favorites/src/pages/favorites_page.dart';
 import '../premiums/widgets.dart';
 import '../search/following_topics/widgets.dart';
@@ -73,6 +75,7 @@ class NavigationDestinationPage extends ConsumerWidget {
               ),
             )),
           ),
+          AppDestination.localMedia => const LocalMediaPage(),
           AppDestination.bookmarks => BookmarkGroupBrowserPage(
             key: ValueKey((
               'bookmark-home',
@@ -198,6 +201,19 @@ class NavigationRecoveryPage extends ConsumerWidget {
                 onTap: () => unawaited(openProfilesSettingsPage(ref)),
               ),
           ],
+          if (!favorites && ref.watch(localMediaAvailableProvider))
+            ListTile(
+              key: const ValueKey('browse-recovery-local-media'),
+              leading: const Icon(Icons.perm_media_outlined),
+              title: Text(context.t.local_media.title),
+              onTap: () => unawaited(
+                ref
+                    .read(navigationControllerProvider.notifier)
+                    .selectDestination(
+                      const DestinationId.app(AppDestination.localMedia),
+                    ),
+              ),
+            ),
         ],
       ),
     );

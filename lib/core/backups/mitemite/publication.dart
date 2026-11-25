@@ -7,6 +7,7 @@ import '../../../foundation/data_mutation_coordinator.dart';
 import '../../cache/misc_data_store.dart';
 import 'catalog.dart';
 import 'bookmark_package.dart';
+import '../sources/bookmark_backup_schema.dart';
 import 'following_package.dart';
 import '../sources/following_topic_backup_data.dart';
 import 'protocol.dart';
@@ -179,7 +180,7 @@ final class SyncPublicationWriter {
       collection: package.collection,
       bytes: package.bytes,
       semanticHash: package.semanticHash,
-      schema: ValidatedSyncBookmarkPackage.schema,
+      schema: package.schemaVersion,
     );
   });
 
@@ -328,7 +329,7 @@ final class SyncBookmarkPublisher {
       if (prior.collection != collection) {
         throw const FormatException('Foreign local publication');
       }
-      if (prior.schema == ValidatedSyncBookmarkPackage.schema &&
+      if (prior.schema == bookmarkTransferVersion(data.records) &&
           prior.semanticHash == semantic &&
           !writer.sequences.isWithdrawnRevision(prior)) {
         // Incomplete/offline data never becomes an empty revision or withdrawal.

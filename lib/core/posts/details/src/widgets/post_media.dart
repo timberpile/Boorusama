@@ -17,6 +17,10 @@ import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../../images/booru_image.dart' show ErrorPlaceholder;
 import '../../../../navigation/destination_activity.dart';
+import '../../../../local_media/local_media_providers.dart';
+import '../../../../local_media/local_media_reference.dart';
+import '../../../../local_media/local_media_thumbnail.dart';
+import '../../../../videos/engines/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../videos/cache/providers.dart';
@@ -79,6 +83,9 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (post.booruData case LocalMediaPostData(:final reference)) {
+      return _buildLocalMedia(context, ref, reference);
+    }
     final access = watchContentMediaAccess(ref, config, post: post);
     if (!access.allowed) {
       return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
@@ -226,6 +233,73 @@ class PostMedia<T extends Post> extends ConsumerWidget {
         : _buildImage(context, heroTag);
   }
 
+  Widget _buildLocalMedia(
+    BuildContext context,
+    WidgetRef ref,
+    LocalMediaReference reference,
+  ) {
+    final state = ref.watch(localMediaPresentationProvider(reference));
+    if (state.isLoading && state.valueOrNull == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final media = state.valueOrNull;
+    final file = media?.file;
+    if (file == null || media == null) {
+      return const LocalMediaUnavailable(showLabel: true);
+    }
+    final current = media.item.toPost();
+    if (current.isVideo) {
+      final details = PostDetails.of(context);
+      final engine = ref.watch(
+        imageViewerSettingsProvider.select((value) => value.videoPlayerEngine),
+      );
+      return BooruVideo(
+        key: ValueKey(reference),
+        url: file.uri.toString(),
+        aspectRatio: current.effectiveVideoAspectRatio,
+        sourceLoader: (_) async => (
+          source: LocalFileVideoSource(file),
+          release: null,
+        ),
+        videoPlayerEngine: engine == VideoPlayerEngine.webview
+            ? VideoPlayerEngine.videoPlayerPlugin
+            : engine,
+        heroTag: postHeroTag(current),
+        onCurrentPositionChanged: (position, total) => details.controller
+            .onCurrentPositionChanged(position, total, current),
+        onVideoPlayerCreated: (player) {
+          onVideoFrameChanged?.call(false);
+          details.controller.onBooruVideoPlayerCreated(player, current);
+        },
+        onVideoPlayerDisposed: () {
+          onVideoFrameChanged?.call(false);
+          details.controller.onBooruVideoPlayerDisposed(current);
+        },
+        onFrameRendered: () => onVideoFrameChanged?.call(true),
+        sound: ref.watch(globalSoundStateProvider),
+        speed: ref.watch(playbackSpeedProvider(reference.sha256)),
+        shouldInitialize: isPageSettled,
+        onOpenSettings: () => _openSettings(ref),
+      );
+    }
+
+    final image = _LocalMediaImage(
+      key: ValueKey((reference, imageController)),
+      image: FileImage(file),
+      controller: imageController,
+      onDecoded: (size) {
+        onRepresentationChanged?.call(true);
+        onImageSize?.call(size);
+      },
+    );
+    final aspectRatio = current.effectiveOriginalAspectRatio;
+    return Center(
+      child: aspectRatio == null
+          ? image
+          : AspectRatio(aspectRatio: aspectRatio, child: image),
+    );
+  }
+
   Widget _buildImage(BuildContext context, String heroTag) {
     final poster = PostDetailsImage(
       heroTag: heroTag,
@@ -254,4 +328,72 @@ class PostMedia<T extends Post> extends ConsumerWidget {
       poster: poster,
     );
   }
+}
+
+class _LocalMediaImage extends StatefulWidget {
+  const _LocalMediaImage({
+    required this.image,
+    required this.controller,
+    required this.onDecoded,
+    super.key,
+  });
+
+  final FileImage image;
+  final ExtendedImageController? controller;
+  final ValueChanged<Size> onDecoded;
+
+  @override
+  State<_LocalMediaImage> createState() => _LocalMediaImageState();
+}
+
+class _LocalMediaImageState extends State<_LocalMediaImage> {
+  var _reported = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?.loadState.addListener(_reportDecoded);
+  }
+
+  @override
+  void didUpdateWidget(_LocalMediaImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.image != widget.image) _reported = false;
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.loadState.removeListener(_reportDecoded);
+    super.dispose();
+  }
+
+  void _reportDecoded() {
+    final controller = widget.controller;
+    final info = controller?.imageInfo.value;
+    if (_reported ||
+        controller?.loadState.value != LoadState.completed ||
+        info == null) {
+      return;
+    }
+    _reported = true;
+    final image = widget.image;
+    final size = Size(
+      info.image.width.toDouble(),
+      info.image.height.toDouble(),
+    );
+    // FileImage can decode synchronously from the cache while its widget mounts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.image == image && widget.controller == controller) {
+        widget.onDecoded(size);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => ExtendedImage(
+    image: widget.image,
+    controller: widget.controller,
+    fit: BoxFit.contain,
+    errorWidget: const LocalMediaUnavailable(showLabel: true),
+  );
 }

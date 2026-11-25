@@ -1,21 +1,24 @@
 {
-  "baseline_commit": "422aeae087c1108e655d85d1a3dac25120456cd6",
-  "baseline_release": "v4.6.1-timberpile.3",
+  "baseline_commit": "45f3df6c3b2e2c977480b5ac3f3aef415765d218",
+  "baseline_release": "v4.6.1-timberpile.4",
   "scope": "Reviewed app-owned source markers. Run --inventory and manually classify additional markers; equal numbers do not prove semantic compatibility. Refresh baseline-specific locators after an actual public release.",
   "contracts": [
     {
       "id": "bookmark-export",
       "path": "lib/core/backups/sources/bookmark_backup_schema.dart",
-      "pattern": "\\bconst\\s+(?:int\\s+)?kBookmarksBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
-      "baseline_path": "lib/core/backups/sources/bookmarks_source.dart"
+      "pattern": "\\bconst\\s+(?:int\\s+)?kBookmarksBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
     },
     {
       "id": "bookmark-import-readers",
       "path": "lib/core/backups/sources/bookmark_backup_codec.dart",
-      "pattern": "metadata\\.version\\s*(?:!=\\s*(?=[0-9])|==\\s*(?=kBookmarksBackupVersion\\b))(?P<version>[0-9]+|kBookmarksBackupVersion)",
+      "pattern": "(?:metadata\\.version\\s*!=\\s*(?=[0-9])|\\bversion\\s*==\\s*(?=kBookmarksBackupVersion\\b)|\\bconst\\s+kRemoteBookmarksBackupVersion\\s*=\\s*)(?P<version>[0-9]+|kBookmarksBackupVersion)",
       "reader_for": "bookmark-export",
-      "baseline_pattern": "metadata\\.version\\s*!=\\s*(?P<version>[0-9]+)",
-      "shared_symbol": "kBookmarksBackupVersion"
+      "baseline_pattern": "metadata\\.version\\s*(?:!=\\s*(?=[0-9])|==\\s*(?=kBookmarksBackupVersion\\b))(?P<version>[0-9]+|kBookmarksBackupVersion)",
+      "shared_symbol": "kBookmarksBackupVersion",
+      "additional_paths": [
+        "lib/core/backups/sources/bookmark_backup_schema.dart"
+      ],
+      "baseline_shared_symbol": "kBookmarksBackupVersion"
     },
     {
       "id": "profiles-export",
@@ -85,10 +88,11 @@
     {
       "id": "mitemite-bookmark-payload",
       "path": "lib/core/backups/mitemite/bookmark_package.dart",
-      "pattern": "\\bstatic const schema\\s*=\\s*(?P<version>kBookmarksBackupVersion)\\s*;",
+      "pattern": "\\bfinal schemaVersion\\s*=\\s*(?P<version>bookmarkTransferVersion)\\(data\\.records\\)",
       "same_as": "bookmark-export",
-      "baseline_pattern": "\\bstatic const schema\\s*=\\s*(?P<version>[0-9]+)\\s*;",
-      "shared_symbol": "kBookmarksBackupVersion"
+      "baseline_pattern": "\\bstatic const schema\\s*=\\s*(?P<version>kBookmarksBackupVersion)\\s*;",
+      "shared_symbol": "bookmarkTransferVersion",
+      "baseline_shared_symbol": "kBookmarksBackupVersion"
     },
     {
       "id": "mitemite-following-payload",
@@ -99,9 +103,7 @@
     {
       "id": "bookmark-organization",
       "path": "lib/core/bookmarks/src/services/bookmark_storage_migration.dart",
-      "pattern": "\\bstatic const schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
-      "baseline_path": "lib/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart",
-      "baseline_pattern": "storage\\.put\\('version',\\s*(?P<version>[0-9]+)\\)"
+      "pattern": "\\bstatic const schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
     },
     {
       "id": "bookmark-repository-schema",
@@ -121,8 +123,7 @@
     {
       "id": "post-listed-payload",
       "path": "lib/core/posts/post/src/types/booru_post_data.dart",
-      "pattern": "\\bstatic const payloadVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
-      "baseline_absent": true
+      "pattern": "\\bstatic const payloadVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
     },
     {
       "id": "post-gelbooru-v2-payload",
@@ -158,6 +159,16 @@
       "id": "following-mirror-state",
       "path": "lib/core/search/following_topics/src/types/following_mirror_state.dart",
       "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'epoch'"
+    },
+    {
+      "id": "local-media-library",
+      "path": "lib/core/local_media/local_media_library.dart",
+      "pattern": "\\bstatic const schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "local-media-post-reference",
+      "path": "lib/core/local_media/local_media_reference.dart",
+      "pattern": "\\bint get schemaVersion\\s*=>\\s*(?P<version>[0-9]+)\\s*;"
     }
   ]
 }

@@ -18,7 +18,7 @@ class SelectedTagList extends StatelessWidget {
     required this.onClear,
     required this.onDelete,
     required this.onUpdate,
-    required this.onBulkDownload,
+    this.onBulkDownload,
     super.key,
     this.auth,
     this.extraTagsCount,
@@ -31,7 +31,7 @@ class SelectedTagList extends StatelessWidget {
   final VoidCallback onClear;
   final void Function(TagSearchItem tag) onDelete;
   final void Function(TagSearchItem oldTag, String newTag)? onUpdate;
-  final void Function(List<TagSearchItem> tags) onBulkDownload;
+  final void Function(List<TagSearchItem> tags)? onBulkDownload;
   final int? extraTagsCount;
   final Widget? profileMenu;
   final void Function()? onOtherTagsCountTap;
@@ -58,11 +58,12 @@ class SelectedTagList extends StatelessWidget {
                 icon: const Icon(Symbols.clear_all),
                 onTap: onClear,
               ),
-              KurumiPopupMenuItem(
-                title: Text(context.t.sideMenu.bulk_download),
-                icon: const Icon(Symbols.download),
-                onTap: () => onBulkDownload(tags),
-              ),
+              if (onBulkDownload case final download?)
+                KurumiPopupMenuItem(
+                  title: Text(context.t.sideMenu.bulk_download),
+                  icon: const Icon(Symbols.download),
+                  onTap: () => download(tags),
+                ),
             ],
           ),
           Expanded(

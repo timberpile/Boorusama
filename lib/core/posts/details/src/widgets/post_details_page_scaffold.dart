@@ -563,7 +563,11 @@ class _PostDetailPageScaffoldState<T extends Post>
                   ) ??
                   ui?.buildableFullParts ??
                   <DetailsPart>{},
-              canCustomize: ui != null && canCustomize && post != null,
+              canCustomize:
+                  ui != null &&
+                  canCustomize &&
+                  (page?.canCustomize ?? true) &&
+                  post != null,
             ),
           ];
         },
@@ -787,16 +791,19 @@ class PostDetailsPageConfiguration extends InheritedWidget {
     required this.layout,
     required super.child,
     this.preferredParts,
+    this.canCustomize = true,
     super.key,
   });
   final PostDetailsUIBuilder? uiBuilder;
   final LayoutConfigs? layout;
   final Set<DetailsPart>? preferredParts;
+  final bool canCustomize;
   static PostDetailsPageConfiguration? maybeOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<PostDetailsPageConfiguration>();
   @override
   bool updateShouldNotify(PostDetailsPageConfiguration oldWidget) =>
       uiBuilder != oldWidget.uiBuilder ||
       layout != oldWidget.layout ||
-      preferredParts != oldWidget.preferredParts;
+      preferredParts != oldWidget.preferredParts ||
+      canCustomize != oldWidget.canCustomize;
 }

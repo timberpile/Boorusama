@@ -24,12 +24,18 @@ class SearchSuggestionPanel extends ConsumerWidget {
     required this.config,
     required this.controller,
     this.reverse = false,
+    this.tagSuggestionConfig,
+    this.tagSuggestions,
+    this.allowRawQuery = true,
     super.key,
   });
 
   final BooruConfigAuth config;
   final SearchPageController controller;
   final bool reverse;
+  final BooruConfigAuth? tagSuggestionConfig;
+  final List<AutocompleteData> Function(String draft)? tagSuggestions;
+  final bool allowRawQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ListenableBuilder(
@@ -176,14 +182,21 @@ class SearchSuggestionPanel extends ConsumerWidget {
             );
           }
         }
+        final tagConfig = tagSuggestionConfig ?? config;
         final tags = withoutSelectedTagSuggestions(
-          suggestions: ref.watch(suggestionProvider((config, query))),
-          selectedTags: controller.tagsController.tags,
+          suggestions:
+              tagSuggestions?.call(query) ??
+              ref.watch(suggestionProvider((tagConfig, query))),
+          selectedTags: tagSuggestions == null
+              ? controller.tagsController.tags
+              : controller.tagsController.tags.where(
+                  (tag) => tag != controller.editingTag.value,
+                ),
           extractor: controller.metatagExtractor,
           optionKeys: controller.optionKeys,
         );
         final builder = ref
-            .watch(booruBuilderProvider(config))
+            .watch(booruBuilderProvider(tagConfig))
             ?.tagSuggestionItemBuilder;
         for (final tag in tags) {
           void pick() {
@@ -196,9 +209,9 @@ class SearchSuggestionPanel extends ConsumerWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 40),
               child:
-                  builder?.call(config, tag, true, query, (_) => pick()) ??
+                  builder?.call(tagConfig, tag, true, query, (_) => pick()) ??
                   DefaultTagSuggestionItem(
-                    config: config,
+                    config: tagConfig,
                     tag: tag,
                     onItemTap: (_) => pick(),
                     currentQuery: query,
@@ -209,7 +222,7 @@ class SearchSuggestionPanel extends ConsumerWidget {
         }
       }
 
-      if (query.trim().isNotEmpty) {
+      if (allowRawQuery && query.trim().isNotEmpty) {
         addRow(
           label: query,
           trailing: Semantics(

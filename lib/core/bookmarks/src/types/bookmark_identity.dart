@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../boorus/booru/types.dart';
+import '../../../local_media/local_media_reference.dart';
 import '../../../posts/post/types.dart';
 
 sealed class BookmarkUniqueId extends Equatable {
@@ -17,10 +18,16 @@ final class BookmarkIdentity extends BookmarkUniqueId {
     required String site,
     required this.postKey,
   }) : site = normalizePostSourceHost(site) {
-    if (this.site.isEmpty || postKey.isEmpty) {
+    if (this.site.isEmpty ||
+        this.site == LocalMediaReference.namespace ||
+        postKey.isEmpty) {
       throw const FormatException('Invalid bookmark identity');
     }
   }
+
+  BookmarkIdentity.local(LocalMediaReference reference)
+    : site = LocalMediaReference.namespace,
+      postKey = reference.sha256;
 
   factory BookmarkIdentity.fromPost(Post post) =>
       BookmarkIdentity.tryFromPost(post) ??
@@ -35,10 +42,21 @@ final class BookmarkIdentity extends BookmarkUniqueId {
         postKey.isEmpty) {
       throw const FormatException('Invalid bookmark identity');
     }
-    return BookmarkIdentity(site: site, postKey: postKey);
+    return site == LocalMediaReference.namespace
+        ? BookmarkIdentity.local(LocalMediaReference.parse(postKey))
+        : BookmarkIdentity(site: site, postKey: postKey);
   }
 
   static BookmarkIdentity? tryFromPost(Post post) {
+    if (post.origin.booruType == BooruType.localMedia) {
+      return switch (post.booruData) {
+        LocalMediaPostData(:final reference) => BookmarkIdentity.local(
+          reference,
+        ),
+        _ => null,
+      };
+    }
+    if (post.booruData is LocalMediaPostData) return null;
     final site = post.origin.sourceHost;
     final key = switch ((post.origin.booruType, post.booruData)) {
       (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,

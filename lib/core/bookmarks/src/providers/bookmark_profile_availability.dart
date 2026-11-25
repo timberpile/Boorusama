@@ -11,6 +11,7 @@ import '../../../content/anonymous_access_provider.dart';
 import '../../../content/types.dart';
 import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../../../posts/post/types.dart';
+import '../../../local_media/local_media_reference.dart';
 import '../types/bookmark_grid_entry.dart';
 import '../types/content_group_bookmark.dart';
 import '../types/bookmark_library_state.dart';
@@ -34,6 +35,11 @@ class BookmarkProfileAvailability {
     final reasons = <Object, PostPresentationFallbackReason>{};
     for (final bookmark in library.items) {
       final post = bookmark.post;
+      if (post.booruData is LocalMediaPostData) {
+        // Local placeholders stay in the ordinary grid and swipe sequence.
+        posts.add(bookmark.id);
+        continue;
+      }
       final profile = selectBookmarkReadProfile(
         BookmarkReaderRequest(post.origin),
         profiles,

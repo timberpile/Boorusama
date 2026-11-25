@@ -1,8 +1,12 @@
+import 'package:collection/collection.dart';
+
 // Project imports:
 import '../../../../../foundation/loggers/handled_error.dart';
 import '../../../../../foundation/loggers/logger.dart';
 import '../../../rating/types.dart';
 import '../../../../boorus/booru/types.dart';
+import '../../../../local_media/local_media_models.dart';
+import '../../../../local_media/local_media_reference.dart';
 import '../../../sources/types.dart';
 import '../types/booru_post_data.dart';
 import '../types/post.dart';
@@ -47,6 +51,21 @@ final class StoredPostCodec {
     BooruPostDataCodec<D>? dataCodec,
   }) {
     final data = post.booruData;
+    if (data is LocalMediaPostData) {
+      if (post.origin != PostOrigin.forBooruType(BooruType.localMedia)) {
+        throw const FormatException('Invalid Local Media origin');
+      }
+      final referencePost = localMediaPost(data.reference);
+      return StoredPostSnapshot(
+        origin: referencePost.origin.toSnapshot(),
+        common: _encodeCommon(referencePost.core),
+        custom: {'sha256': data.reference.sha256},
+        codecVersion: data.schemaVersion,
+      );
+    }
+    if (post.origin.booruType == BooruType.localMedia) {
+      throw const FormatException('Invalid Local Media snapshot');
+    }
     if (data is ListedPostData) _validateListed(post.origin, post.core);
     final (custom, codecVersion) = switch (data) {
       ListedPostData() => (
@@ -94,6 +113,34 @@ final class StoredPostCodec {
         error: error,
         stackTrace: stackTrace,
       );
+    }
+
+    if (origin.booruType == BooruType.localMedia) {
+      try {
+        final hash = snapshot.custom['sha256'];
+        if (hash is! String) {
+          throw const FormatException('Missing Local Media SHA-256');
+        }
+        final post = localMediaPost(LocalMediaReference.parse(hash));
+        final expected = encode(post);
+        if (snapshot.origin != expected.origin ||
+            snapshot.codecVersion != expected.codecVersion ||
+            snapshot.custom.length != 1 ||
+            !const DeepCollectionEquality().equals(
+              snapshot.common,
+              expected.common,
+            )) {
+          throw const FormatException('Invalid Local Media snapshot');
+        }
+        return StoredPostDecodeSuccess(post);
+      } catch (error, stackTrace) {
+        _logDecodeFailure('decode_local_media', error, stackTrace);
+        return StoredPostDecodeFailure(
+          StoredPostDecodeFailureReason.malformedCommonData,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
     }
 
     final PostCoreData core;

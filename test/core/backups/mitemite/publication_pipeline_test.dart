@@ -26,6 +26,10 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_record_fields.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/local_media/local_media_models.dart';
+import 'package:boorusama/core/local_media/local_media_reference.dart';
+import 'package:boorusama/core/posts/post/types.dart' show StoredPostCodec;
+import 'package:boorusama/core/posts/sources/types.dart' show NoSource;
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/foundation/filesystem.dart';
@@ -129,6 +133,58 @@ void main() {
       identity: identity,
       sequences: SyncPublicationSequences(store: store, mutations: mutations),
     );
+  });
+
+  test('signed v7 revisions carry an installation-independent Local Media reference', () async {
+    final reference = LocalMediaReference.parse(List.filled(64, 'f').join());
+    final post = localMediaPost(
+      reference,
+      id: 84,
+      source: 'https://example.invalid/private',
+    );
+    final at = DateTime.utc(2026);
+    final bookmark = PostBookmark.fromSnapshot(
+      id: 0,
+      createdAt: at,
+      updatedAt: at,
+      snapshot: const StoredPostCodec().encode(post),
+      post: post,
+      postId: null,
+    );
+    final package = await build(
+      snapshot: BookmarkBackupData.unified(
+        records: [bookmark],
+        groups: [
+          BookmarkGroupBackup(
+            id: source,
+            name: 'Source',
+            bookmarkIds: const [0],
+            addedAt: {0: at},
+          ),
+        ],
+      ),
+    );
+    final revision = await writer.publishRevision(package);
+    expect(revision.schema, 7);
+    final catalog = await writer.publishCatalog(
+      name: 'Publisher',
+      entries: [active(revision)],
+    );
+    final prepared =
+        await SyncReceivePreparation(
+          storage: storage,
+          fs: fs,
+          codec: codec,
+        ).prepare(
+          catalog: await accept(catalog),
+          collection: collection,
+          publisherKey: identity.publicKey,
+        );
+    final restored =
+        (await prepared!.package.materialize()).records.single as PostBookmark;
+    expect(restored.identity, bookmark.identity);
+    expect(restored.post.id, 0);
+    expect(restored.post.source, isA<NoSource>());
   });
 
   test('signed descriptor-last publication and validated v6 receive preserve Work/Page identities', () async {

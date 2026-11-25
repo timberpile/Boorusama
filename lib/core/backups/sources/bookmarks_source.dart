@@ -33,6 +33,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         id: 'bookmarks',
         priority: 2,
         version: kBookmarksBackupVersion,
+        versionForData: (data) => bookmarkTransferVersion(data.records),
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async {
           final state = await ref

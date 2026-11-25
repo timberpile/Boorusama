@@ -10,6 +10,7 @@ import '../../../../foundation/platform.dart';
 import '../../../bulk_downloads/providers.dart';
 import '../../../changelogs/routes.dart';
 import '../../../premiums/widgets.dart';
+import '../../../local_media/local_media_providers.dart';
 
 class EntryPage extends ConsumerStatefulWidget {
   const EntryPage({
@@ -34,6 +35,9 @@ class _EntryPageState extends ConsumerState<EntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(localMediaAvailableProvider)) {
+      ref.listen(localMediaLibraryProvider, (_, _) {});
+    }
     if (ref.watch(appPlatformProvider).isMobile) {
       ref.listen(
         deviceStoragePermissionProvider,

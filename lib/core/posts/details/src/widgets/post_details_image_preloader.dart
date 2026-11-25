@@ -7,6 +7,7 @@ import '../../../../content/groups/group_metadata.dart';
 import 'dart:async';
 
 import '../../../../navigation/destination_activity.dart';
+import '../../../../local_media/local_media_reference.dart';
 
 // Package imports:
 import 'package:foundation/performance.dart';
@@ -360,7 +361,9 @@ class _MixedPostDetailsImagePreloaderState
                   );
           }
           final input = widget.postAt(index);
-          if (input == null) return null;
+          if (input == null || input.booruData is LocalMediaPostData) {
+            return null;
+          }
           final config = _configAt(index, input, configs);
           if (config == null) return null;
           final binding = widget.sequence?.entries[index].source;

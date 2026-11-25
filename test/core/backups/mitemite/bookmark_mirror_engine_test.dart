@@ -65,6 +65,7 @@ import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
 import 'package:boorusama/core/backups/mitemite/bookmark_mirror_engine.dart';
 import 'package:boorusama/core/backups/mitemite/bookmark_package.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
 import 'package:boorusama/core/backups/mitemite/catalog.dart';
 import 'package:boorusama/core/backups/mitemite/catalog_gate.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
@@ -3891,7 +3892,12 @@ void main() {
     );
   });
 
-  for (final schema in [6, 7]) {
+  const unsupportedBookmarkSchema = kBookmarksBackupVersion + 1;
+  for (final schema in [
+    kRemoteBookmarksBackupVersion,
+    kBookmarksBackupVersion,
+    unsupportedBookmarkSchema,
+  ]) {
     test(
       'same applied bytes cannot bypass schema or descriptor checks: $schema',
       () async {
@@ -3938,7 +3944,9 @@ void main() {
         await expectLater(
           engine.receive(ticket: ticket, publisherKey: identity.publicKey),
           throwsA(
-            schema == 7 ? isA<SyncUpdateRequired>() : isA<SyncReplayRejected>(),
+            schema == unsupportedBookmarkSchema
+                ? isA<SyncUpdateRequired>()
+                : isA<SyncReplayRejected>(),
           ),
         );
         expect(await repository.readMirrorState(), before);

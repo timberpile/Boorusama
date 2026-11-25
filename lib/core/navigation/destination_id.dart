@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 
 enum AppDestination {
   following('following'),
+  localMedia('local-media'),
   bookmarks('bookmarks'),
   blacklist('blacklist'),
   favoriteTags('favorite-tags'),

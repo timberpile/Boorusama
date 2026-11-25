@@ -4,6 +4,8 @@ import '../../../blacklists/providers.dart';
 import '../../../content/content_media_access.dart';
 import '../../../content/types.dart';
 import '../../../navigation/destination_activity.dart';
+import '../../../local_media/local_media_reference.dart';
+import '../../../local_media/local_media_thumbnail.dart';
 import '../providers/native_work_mosaic_cover.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../providers/bookmark_read_access.dart';
@@ -121,6 +123,9 @@ class _BookmarkLocalGroupCardState
   }
 
   Widget? _postCover(PostBookmark bookmark) {
+    if (bookmark.post.booruData case LocalMediaPostData(:final reference)) {
+      return LocalMediaThumbnail(reference: reference);
+    }
     final settings = ref.watch(imageListingSettingsProvider);
     final autoplayGif =
         settings.animatedPostsDefaultState ==

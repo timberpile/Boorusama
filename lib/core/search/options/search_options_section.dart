@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../cache/providers.dart';
 import '../../configs/config/providers.dart';
+import '../../configs/config/types.dart';
 import '../search/src/widgets/search_controller.dart';
 import '../search/src/widgets/search_landing_viewport.dart';
 import 'catalog/aliases.dart';
@@ -53,6 +54,8 @@ Future<void> editSearchOption(
 class SearchOptionsSection extends ConsumerWidget {
   const SearchOptionsSection({
     required this.controller,
+    this.config,
+    this.pinStorageId,
     this.pinnedKeys,
     this.onPin,
     this.onUnpin,
@@ -61,6 +64,8 @@ class SearchOptionsSection extends ConsumerWidget {
   });
 
   final SearchPageController controller;
+  final BooruConfigAuth? config;
+  final String? pinStorageId;
   final List<String>? pinnedKeys;
   final Future<void> Function(String)? onPin;
   final Future<void> Function(String)? onUnpin;
@@ -68,11 +73,12 @@ class SearchOptionsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigAuth;
+    final config = this.config ?? ref.watchConfigAuth;
     final capabilities = ref.watch(searchCapabilitiesProvider(config));
     final catalog = ref.watch(searchOptionCatalogProvider(config));
     if (catalog.isEmpty) return const SizedBox.shrink();
-    final storageKey = 'search_options.pins.${ref.watchConfig.id}';
+    final storageKey =
+        'search_options.pins.${pinStorageId ?? ref.watchConfig.id}';
     final saved = ref.watch(miscDataProvider(storageKey));
     final defaults = catalog
         .where((option) => option.kind != SearchOptionKind.native)

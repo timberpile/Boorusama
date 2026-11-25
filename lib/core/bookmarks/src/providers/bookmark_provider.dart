@@ -2777,7 +2777,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         dataCodec: capability?.codec,
       ),
       post: post,
-      postId: post.id,
+      postId: post.origin.booruType == BooruType.localMedia ? null : post.id,
       sourceUrl: sourceConfig == null
           ? ''
           : ref.read(postLinkGeneratorProvider(sourceConfig)).getLink(post),

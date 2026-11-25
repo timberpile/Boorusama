@@ -17,6 +17,17 @@ import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
 import 'package:boorusama/boorus/pixiv/works/work_timeline.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/artists/types.dart';
+import 'package:boorusama/core/local_media/local_media_actions.dart';
+import 'package:boorusama/core/local_media/local_media_models.dart';
+import 'package:boorusama/core/local_media/local_media_library.dart';
+import 'package:boorusama/core/local_media/local_media_providers.dart';
+import 'package:boorusama/core/local_media/local_media_reference.dart';
+import 'package:boorusama/boorus/danbooru/tags/edit/src/tag_edit_page.dart';
+import 'package:boorusama/boorus/danbooru/tags/edit/src/widgets/tag_edit_rating_selector_section.dart';
+import 'package:boorusama/core/tags/categories/providers.dart';
+import 'package:boorusama/core/tags/categories/src/tag_type_store.dart';
+import 'package:boorusama/core/tags/local/types.dart' as tag_cache;
+import 'package:boorusama/core/tags/tag/widgets.dart';
 import 'package:boorusama/core/posts/details/src/providers/media_group_provider.dart';
 import 'package:flutter/foundation.dart'
     show ChangeNotifier, DiagnosticPropertiesBuilder, FlutterError;
@@ -79,6 +90,7 @@ import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oktoast/oktoast.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -172,6 +184,231 @@ import '../../../support/fakes/memory_repositories.dart'
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  testWidgets(
+    'Local Media keeps management actions in expanded details at narrow width',
+    (tester) async {
+      _mobileViewport(tester, size: const Size(320, 560));
+      final reference = LocalMediaReference.parse('0123456789abcdef' * 4);
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final item = LocalMediaItem(
+        id: 13,
+        reference: reference,
+        md5: '',
+        format: LocalMediaFormat.png,
+        byteSize: 100,
+        importedAt: DateTime.utc(2026),
+        probe: (width: 2, height: 3, durationMs: null),
+        tags: const [(name: 'example', category: 'artist')],
+        rating: Rating.unknown,
+      );
+      final post = item.toPost();
+      final harness = _Harness(
+        posts: [post],
+        entries: [PostViewerEntry(post: post, occurrenceId: reference)],
+        configurations: const [],
+        overrides: [
+          bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+          localMediaPresentationProvider(reference).overrideWith(
+            (_) => Stream.value((item: item, file: null)),
+          ),
+          booruTagTypeStoreProvider.overrideWith((_) => _LocalTagTypes()),
+        ],
+      );
+      try {
+        await tester.pumpWidget(OKToast(child: harness.build(textScale: 1.5)));
+        await tester.pumpAndSettle();
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        final toolbar = find.byType(LocalMediaActions);
+        expect(toolbar, findsWidgets);
+        final tagTile = find.byType(RawTagsTile);
+        expect(tagTile, findsOneWidget);
+        await tester.tap(
+          find
+              .descendant(
+                of: tagTile,
+                matching: find.byType(ExpansionTile),
+              )
+              .hitTestable(),
+        );
+        await tester.pumpAndSettle();
+        final tagChip = tester.widget<PostTagListChip>(
+          find.byType(PostTagListChip),
+        );
+        expect(tagChip.tag.category.name, 'artist');
+        expect(find.byType(FileDetailsSection), findsOneWidget);
+        expect(find.textContaining('2x3 • PNG'), findsOneWidget);
+        expect(find.text('Customize UI'), findsNothing);
+        final bookmark = find
+            .descendant(
+              of: toolbar,
+              matching: find.byTooltip('Bookmark Groups'),
+            )
+            .hitTestable();
+        final more = find
+            .descendant(
+              of: toolbar,
+              matching: find.byIcon(Icons.more_horiz),
+            )
+            .hitTestable();
+        expect(more, findsOneWidget);
+        expect(bookmark, findsOneWidget);
+        expect(tester.getCenter(bookmark).dx, lessThan(80));
+        expect(tester.getCenter(more).dx, greaterThan(240));
+        await tester.tap(more);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Metadata').hitTestable());
+        await tester.pumpAndSettle();
+        expect(find.byType(PostTagEditEditor), findsOneWidget);
+        expect(find.byType(TagEditRatingSelectorSection), findsOneWidget);
+        final editor = tester.widget<PostTagEditEditor>(
+          find.byType(PostTagEditEditor),
+        );
+        expect(editor.params.initialTags, {'example'});
+        expect(editor.params.initialTagCategories, {'example': 'artist'});
+        expect(find.text('Search').hitTestable(), findsOneWidget);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        final detailsScroll = find
+            .descendant(
+              of: find.byKey(const ValueKey(('viewer-details-scroll', 0))),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        final fileDetails = find.text('File Details').hitTestable();
+        await tester.scrollUntilVisible(
+          fileDetails,
+          120,
+          scrollable: detailsScroll,
+        );
+        await tester.tap(fileDetails);
+        await tester.pumpAndSettle();
+        expect(find.text('SHA-256'), findsOneWidget);
+
+        final hash = find.text(reference.sha256);
+        final hashBox = find
+            .ancestor(of: hash, matching: find.byType(InkWell))
+            .first;
+        await tester.scrollUntilVisible(
+          hashBox.hitTestable(),
+          120,
+          scrollable: detailsScroll,
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(hash);
+        expect(paragraph.maxLines, 1);
+        expect(paragraph.overflow, TextOverflow.ellipsis);
+        expect(paragraph.didExceedMaxLines, isTrue);
+        final copyIcon = find.descendant(
+          of: hashBox,
+          matching: find.byIcon(Icons.copy),
+        );
+        expect(
+          tester.widget<Icon>(copyIcon).color,
+          Theme.of(tester.element(copyIcon)).colorScheme.onSurfaceVariant,
+        );
+        await tester.tapAt(tester.getTopLeft(hashBox) + const Offset(5, 5));
+        await tester.pump();
+        expect(copiedText, reference.sha256);
+        await tester.pump(KurumiDurations.shortToast);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+      }
+    },
+  );
+
+  testWidgets('Local Media deletion dismisses the viewer after confirmation', (
+    tester,
+  ) async {
+    _mobileViewport(tester, size: const Size(320, 560));
+    final reference = LocalMediaReference.parse('c' * 64);
+    final item = LocalMediaItem(
+      id: 1,
+      reference: reference,
+      md5: '',
+      format: LocalMediaFormat.png,
+      byteSize: 100,
+      importedAt: DateTime.utc(2026),
+      probe: (width: 2, height: 3, durationMs: null),
+      tags: const [],
+      rating: Rating.unknown,
+    );
+    final post = item.toPost();
+    final library = _DeletingLocalLibrary();
+    final harness = _Harness(
+      posts: [post],
+      configurations: const [],
+      overrides: [
+        bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+        localMediaLibraryProvider.overrideWith((_) => library),
+        localMediaPresentationProvider(reference).overrideWith(
+          (_) => Stream.value((item: item, file: null)),
+        ),
+      ],
+    );
+    final router = GoRouter(
+      initialLocation: '/viewer',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const Scaffold(body: Text('Library grid')),
+          routes: [
+            GoRoute(
+              path: 'viewer',
+              builder: (_, _) => MixedPostDetailsPage(
+                posts: [post],
+                initialIndex: 0,
+                initialThumbnailUrl: null,
+                scrollController: null,
+                disclaimer: null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    try {
+      await tester.pumpWidget(harness.buildRouter(router));
+      await tester.pumpAndSettle();
+      await _pageViewController(tester).expandToSnapPoint();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz).hitTestable());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').hitTestable());
+      await tester.pumpAndSettle();
+      expect(library.deleted, isEmpty);
+      await tester.tap(find.text('Delete').hitTestable());
+      await tester.pumpAndSettle();
+      expect(library.deleted, [reference]);
+      expect(find.text('Library grid'), findsOneWidget);
+      expect(find.byType(MixedPostDetailsPage), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      router.dispose();
+      harness.dispose();
+    }
+  });
+
   for (final preparedBeforeSwipe in [true, false]) {
     testWidgets(
       'adjacent Ugoira shares preparation across the swipe ($preparedBeforeSwipe)',
@@ -8172,6 +8409,21 @@ Future<void> _nextPage(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+class _LocalTagTypes implements TagTypeStore {
+  @override
+  Future<String?> getTagCategory(String siteHost, String tagName) async =>
+      tagName == 'example' ? '1' : null;
+
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<void> saveTag(tag_cache.TagInfo tagInfo) async {}
+
+  @override
+  Future<void> saveOrUpdateTagsBatch(List<tag_cache.TagInfo> tagInfos) async {}
+}
+
 class _Harness {
   _Harness({
     GoRouter? router,
@@ -8421,6 +8673,19 @@ class _Harness {
     _disposed = true;
     container.dispose();
   }
+}
+
+class _DeletingLocalLibrary implements LocalMediaLibrary {
+  final deleted = <LocalMediaReference>[];
+
+  @override
+  Future<void> delete(LocalMediaReference reference) {
+    deleted.add(reference);
+    return Future.value();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {

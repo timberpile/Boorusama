@@ -48,6 +48,7 @@ typedef NativeSearchResultBuilder = Widget Function(
 );
 
 const kSearchBarHeight = kToolbarHeight;
+const kSelectedSearchTagHeight = 48.0;
 
 class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   const RawSearchPageScaffold({

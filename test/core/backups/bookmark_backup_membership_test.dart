@@ -53,7 +53,7 @@ void main() {
     ],
   );
   Map<String, dynamic> currentWire(BookmarkBackupData data) => {
-    'version': kBookmarksBackupVersion,
+    'version': bookmarkTransferVersion(data.records),
     'data': codec.encode(data),
     ...data.extraFields,
   };

@@ -24,6 +24,7 @@ import '../../../../posts/links/boorusama_search_link.dart';
 import '../../../../posts/links/share_search_link_button.dart';
 import '../../../../settings/providers.dart';
 import '../../../../tags/metatag/providers.dart';
+import '../../../../tags/autocompletes/types.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../histories/providers.dart';
 import '../../../options/providers.dart';
@@ -580,10 +581,16 @@ class DefaultSearchSuggestions extends ConsumerWidget {
   const DefaultSearchSuggestions({
     required this.multiSelectController,
     required this.config,
+    this.tagSuggestionConfig,
+    this.tagSuggestions,
+    this.allowRawQuery = true,
     super.key,
   });
   final SelectionModeController multiSelectController;
   final BooruConfigAuth config;
+  final BooruConfigAuth? tagSuggestionConfig;
+  final List<AutocompleteData> Function(String draft)? tagSuggestions;
+  final bool allowRawQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -615,6 +622,9 @@ class DefaultSearchSuggestions extends ConsumerWidget {
                     Expanded(
                       child: SearchSuggestionPanel(
                         config: config,
+                        tagSuggestionConfig: tagSuggestionConfig,
+                        tagSuggestions: tagSuggestions,
+                        allowRawQuery: allowRawQuery,
                         controller: controller,
                         reverse: searchBarPosition == SearchBarPosition.bottom,
                       ),

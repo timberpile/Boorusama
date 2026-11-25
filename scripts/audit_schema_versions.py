@@ -54,6 +54,11 @@ def validate_rules(rules: object) -> list[dict]:
         valid_path(rule.get('path'))
         if 'baseline_path' in rule:
             valid_path(rule['baseline_path'])
+        additional_paths = rule.get('additional_paths', [])
+        if not isinstance(additional_paths, list):
+            raise AuditError('Additional source paths must be a list')
+        for path in additional_paths:
+            valid_path(path)
         for field in ('pattern', 'baseline_pattern'):
             if field == 'baseline_pattern' and field not in rule:
                 continue
@@ -63,12 +68,13 @@ def validate_rules(rules: object) -> list[dict]:
                 raise AuditError(f"{rule['id']}: invalid {field}") from error
             if 'version' not in compiled.groupindex:
                 raise AuditError(f"{rule['id']}: pattern needs named version capture")
-        if 'shared_symbol' in rule and (
-            not (rule.get('same_as') or rule.get('reader_for'))
-            or not isinstance(rule['shared_symbol'], str)
-            or not re.fullmatch(r'[A-Za-z_]\w*', rule['shared_symbol'])
-        ):
-            raise AuditError('A shared version symbol requires a contract relation and valid identifier')
+        for field in ('shared_symbol', 'baseline_shared_symbol'):
+            if field in rule and (
+                not (rule.get('same_as') or rule.get('reader_for'))
+                or not isinstance(rule[field], str)
+                or not re.fullmatch(r'[A-Za-z_]\w*', rule[field])
+            ):
+                raise AuditError('A shared version symbol requires a contract relation and valid identifier')
         if rule.get('same_as') and rule.get('reader_for'):
             raise AuditError('A contract cannot be both an alias and a reader')
         if 'baseline_absent' in rule and type(rule['baseline_absent']) is not bool:
@@ -130,13 +136,24 @@ def audit_contracts(rules: list[dict], before: Callable[[str], str | None], afte
                     raise AuditError('Contract asserted unreleased, but baseline contains its marker')
                 old = None
             else:
-                old = versions(old_source, old_pattern, rule.get('literal_ternary', False))
+                released_shared = None
+                if 'baseline_shared_symbol' in rule:
+                    if not parent['released']:
+                        raise AuditError('Referenced contract has no published version')
+                    released_shared = (rule['baseline_shared_symbol'], parent['released'])
+                old = versions(old_source, old_pattern, rule.get('literal_ternary', False), released_shared)
             shared = None
             if 'shared_symbol' in rule:
                 if not parent['current']:
                     raise AuditError('Referenced contract has incomplete evidence')
                 shared = (rule['shared_symbol'], parent['current'])
-            new = versions(after(rule['path']), rule['pattern'], rule.get('literal_ternary', False), shared)
+            new_source = after(rule['path'])
+            for path in rule.get('additional_paths', []):
+                source = after(path)
+                if new_source is None or source is None:
+                    raise AuditError('Candidate contract source is missing')
+                new_source += '\n' + source
+            new = versions(new_source, rule['pattern'], rule.get('literal_ternary', False), shared)
             row.update(released=old, current=new)
             if new is None:
                 raise AuditError('Candidate contract is missing; removal needs an explicit review')
@@ -212,7 +229,7 @@ class GitTree:
 
 def inventory(before: GitTree, after: GitTree, rules: list[dict]) -> list[dict]:
     """Supplementary review queue; not a promise to parse every persistence API."""
-    registered = {r['path'] for r in rules}
+    registered = {path for rule in rules for path in [rule['path'], *rule.get('additional_paths', [])]}
     rows = []
     changed = after.git('diff', '--name-only', '-z', before.commit, after.commit, '--', *SOURCE_ROOTS)
     for path in sorted(p.decode() for p in changed.split(b'\0') if p):

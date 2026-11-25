@@ -23,6 +23,8 @@ class RawSearchRegion extends StatelessWidget {
     this.initialQuery,
     this.trailingSearchButton,
     this.autoFocusSearchBar,
+    this.showOptions = true,
+    this.onBackPressed,
     this.searchBarPosition = SearchBarPosition.top,
   });
 
@@ -32,6 +34,8 @@ class RawSearchRegion extends StatelessWidget {
   final Widget tagList;
   final Widget? trailingSearchButton;
   final bool? autoFocusSearchBar;
+  final bool showOptions;
+  final VoidCallback? onBackPressed;
   final SearchBarPosition searchBarPosition;
 
   @override
@@ -68,16 +72,17 @@ class RawSearchRegion extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     innerSearchButton,
-                    IconButton(
-                      tooltip: context.t.search_options.title,
-                      isSelected: state == SearchState.options,
-                      onPressed: controller.toggleOptions,
-                      icon: Icon(
-                        state == SearchState.options
-                            ? Symbols.keyboard_arrow_up
-                            : Symbols.keyboard_arrow_down,
+                    if (showOptions)
+                      IconButton(
+                        tooltip: context.t.search_options.title,
+                        isSelected: state == SearchState.options,
+                        onPressed: controller.toggleOptions,
+                        icon: Icon(
+                          state == SearchState.options
+                              ? Symbols.keyboard_arrow_up
+                              : Symbols.keyboard_arrow_down,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -85,8 +90,10 @@ class RawSearchRegion extends StatelessWidget {
               listbox: controller.suggestionsListbox,
               autofocus: initialQuery == null ? autoFocusSearchBar : false,
               controller: controller.textController,
-              leading: (parentRoute?.impliesAppBarDismissal ?? false)
-                  ? const SearchAppBarBackButton()
+              leading:
+                  onBackPressed != null ||
+                      (parentRoute?.impliesAppBarDismissal ?? false)
+                  ? SearchAppBarBackButton(onPressed: onBackPressed)
                   : null,
             ),
           ),
@@ -97,6 +104,7 @@ class RawSearchRegion extends StatelessWidget {
     final region = ColoredBox(
       color: theme.colorScheme.surface,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: switch (searchBarPosition) {
           SearchBarPosition.top => children,
           SearchBarPosition.bottom => children.reversed.toList(),

@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -14,6 +15,7 @@ import '../../../../../../core/settings/providers.dart';
 import '../../../../../../core/tags/categories/providers.dart';
 import '../../../../../../core/tags/tag/providers.dart';
 import '../../../../../../core/themes/colors/providers.dart';
+import '../../../../../../core/themes/colors/types.dart';
 import '../providers/tag_edit_notifier.dart';
 import 'tag_edit_tag_tile.dart';
 
@@ -66,13 +68,10 @@ class DanbooruTagEditColorNotifier
       if (tagType == null) {
         colors[tag] = null;
       } else {
-        final color = ref.read(tagColorProvider((arg, tagType)));
-
-        final chipColors = color != null && color != Colors.white
-            ? booruChipColors.fromColor(color)
-            : null;
-
-        colors[tag] = chipColors;
+        colors[tag] = _resolveChipColors(
+          ref.read(tagColorProvider((arg, tagType))),
+          booruChipColors,
+        );
       }
     }
 
@@ -85,6 +84,12 @@ class DanbooruTagEditColorNotifier
     state = effectiveColors;
   }
 }
+
+KurumiChipColors? _resolveChipColors(
+  Color? color,
+  BooruChipColors chipColors,
+) =>
+    color != null && color != Colors.white ? chipColors.fromColor(color) : null;
 
 final danbooruTagEditColorsProvider =
     NotifierProvider.family<
@@ -198,7 +203,17 @@ class _SliverTagEditListViewState
       itemCount: filtered.length,
       itemBuilder: (_, index) {
         final tag = filtered[index];
-        final colors = ref.watch(_tagColorProvider(tag));
+        final category = params.initialTagCategories[tag];
+        final colors =
+            ref.watch(_tagColorProvider(tag)) ??
+            (category == null
+                ? null
+                : _resolveChipColors(
+                    ref.watch(
+                      tagColorProvider((ref.watchConfigAuth, category)),
+                    ),
+                    ref.watch(booruChipColorsProvider),
+                  ));
         final isNewlyAdded = toBeAdded.contains(tag);
 
         return TagEditTagTile(
@@ -233,7 +248,10 @@ class TagEditFilterHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filterOn = ref.watch(tagEditTagFilterModeProvider);
-    final tagCount = TagEditParamsProvider.of(context).initialTags.length;
+    final params = TagEditParamsProvider.of(context);
+    final tagCount = ref.watch(
+      tagEditProvider(params).select((state) => state.tags.length),
+    );
 
     return Container(
       constraints: const BoxConstraints(minHeight: 56),
@@ -244,7 +262,7 @@ class TagEditFilterHeader extends ConsumerWidget {
       child: Row(
         children: [
           Text(
-            '$tagCount tag${tagCount > 1 ? 's' : ''}',
+            context.t.tags.counter(n: tagCount),
             style: Kurumi.themeOf(context).textTheme.titleLarge?.copyWith(
               fontSize: 20,
             ),

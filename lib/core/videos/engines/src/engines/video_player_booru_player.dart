@@ -21,6 +21,9 @@ VideoPlayerController _defaultControllerFactory(
   VideoSource source,
   VideoConfig? config,
 ) {
+  if (source is LocalFileVideoSource) {
+    return VideoPlayerController.file(source.file);
+  }
   return VideoPlayerController.networkUrl(
     Uri.parse(source.url),
     httpHeaders: config?.headers ?? {},

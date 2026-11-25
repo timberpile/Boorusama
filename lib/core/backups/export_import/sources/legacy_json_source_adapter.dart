@@ -1,18 +1,17 @@
 // Project imports:
 import '../../sources/json_source.dart';
 import '../../types/backup_data_source.dart';
+import '../../utils/data_converter.dart';
 import '../models/export_selection.dart';
 import 'export_import_source.dart';
 
-typedef ExportScopeBuilder =
-    BackupExportScope? Function(
-      ExportNodeSelection selection,
-    );
-typedef ExportJsonTransformer =
-    String Function(
-      String json,
-      bool includeCredentials,
-    );
+typedef ExportScopeBuilder = BackupExportScope? Function(
+  ExportNodeSelection selection,
+);
+typedef ExportJsonTransformer = String Function(
+  String json,
+  bool includeCredentials,
+);
 
 class LegacyJsonSourceAdapter<T> implements ExportImportSource {
   const LegacyJsonSourceAdapter({
@@ -49,7 +48,9 @@ class LegacyJsonSourceAdapter<T> implements ExportImportSource {
     json = transformer?.call(json, request.includeCredentials) ?? json;
     return ExportSourceSnapshot.json(
       sourceId: id,
-      schemaVersion: schemaVersion,
+      schemaVersion: source.versionForData == null
+          ? schemaVersion
+          : decodeData(data: json).version,
       json: json,
     );
   }

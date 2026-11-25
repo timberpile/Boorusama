@@ -375,6 +375,9 @@ class AppNavigationShell extends ConsumerWidget {
                                                                 .browse ||
                                                         active.appDestination ==
                                                             AppDestination
+                                                                .localMedia ||
+                                                        active.appDestination ==
+                                                            AppDestination
                                                                 .browseRecovery,
                                                     () => unawaited(
                                                       select(browse),

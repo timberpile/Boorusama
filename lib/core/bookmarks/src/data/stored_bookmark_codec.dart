@@ -2,6 +2,8 @@ import '../../../boorus/booru/types.dart';
 import '../../../content/content_map.dart';
 import '../../../configs/config/src/types/profile_id.dart';
 import '../../../content/types.dart';
+import '../../../local_media/local_media_models.dart';
+import '../../../local_media/local_media_reference.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../types/bookmark.dart';
@@ -37,7 +39,8 @@ final class StoredBookmarkCodec {
     // Only canonical UUIDs are portable profile hints. Legacy constructors can
     // retain arbitrary local values, but those values are not exportable hints.
     final origin = switch (bookmark) {
-      PostBookmark() => (wire['snapshot']! as Map)['origin'] as Map,
+      PostBookmark() when wire['kind'] == 'post' =>
+        (wire['snapshot']! as Map)['origin'] as Map,
       LegacyGroupBookmark() =>
         ((wire['legacy']! as Map)['metadata'] as Map)['origin'] as Map,
       _ => null,
@@ -51,6 +54,16 @@ final class StoredBookmarkCodec {
 
   Map<String, Object?> encode(Bookmark bookmark) {
     final map = switch (bookmark) {
+      PostBookmark(
+        post: Post(booruData: LocalMediaPostData(:final reference)),
+      ) =>
+        {
+          'kind': 'localMedia',
+          'id': bookmark.id,
+          'createdAt': bookmark.createdAt.toIso8601String(),
+          'updatedAt': bookmark.updatedAt.toIso8601String(),
+          'sha256': reference.sha256,
+        },
       PostBookmark() => {
         'kind': 'post',
         'id': bookmark.id,
@@ -96,6 +109,22 @@ final class StoredBookmarkCodec {
       }
       final created = _date(map['createdAt']);
       final kind = map['kind'];
+      if (kind == 'localMedia') {
+        if (map.length != 5) {
+          throw const FormatException('Invalid Local Media bookmark fields');
+        }
+        final post = localMediaPost(
+          LocalMediaReference.parse(contentString(map['sha256'])),
+        );
+        return PostBookmark.fromSnapshot(
+          id: id,
+          createdAt: DateTime.parse(contentString(map['createdAt'])),
+          updatedAt: DateTime.parse(contentString(map['updatedAt'])),
+          post: post,
+          snapshot: const StoredPostCodec().encode(post),
+          postId: null,
+        );
+      }
       if (kind == 'post') {
         if (map.containsKey('legacy') || map.containsKey('preferredOrder')) {
           throw const FormatException('Conflicting Post record');
@@ -111,6 +140,11 @@ final class StoredBookmarkCodec {
         );
         if (decoded is! StoredPostDecodeSuccess) {
           throw const FormatException('Invalid Post snapshot');
+        }
+        if (decoded.post.origin.booruType == BooruType.localMedia) {
+          throw const FormatException(
+            'Local Media requires its own record kind',
+          );
         }
         final postId = map['postId'];
         if (postId != null && (postId is! int || postId != decoded.post.id)) {

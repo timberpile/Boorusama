@@ -228,7 +228,7 @@ class CatalogPatternTests(unittest.TestCase):
         catalog = json.loads((ROOT / 'scripts/schema_contracts.json').read_text())
         before, after = {}, {}
         constants = {
-            'bookmark-export': ('kBookmarksBackupVersion', 5, 6),
+            'bookmark-export': ('kBookmarksBackupVersion', 6, 7),
             'profiles-export': ('kBooruConfigsExporterImporterVersion', 1, 1),
             'settings-export': ('kSettingsBackupVersion', 1, 1),
             'favorite-tags-export': ('kFavoriteTagsBackupVersion', 1, 1),
@@ -237,10 +237,9 @@ class CatalogPatternTests(unittest.TestCase):
             'downloads-sqlite': ('_kDownloadVersion', 2, 2),
             'history-sqlite': ('_kSearchHistoryVersion', 0, 0),
             'post-common-snapshot': ('commonSchemaVersion', 2, 2),
-            'mitemite-protocol': ('miteMiteProtocol', None, 1),
+            'mitemite-protocol': ('miteMiteProtocol', 1, 1),
         }
         final_only = {
-            'mitemite-bookmark-payload': 'static const schema = kBookmarksBackupVersion;',
             'mitemite-following-payload': 'static const schema = 2;',
             'group-snapshot': 'this.schemaVersion = 1,',
             'bookmark-mutation-journal': "final journal = {'version': 1, 'operation': kind};",
@@ -262,11 +261,21 @@ class CatalogPatternTests(unittest.TestCase):
                     before[rule_.get('baseline_path', path)] = f'const {symbol} = {old};'
                 after[path] = f'const {symbol} = {new};'
             elif name in final_only:
-                after[path] = after.get(path, '') + '\n' + final_only[name]
+                marker = '\n' + final_only[name]
+                before[path] = before.get(path, '') + marker
+                after[path] = after.get(path, '') + marker
             elif name == 'bookmark-import-readers':
                 legacy = 'metadata.version != 4 && metadata.version != 5'
-                before[path] = legacy
-                after[path] = f'final nested = metadata.version == kBookmarksBackupVersion; {legacy}'
+                before[path] = f'final nested = metadata.version == kBookmarksBackupVersion; {legacy}'
+                after[path] = legacy
+                schema_path = rule_['additional_paths'][0]
+                after[schema_path] += (
+                    '\nconst kRemoteBookmarksBackupVersion = 6;'
+                    'bool isNested(int version) => version == kBookmarksBackupVersion;'
+                )
+            elif name == 'mitemite-bookmark-payload':
+                before[path] = 'static const schema = kBookmarksBackupVersion;'
+                after[path] = 'final schemaVersion = bookmarkTransferVersion(data.records);'
             elif name in ('following-export', 'feeds-export'):
                 cls, v = ('FollowingTopicsBackupSource', 2) if name == 'following-export' else ('TopicFeedsBackupSource', 1)
                 before[path] = after[path] = f'class {cls} {{ version: {v}, }}'
@@ -275,8 +284,11 @@ class CatalogPatternTests(unittest.TestCase):
             elif name == 'post-gelbooru-v2-payload':
                 before[path] = after[path] = 'int get currentVersion => 2;'
             elif name == 'bookmark-organization':
-                before[rule_['baseline_path']] = "await storage.put('version', 1);"
-                after[path] = 'static const schemaVersion = 2;'
+                before[path] = after[path] = 'static const schemaVersion = 2;'
+            elif name == 'local-media-library':
+                after[path] = 'static const schemaVersion = 1;'
+            elif name == 'local-media-post-reference':
+                after[path] = 'int get schemaVersion => 1;'
             else:
                 self.fail('Add a source-syntax sample for ' + name)
         return catalog['contracts'], before, after
@@ -284,10 +296,13 @@ class CatalogPatternTests(unittest.TestCase):
     def test_reviewed_locators_still_reject_the_four_original_contract_violations(self):
         rules, before, after = self.samples()
         paths = {r['id']: r['path'] for r in rules}
-        after[paths['bookmark-export']] = 'const kBookmarksBackupVersion = 10;'
-        after[paths['bookmark-organization']] = 'static const schemaVersion = 3;'
+        writer = paths['bookmark-export']
+        after[writer] = after[writer].replace(
+            'kBookmarksBackupVersion = 7;', 'kBookmarksBackupVersion = 10;',
+        )
+        after[paths['bookmark-organization']] = 'static const schemaVersion = 4;'
         repository = paths['bookmark-repository-schema']
-        after[repository] = after[repository].replace('_schema, 1', '_schema, 2')
+        after[repository] = after[repository].replace('_schema, 1', '_schema, 3')
         after[repository] = after[repository].replace("'version': 1", "'version': 4")
         rows = audit.audit_contracts(rules, before.get, after.get)
         self.assertEqual({r['id'] for r in rows if r['status'] != 'ok'}, {
@@ -299,8 +314,20 @@ class CatalogPatternTests(unittest.TestCase):
     def test_zero_or_one_increment_passes_for_all_registered_contracts(self):
         rules, before, after = self.samples()
         rows = audit.audit_contracts(rules, before.get, after.get)
-        self.assertEqual(len(rows), 29)
+        self.assertEqual(len(rows), 31)
         self.assertEqual({r['status'] for r in rows}, {'ok'})
+
+    def test_bookmark_reader_rejects_dropping_the_published_aliased_version(self):
+        rules, before, after = self.samples()
+        paths = {rule['id']: rule['path'] for rule in rules}
+        current_writer = paths['bookmark-export']
+        after[current_writer] = after[current_writer].replace(
+            'const kRemoteBookmarksBackupVersion = 6;', '',
+        )
+        rows = {row['id']: row for row in audit.audit_contracts(rules, before.get, after.get)}
+        self.assertEqual(rows['bookmark-import-readers']['released'], [4, 5, 6])
+        self.assertEqual(rows['bookmark-import-readers']['allowed'], [4, 5, 6, 7])
+        self.assertEqual(rows['bookmark-import-readers']['status'], 'violation')
 
 
 if __name__ == '__main__':

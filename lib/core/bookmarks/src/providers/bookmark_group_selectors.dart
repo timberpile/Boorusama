@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 
 // Project imports:
+import '../../../local_media/local_media_reference.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_record_fields.dart';
@@ -25,8 +26,10 @@ enum BookmarkSortType {
 
 /// Transfer omits local-only sourceUrl, so imported records use portable origins.
 String? bookmarkSourceHost(PostBookmark bookmark) =>
-    _bookmarkSourceHostFromUrl(bookmark.sourceUrl) ??
-    _bookmarkSourceHostFromUrl(bookmark.post.origin.sourceHost);
+    bookmark.post.booruData is LocalMediaPostData
+    ? LocalMediaReference.namespace
+    : _bookmarkSourceHostFromUrl(bookmark.sourceUrl) ??
+          _bookmarkSourceHostFromUrl(bookmark.post.origin.sourceHost);
 
 /// Pixiv artwork links use the web host and Pixiv profiles use the apex host.
 /// Group these hosts in the source filter without changing persisted identities.
@@ -46,6 +49,10 @@ String? _bookmarkSourceHostFromUrl(String source) {
 
 /// The source picker supplies hosts, independent of URL paths and ports.
 bool bookmarkSourceMatchesHost(String source, String selectedHost) {
+  if (source == LocalMediaReference.namespace ||
+      selectedHost == LocalMediaReference.namespace) {
+    return source == selectedHost;
+  }
   final host = _bookmarkSourceHostFromUrl(source);
   final target = selectedHost.contains('://')
       ? _bookmarkSourceHostFromUrl(selectedHost)

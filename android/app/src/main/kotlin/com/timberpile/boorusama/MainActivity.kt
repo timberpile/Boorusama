@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterFragmentActivity() {
     private var gifSaveChannel: GifSaveChannel? = null
     private var gifBackgroundChannel: GifBackgroundChannel? = null
+    private var localMediaChannel: LocalMediaChannel? = null
     private var autoBackupChannel: AutoBackupChannel? = null
     private var miteMiteChannel: MiteMiteChannel? = null
     private var exportSaveChannel: ExportSaveChannel? = null
@@ -56,6 +57,7 @@ class MainActivity: FlutterFragmentActivity() {
         GifMetadataChannel(applicationContext, messenger)
         gifSaveChannel = GifSaveChannel(this, messenger)
         gifBackgroundChannel = GifBackgroundChannel(applicationContext, messenger)
+        localMediaChannel = LocalMediaChannel(this, messenger)
         autoBackupChannel = AutoBackupChannel(this, messenger)
         miteMiteChannel = MiteMiteChannel(applicationContext, messenger)
         exportSaveChannel = ExportSaveChannel(applicationContext, messenger)
@@ -66,6 +68,7 @@ class MainActivity: FlutterFragmentActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (localMediaChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         if (autoBackupChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -88,6 +91,7 @@ class MainActivity: FlutterFragmentActivity() {
         sharedTextDeliveryChannel?.setMethodCallHandler(null)
         pendingSharedTextIntents.clear()
         receivedExportChannel?.close()
+        localMediaChannel?.close()
         autoBackupChannel?.close()
         miteMiteChannel?.close()
         exportSaveChannel?.close()

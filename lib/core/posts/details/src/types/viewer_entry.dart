@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../configs/config/types.dart';
 import '../../../../content/types.dart';
+import '../../../../local_media/local_media_reference.dart';
 import '../../../post/types.dart';
 
 /// Content identity never includes credentials or a navigation position.
@@ -76,6 +77,16 @@ final class PostViewerEntry extends ViewerEntry {
   final Object occurrenceId;
   @override
   final ViewerSourceBinding? source;
+  @override
+  ContentIdentity? get contentIdentity => switch (post.booruData) {
+    LocalMediaPostData(:final reference) => (
+      siteNamespace: LocalMediaReference.namespace,
+      kind: ContentKind.post,
+      sourceKey: reference.sha256,
+    ),
+    _ => super.contentIdentity,
+  };
+
   @override
   ContentReference? get contentReference =>
       source == null || source!.config == BooruConfig.empty

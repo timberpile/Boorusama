@@ -136,6 +136,8 @@ class WebViewBooruPlayer implements BooruPlayer {
           await android.setAllowFileAccess(false);
         }
         await controller.loadHtmlString(html);
+      case LocalFileVideoSource():
+        throw UnsupportedError('Managed media requires a native video player');
       case CachedVideoSource(:final filePath):
         await _loadCachedPage(controller, html, filePath);
     }

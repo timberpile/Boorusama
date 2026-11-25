@@ -20,6 +20,7 @@ class FileDetailsSection extends StatelessWidget {
     super.key,
     this.uploader,
     this.customDetails,
+    this.dateLabel,
     this.initialExpanded = false,
   });
 
@@ -27,6 +28,7 @@ class FileDetailsSection extends StatelessWidget {
   final Rating rating;
   final Widget? uploader;
   final List<Widget>? customDetails;
+  final String? dateLabel;
   final bool initialExpanded;
 
   @override
@@ -114,7 +116,7 @@ class FileDetailsSection extends StatelessWidget {
             ),
           if (post.createdAt case final createdAt?)
             FileDetailTile(
-              title: context.t.post.detail.upload_date,
+              title: dateLabel ?? context.t.post.detail.upload_date,
               valueLabel: createdAt.fuzzify(
                 locale: Localizations.localeOf(context),
               ),

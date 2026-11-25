@@ -4,6 +4,7 @@ import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../boorus/booru/types.dart';
+import '../../../local_media/local_media_reference.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/rating/types.dart';
 import '../../../posts/sources/types.dart';
@@ -157,9 +158,11 @@ class PostBookmark extends Equatable
   bool get isVideo => post.isVideo;
 
   BookmarkIdentity get identity => BookmarkIdentity.fromPost(post);
-  BookmarkUniqueId get uniqueId => postId == null || postId != post.id
-      ? const UnbookmarkablePostIdentity()
-      : BookmarkUniqueId.fromPost(post);
+  BookmarkUniqueId get uniqueId =>
+      post.booruData is LocalMediaPostData ||
+          (postId != null && postId == post.id)
+      ? BookmarkUniqueId.fromPost(post)
+      : const UnbookmarkablePostIdentity();
   BookmarkIdentity get transferIdentity {
     if (uniqueId case final BookmarkIdentity identity) return identity;
     throw const FormatException('Bookmark has no stable upstream identity');

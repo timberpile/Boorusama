@@ -4,10 +4,12 @@ import 'package:equatable/equatable.dart';
 final class NavigationPreferences extends Equatable {
   NavigationPreferences({
     this.lastBrowseProfileId,
+    this.localMediaSelected = false,
     this.lastFavoritesProfileId,
     Set<String> collapsedProfileIds = const {},
   }) : collapsedProfileIds = Set.unmodifiable(collapsedProfileIds);
   final String? lastBrowseProfileId;
+  final bool localMediaSelected;
   final String? lastFavoritesProfileId;
   final Set<String> collapsedProfileIds;
 
@@ -16,13 +18,21 @@ final class NavigationPreferences extends Equatable {
     lastFavoritesProfileId: lastFavoritesProfileId,
     collapsedProfileIds: collapsedProfileIds,
   );
+  NavigationPreferences selectLocalMedia() => NavigationPreferences(
+    lastBrowseProfileId: lastBrowseProfileId,
+    localMediaSelected: true,
+    lastFavoritesProfileId: lastFavoritesProfileId,
+    collapsedProfileIds: collapsedProfileIds,
+  );
   NavigationPreferences selectFavorites(String id) => NavigationPreferences(
     lastBrowseProfileId: lastBrowseProfileId,
+    localMediaSelected: localMediaSelected,
     lastFavoritesProfileId: id,
     collapsedProfileIds: collapsedProfileIds,
   );
   NavigationPreferences toggleProfile(String id) => NavigationPreferences(
     lastBrowseProfileId: lastBrowseProfileId,
+    localMediaSelected: localMediaSelected,
     lastFavoritesProfileId: lastFavoritesProfileId,
     collapsedProfileIds: collapsedProfileIds.contains(id)
         ? (Set.of(collapsedProfileIds)..remove(id))
@@ -32,6 +42,7 @@ final class NavigationPreferences extends Equatable {
   @override
   List<Object?> get props => [
     lastBrowseProfileId,
+    localMediaSelected,
     lastFavoritesProfileId,
     collapsedProfileIds,
   ];

@@ -92,7 +92,7 @@ final class SyncReceivePreparation {
     }
     final expected = entry.revision!;
     if (collection.kind != 'bookmarks' ||
-        expected.schema != ValidatedSyncBookmarkPackage.schema) {
+        !ValidatedSyncBookmarkPackage.supportsSchema(expected.schema)) {
       throw const SyncUpdateRequired();
     }
     final transported = await SyncRevisionTransport(storage)
@@ -107,9 +107,10 @@ final class SyncReceivePreparation {
           bytes: transported.bytes,
           maxPreparedBytes: maxPreparedBytes,
         );
-    if (package.semanticHash != expected.semanticHash) {
+    if (package.schemaVersion != expected.schema ||
+        package.semanticHash != expected.semanticHash) {
       throw const FormatException(
-        'Sync semantic content does not match descriptor',
+        'Sync Bookmark content does not match descriptor',
       );
     }
     return PreparedSyncBookmarkRevision._(catalog, expected, package);

@@ -15,9 +15,11 @@ class OrderedSelectionController<K extends Object>
   OrderedSelectionController({
     super.initialEnabled,
     this.exitWhenSelectionRemoved = false,
+    this.exitOnDeselectAll = false,
   });
 
   final bool exitWhenSelectionRemoved;
+  final bool exitOnDeselectAll;
 
   List<K> _entries = const [];
   Map<K, int> _indices = const {};
@@ -233,6 +235,15 @@ class OrderedSelectionController<K extends Object>
     super.endRangeSelection();
     _beforeDrag = null;
     if (deselecting && isActive && selection.isEmpty) disable();
+  }
+
+  @override
+  void deselectAll() {
+    if (exitOnDeselectAll && isActive && selection.isNotEmpty) {
+      disable();
+    } else {
+      super.deselectAll();
+    }
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
+import '../../../../tags/autocompletes/types.dart';
 import '../../../../tags/favorites/types.dart';
 import '../../../../tags/metatag/types.dart';
 import '../../../histories/types.dart';
@@ -18,6 +19,7 @@ class SearchPageController extends ChangeNotifier {
     required this.textMatchers,
     required this.metatagExtractor,
     this.onSearch,
+    this.resolveExactTag,
     this.optionKeys = const {},
     this.optionAliases = const {},
   }) {
@@ -37,6 +39,7 @@ class SearchPageController extends ChangeNotifier {
   final List<TextMatcher>? textMatchers;
   final MetatagExtractor? metatagExtractor;
   final void Function()? onSearch;
+  final AutocompleteData? Function(String)? resolveExactTag;
   final Set<String> optionKeys;
   final Map<String, String> optionAliases;
   TextEditingValue? _draftBeforeEdit;
@@ -284,10 +287,17 @@ class SearchPageController extends ChangeNotifier {
         return;
       }
     }
+    final exact = inputIsRaw.value ? null : resolveExactTag?.call(trimmed);
     _commitItem(
       inputIsRaw.value
           ? TagSearchItem.raw(tag: value)
-          : TagSearchItem.fromString(trimmed, extractor: metatagExtractor),
+          : TagSearchItem.fromString(
+              exact == null
+                  ? trimmed
+                  : '${getFilterOperator(trimmed)}${exact.value}',
+              extractor: metatagExtractor,
+              category: exact?.category,
+            ),
     );
   }
 

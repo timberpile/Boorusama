@@ -10,6 +10,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../../local_media/local_media_reference.dart';
+import '../../../../local_media/local_media_thumbnail.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../content/content_media_access.dart';
@@ -129,11 +131,14 @@ class PostGridItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final access = watchContentMediaAccess(
-      ref,
-      imageConfig ?? config,
-      post: post,
-    );
+    final local = post.booruData is LocalMediaPostData;
+    final access = local
+        ? (allowed: true, key: null, context: null)
+        : watchContentMediaAccess(
+            ref,
+            imageConfig ?? config,
+            post: post,
+          );
     if (!access.allowed) return const KurumiImagePlaceholder();
     final publicSource = (imageConfig ?? config).anonymousReadScope?.source;
     bool safeMedia(String url) {
@@ -253,7 +258,11 @@ class PostGridItem extends ConsumerWidget {
         aspectRatio: resolvedMedia.aspectRatio,
       );
     }
-    final resolvedAdditions = additions ?? _resolveAdditions(context, ref);
+    final resolvedAdditions =
+        additions ??
+        (local
+            ? const PostGridItemAdditions(hideScore: true)
+            : _resolveAdditions(context, ref));
     final media = switch (resolvedAdditions.imageAspectRatio) {
       final aspectRatio? => GridThumbnailMedia(
         url: resolvedMedia.url,
@@ -274,6 +283,7 @@ class PostGridItem extends ConsumerWidget {
     )) {
       (true, _, _) => null,
       (false, final Widget quickAction, _) => quickAction,
+      _ when local => null,
       _ => DefaultImagePreviewQuickActions(
         post: post,
         config: config,
@@ -303,6 +313,7 @@ class PostGridItem extends ConsumerWidget {
       index: index,
       config: config,
       multiSelectEnabled: multiSelectEnabled,
+      selectionEnabled: selectionEnabled,
       onTap:
           (disablePostInteraction ?? resolvedAdditions.disablePostInteraction)
           ? null
@@ -401,6 +412,16 @@ class PostGridImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (post?.booruData case LocalMediaPostData(:final reference)) {
+      return AspectRatio(
+        aspectRatio: media.aspectRatio ?? 1,
+        child: LocalMediaThumbnail(
+          reference: reference,
+          animateGif: true,
+          fit: this.fit ?? BoxFit.cover,
+        ),
+      );
+    }
     final access = watchContentMediaAccess(ref, config, post: post);
     if (!access.allowed) return const KurumiImagePlaceholder();
     final imageBorderRadius = ref.watch(

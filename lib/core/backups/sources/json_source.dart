@@ -37,6 +37,7 @@ abstract class JsonBackupSource<T>
     this.extraSteps = const [],
     this.validator,
     this.extraPayloadEncoder,
+    this.versionForData,
     this.scopedDataGetter,
     this.exportResultBuilder,
     this.resultExecutor,
@@ -63,6 +64,7 @@ abstract class JsonBackupSource<T>
   final int priority;
 
   final int version;
+  final int Function(T data)? versionForData;
   final Version? appVersion;
   final Future<T> Function() dataGetter;
   final Future<void> Function(T data, BuildContext? uiContext) executor;
@@ -118,6 +120,7 @@ abstract class JsonBackupSource<T>
       PerfOperation.exportEncode,
       () => converter.encode(
         payload: handler.encode(data),
+        schemaVersion: versionForData?.call(data),
         extraFields: extraPayloadEncoder?.call(data) ?? const {},
       ),
     );
@@ -198,6 +201,7 @@ abstract class JsonBackupSource<T>
     final data = await (scopedDataGetter?.call(options) ?? dataGetter());
     final json = converter.encode(
       payload: handler.encode(data),
+      schemaVersion: versionForData?.call(data),
       extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
 
@@ -228,6 +232,7 @@ abstract class JsonBackupSource<T>
     final payload = handler.encode(data);
     final json = converter.encode(
       payload: payload,
+      schemaVersion: versionForData?.call(data),
       extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
     await AppClipboard.copy(json);

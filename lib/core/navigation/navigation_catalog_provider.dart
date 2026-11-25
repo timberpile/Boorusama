@@ -10,6 +10,7 @@ import '../boorus/engine/providers.dart';
 import '../configs/config/providers.dart';
 import '../configs/config/types.dart';
 import '../premiums/providers.dart';
+import '../local_media/local_media_providers.dart';
 import '../premiums/types.dart';
 import 'destination_definition.dart';
 import 'destination_id.dart';
@@ -52,6 +53,12 @@ final navigationCatalogProvider = Provider<NavigationCatalog>((ref) {
   return buildNavigationCatalog(
     profilesInStoredOrder: ref.watch(navigationCapabilitiesProvider),
     globalDefinitions: [
+      GlobalNavigationDefinition(
+        destination: AppDestination.localMedia,
+        label: (c) => c.t.local_media.title,
+        icon: Icons.perm_media_outlined,
+        available: ref.watch(localMediaAvailableProvider),
+      ),
       GlobalNavigationDefinition.sharedFavorites(
         label: (c) => c.t.profile.favorites,
         icon: Icons.favorite,

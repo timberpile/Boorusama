@@ -30,6 +30,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
+import '../../../local_media/local_media_reference.dart';
 import '../../../../foundation/loggers.dart';
 import '../../../config_widgets/website_logo.dart';
 import '../../../configs/config/providers.dart';
@@ -775,13 +776,14 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           BookmarkPostEntry(:final bookmark) => PostViewerEntry(
             post: bookmark.post,
             occurrenceId: entry.key,
-            source:
-                bookmarkReadBinding(
-                  ref,
-                  BookmarkReaderRequest(bookmark.post.origin),
-                  bookmarkId: bookmark.id,
-                ) ??
-                const ViewerSourceBinding(BooruConfig.empty),
+            source: bookmark.post.booruData is LocalMediaPostData
+                ? null
+                : bookmarkReadBinding(
+                        ref,
+                        BookmarkReaderRequest(bookmark.post.origin),
+                        bookmarkId: bookmark.id,
+                      ) ??
+                      const ViewerSourceBinding(BooruConfig.empty),
           ),
           BookmarkNativeGroupEntry(:final bookmark) =>
             nativeGroupViewerEntryForBookmark(
@@ -812,6 +814,39 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
+        if (post.booruData is LocalMediaPostData) {
+          return PostGridContextMenu(
+            index: index,
+            selectionIndex: selectionIndex,
+            controller: controller,
+            child: DefaultImageGridItem(
+              index: index,
+              selectionIndex: selectionIndex,
+              autoScrollController: widget.scrollController,
+              controller: controller,
+              useHero: false,
+              config: BooruConfig.empty.auth,
+              leadingIcons: [
+                Icon(
+                  Icons.perm_media_outlined,
+                  semanticLabel: context.t.local_media.title,
+                ),
+              ],
+              onTap: () {
+                _endLocalGroupSelection();
+                goToBookmarkDetailsPage(
+                  ref,
+                  selectionIndex ?? index,
+                  entries: _viewerEntries(),
+                  readingTargets: _viewerReadingTargets(),
+                  sourceView: widget.view,
+                  controller: controller,
+                  initialThumbnailUrl: '',
+                );
+              },
+            ),
+          );
+        }
         final access = ref.watch(
           bookmarkReadAccessProvider(BookmarkReaderRequest(post.origin)),
         );
