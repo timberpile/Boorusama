@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:booru_clients/nhentai.dart';
 
 import 'package:dio/dio.dart';
 
@@ -13,12 +16,14 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
     required this.source,
     required this.current,
     this.prepareHeaders,
+    this.validateMedia,
   });
 
   final HttpClientAdapter delegate;
   final AnonymousSource source;
   final bool Function() current;
   final Future<Map<String, dynamic>> Function(RequestOptions)? prepareHeaders;
+  final Future<bool> Function(Uri)? validateMedia;
   var _closed = false;
 
   @override
@@ -33,17 +38,31 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
       _requireCurrent(options);
       final method = request.method.toUpperCase();
       final uri = request.uri;
-      if (!const ['GET', 'HEAD'].contains(method) ||
+      final tagSearch = _tagSearchBody(request);
+      if ((!const ['GET', 'HEAD'].contains(method) && tagSearch == null) ||
           !isApiSafeRead(request) ||
-          request.data != null ||
-          requestStream != null ||
+          (uri.path == NhentaiClient.tagSearchPath &&
+              source.isNhentai &&
+              tagSearch == null) ||
+          (tagSearch == null &&
+              (request.data != null || requestStream != null)) ||
           (!source.allowsApi(uri) && !source.allowsMedia(uri)) ||
-          request.headers.entries.any(_unsafeHeader)) {
+          request.headers.entries.any(
+            (entry) =>
+                !(tagSearch != null &&
+                    entry.key.toLowerCase() == Headers.contentLengthHeader &&
+                    entry.value.toString() == tagSearch.length.toString()) &&
+                _unsafeHeader(entry),
+          ) ||
+          (!source.allowsApi(uri) &&
+              validateMedia != null &&
+              !await validateMedia!(uri))) {
         throw DioException(
           requestOptions: options,
           message: 'Request is outside the public read policy',
         );
       }
+      _requireCurrent(options);
       // Native/IO automatic redirect following must never bypass this guard.
       final Map<String, dynamic>? headers;
       if (prepareHeaders case final prepare?) {
@@ -54,7 +73,7 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
       }
       final body = await delegate.fetch(
         request.copyWith(headers: headers, followRedirects: false),
-        null,
+        tagSearch == null ? null : Stream.value(tagSearch),
         cancelFuture,
       );
       if (!_isCurrent) {
@@ -96,6 +115,26 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
         queryParameters: const {},
       );
     }
+  }
+
+  Uint8List? _tagSearchBody(RequestOptions request) {
+    if (!source.isNhentai ||
+        request.uri.path != NhentaiClient.tagSearchPath ||
+        !source.allowsApi(request.uri) ||
+        request.method.toUpperCase() != 'POST' ||
+        request.followRedirects ||
+        request.contentType != Headers.jsonContentType ||
+        request.data is! String) {
+      return null;
+    }
+    final data = request.data as String;
+    if (data.length > 2048) return null;
+    try {
+      if (!NhentaiClient.acceptsTagSearch(jsonDecode(data))) return null;
+    } on FormatException {
+      return null;
+    }
+    return Uint8List.fromList(utf8.encode(data));
   }
 
   bool get _isCurrent => !_closed && current();

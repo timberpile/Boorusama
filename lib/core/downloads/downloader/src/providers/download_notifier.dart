@@ -11,6 +11,8 @@ import '../../../../content/content_access_provider.dart';
 import '../../../../http/client/coordination.dart';
 
 // Package imports:
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
@@ -19,7 +21,11 @@ import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 
 // Project imports:
+import '../../../../../foundation/filesystem.dart';
 import '../../../../../foundation/loggers.dart';
+import '../../../../../foundation/networking/network_provider.dart';
+import '../../../../boorus/booru/types.dart';
+import '../../../../http/client/providers.dart';
 import '../../../../../foundation/permissions.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../configs/config/types.dart';
@@ -352,9 +358,21 @@ Future<DownloadTaskInfo?> _download(
     final claims = ref.read(pendingDownloadsProvider);
     if (!claims.claim(admissionId)) return null;
     try {
-      final bypassHeaders = await ref.read(
-        bypassDdosHeadersProvider(request.url).future,
-      );
+      final isNhentai = params.auth.booruType == BooruType.nhentai;
+      final bypassHeaders = isNhentai
+          ? const <String, String>{}
+          : await ref.read(bypassDdosHeadersProvider(request.url).future);
+      final protectedTransfer = isNhentai
+          ? await _galleryDownloadTransfer(
+              ref,
+              downloadable,
+              params.auth,
+              request.url,
+              resolvedNetworkConstraint,
+              isCurrent,
+            )
+          : null;
+      if (isNhentai && protectedTransfer == null) return null;
       if (!(isCurrent?.call() ?? true)) return null;
 
       final result = await service.download(
@@ -390,6 +408,7 @@ Future<DownloadTaskInfo?> _download(
           ),
           url: request.url,
           filename: fileName,
+          protectedTransfer: protectedTransfer,
           headers: {
             ...request.headers,
             ...bypassHeaders,
@@ -547,5 +566,90 @@ void showBulkDownloadUnsupportErrorToast(BuildContext? context) {
     context,
     duration: const Duration(seconds: 3),
     'This booru does not support downloading multiple files',
+  );
+}
+
+Future<ProtectedDownloadTransfer?> _galleryDownloadTransfer(
+  Ref ref,
+  Post post,
+  BooruConfigAuth auth,
+  String url,
+  DownloadNetworkConstraint constraint,
+  bool Function()? isCurrent,
+) async {
+  final profileId = post.origin.profileIdHint;
+  if (profileId == null) return null;
+  final access = ref.read(contentProfileAccessProvider(profileId));
+  if (access == null ||
+      access.config?.auth != auth ||
+      ![
+        post.originalImageUrl,
+        post.sampleImageUrl,
+        post.thumbnailImageUrl,
+      ].contains(url)) {
+    return null;
+  }
+  if (constraint.requiresWiFi) {
+    await ref.read(currentConnectivityProvider.future);
+  }
+  bool current() =>
+      (isCurrent?.call() ?? true) &&
+      identical(ref.read(contentAccessContextProvider(access.key)), access) &&
+      (!constraint.requiresWiFi ||
+          (ref
+                  .read(currentConnectivityProvider)
+                  .valueOrNull
+                  ?.contains(ConnectivityResult.wifi) ??
+              false));
+  if (!current()) return null;
+  final dio = ref.read(dioForWidgetProvider(auth));
+  final fs = ref.read(appFileSystemProvider);
+  return (
+    isCurrent: current,
+    write: (path) async {
+      final token = CancelToken();
+      final response = await runWithApiRequestContext(
+        ApiRequestContext(
+          requestClass: ApiRequestClass.userInitiated,
+          replaySafety: ApiReplaySafety.safeRead,
+          cancelToken: token,
+          canStart: current,
+          canAdmit: current,
+          allowCooldownRetry: false,
+        ),
+        () => dio.get<ResponseBody>(
+          url,
+          cancelToken: token,
+          options: Options(
+            responseType: ResponseType.stream,
+            followRedirects: false,
+            extra: const {apiMediaRequestKey: true},
+          ),
+        ),
+      );
+      final body = response.data;
+      final type = response.headers.value('content-type');
+      if (body == null ||
+          !(type?.startsWith('image/') ?? false) ||
+          !current()) {
+        await body?.stream.listen(null).cancel();
+        throw StateError('Gallery image unavailable');
+      }
+      final output = await fs.openWrite(path);
+      try {
+        await output.addStream(
+          body.stream.map((chunk) {
+            if (!current()) throw StateError('Gallery download access changed');
+            return chunk;
+          }),
+        );
+      } finally {
+        await output.close();
+        token.cancel();
+      }
+      if (await fs.fileSize(path) == 0) {
+        throw StateError('Gallery image is empty');
+      }
+    },
   );
 }

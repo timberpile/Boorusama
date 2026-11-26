@@ -11,14 +11,18 @@ import 'tag_search_item.dart';
 class SelectedTagController extends ValueNotifier<List<TagSearchItem>> {
   SelectedTagController({
     required MetatagExtractor? metatagExtractor,
+    this.preserveOriginalQuery = false,
   }) : _tagSet = SearchTagSet(metatagExtractor: metatagExtractor),
        super([]);
 
   final SearchTagSet _tagSet;
+  final bool preserveOriginalQuery;
 
   List<TagSearchItem> get tags => _tagSet.tags;
   List<String> get rawTags => _tagSet.rawTags;
-  String get rawTagsString => _tagSet.rawTagsString;
+  String get rawTagsString => preserveOriginalQuery
+      ? _tagSet.spaceDelimitedOriginalTags
+      : _tagSet.rawTagsString;
   SearchTagSet get tagSet => _tagSet;
 
   void addTagFromSearchHistory(SearchHistory history) {

@@ -22,9 +22,11 @@ class MobileHomePageScaffold extends ConsumerStatefulWidget {
   const MobileHomePageScaffold({
     super.key,
     this.nativeResultBuilder,
+    this.preserveOriginalQuery = false,
   });
   final Widget Function(BuildContext, String, List<Widget>)?
   nativeResultBuilder;
+  final bool preserveOriginalQuery;
 
   @override
   ConsumerState<MobileHomePageScaffold> createState() =>
@@ -43,6 +45,7 @@ class _MobileHomePageScaffoldState
 
     selectedTagController = SelectedTagController(
       metatagExtractor: ref.read(metatagExtractorProvider(ref.readConfigAuth)),
+      preserveOriginalQuery: widget.preserveOriginalQuery,
     );
   }
 

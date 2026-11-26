@@ -1,5 +1,8 @@
+import '../../boorus/nhentai/availability.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../boorus/booru/types.dart';
 import '../posts/cross_profile_lookup/src/data/post_lookup_visibility.dart';
 
 import '../blacklists/providers.dart';
@@ -125,7 +128,11 @@ class ContentProfileAccess
     final scope = ref.watch(
       contentAccessScopesProvider.select((values) => values[profileId]),
     );
-    if (scope == null) return _revoke();
+    if (scope == null ||
+        (scope.config.auth.booruType == BooruType.nhentai &&
+            !ref.watch(nhentaiAvailableProvider))) {
+      return _revoke();
+    }
     try {
       // Validate the configured source before policy work can construct clients.
       ContentAccessContext.profile(

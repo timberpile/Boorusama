@@ -29,7 +29,14 @@ final class ApiStartWindow {
   }
 }
 
-enum ApiRateScope { all, safeRead, mutation, philomenaSearch }
+enum ApiRateScope {
+  all,
+  safeRead,
+  mutation,
+  philomenaSearch,
+  nhentaiTagSearch,
+  nhentaiGallerySearch,
+}
 
 final class ApiTokenBucket {
   const ApiTokenBucket({required this.capacity, required this.refillPeriod});
@@ -52,6 +59,10 @@ final class ApiRateRule {
       descriptor.replaySafety == ApiReplaySafety.safeRead,
     ApiRateScope.mutation =>
       descriptor.replaySafety == ApiReplaySafety.mutation,
+    ApiRateScope.nhentaiTagSearch =>
+      descriptor.method == 'POST' && descriptor.path == '/api/v2/tags/search',
+    ApiRateScope.nhentaiGallerySearch =>
+      descriptor.method == 'GET' && descriptor.path == '/api/v2/search',
     ApiRateScope.philomenaSearch => descriptor.path.startsWith(
       '/api/v1/json/search',
     ),
@@ -176,6 +187,24 @@ final class ApiQuotaPolicy {
           ApiRateRule(
             windows: [
               ApiStartWindow(capacity: 1, duration: Duration(seconds: 1)),
+            ],
+          ),
+        ],
+      );
+    }
+    if (key.host == 'nhentai.net') {
+      return const ApiQuotaPolicy(
+        serverRules: [
+          ApiRateRule(
+            scope: ApiRateScope.nhentaiGallerySearch,
+            windows: [
+              ApiStartWindow(capacity: 10, duration: Duration(minutes: 1)),
+            ],
+          ),
+          ApiRateRule(
+            scope: ApiRateScope.nhentaiTagSearch,
+            windows: [
+              ApiStartWindow(capacity: 30, duration: Duration(minutes: 1)),
             ],
           ),
         ],

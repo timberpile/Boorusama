@@ -13,6 +13,7 @@ import 'package:rich_text_controller/rich_text_controller.dart';
 import '../../../../../boorus/danbooru/posts/search/src/widgets/danbooru_metatags_section.dart';
 import '../../../../../foundation/app_update/widgets.dart';
 import '../../../../../foundation/utils/flutter_utils.dart';
+import '../../../../../boorus/nhentai/search/query.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../tags/autocompletes/types.dart';
@@ -54,9 +55,11 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
     debugLabel: 'DesktopSearchSuggestions',
   );
   final suggestionsListbox = KurumiListboxController();
+  SuggestionsNotifier? _nativeSuggestions;
 
   @override
   void dispose() {
+    _nativeSuggestions?.cancelPending();
     textEditingController.dispose();
     focus.dispose();
     suggestionsFocus.dispose();
@@ -105,9 +108,15 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
       onTapOutside: () {
         //TODO: remove onTapOutside workaround since using flutter_anchor, this is not needed
       },
-      onChanged: (value) => ref
-          .read(suggestionsNotifierProvider(config).notifier)
-          .getSuggestions(value),
+      onChanged: (value) {
+        final suggestions = ref.read(
+          suggestionsNotifierProvider(config).notifier,
+        );
+        if (config.booruType == BooruType.nhentai) {
+          _nativeSuggestions = suggestions;
+        }
+        suggestions.getSuggestions(value);
+      },
       onSubmitted: (value) {
         selectedTagController.addTag(
           TagSearchItem.fromString(
@@ -115,6 +124,7 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
             extractor: ref.read(metatagExtractorProvider(config)),
           ),
         );
+        _nativeSuggestions?.cancelPending();
         textEditingController.clear();
 
         widget.onSearch();
@@ -139,14 +149,22 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
   }
 
   void _addSuggestion(AutocompleteData tag) {
-    final operator = getFilterOperator(textEditingController.text);
+    final text = textEditingController.text;
+    final auth = ref.readConfigAuth;
+    final term = auth.booruType == BooruType.nhentai
+        ? NhentaiSearchTerm.trailing(text)
+        : null;
+    final value = '${term?.operator ?? getFilterOperator(text)}${tag.value}';
     selectedTagController.addTag(
-      TagSearchItem.fromString(
-        '$operator${tag.value}',
-        category: tag.category,
-        extractor: ref.read(metatagExtractorProvider(ref.readConfigAuth)),
-      ),
+      term != null && term.before.trim().isNotEmpty
+          ? TagSearchItem.raw(tag: '${term.before}$value')
+          : TagSearchItem.fromString(
+              value,
+              category: tag.category,
+              extractor: ref.read(metatagExtractorProvider(auth)),
+            ),
     );
+    _nativeSuggestions?.cancelPending();
     textEditingController.clear();
   }
 

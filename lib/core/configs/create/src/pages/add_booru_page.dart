@@ -1,3 +1,5 @@
+import '../../../../../boorus/nhentai/availability.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -43,6 +45,7 @@ class _AddBooruPageState extends ConsumerState<AddBooruPage> {
   @override
   Widget build(BuildContext context) {
     final booruDb = ref.watch(booruDbProvider);
+    final nhentaiAvailable = ref.watch(nhentaiAvailableProvider);
 
     return switch (configId) {
       null => AnalyticsInitStateHook(
@@ -51,7 +54,9 @@ class _AddBooruPageState extends ConsumerState<AddBooruPage> {
           backgroundColor: widget.backgroundColor,
           setCurrentBooruOnSubmit: widget.setCurrentBooruOnSubmit,
           quickSetupSites: QuickProfileSiteCatalog.fromBoorus(
-            booruDb.getAllBoorus(),
+            booruDb.getAllBoorus().where(
+              (booru) => booru.type != BooruType.nhentai || nhentaiAvailable,
+            ),
           ),
           onQuickBooruSubmit: (site) => setState(() {
             configId = site.toEditId();
@@ -81,6 +86,11 @@ class _AddBooruPageState extends ConsumerState<AddBooruPage> {
               backgroundColor: widget.backgroundColor,
             ),
           ),
+        ),
+      EditBooruConfigId(booruType: BooruType.nhentai) when !nhentaiAvailable =>
+        Scaffold(
+          appBar: const KurumiAppBar(),
+          body: Center(child: Text(context.t.navigation.unavailable_profile)),
         ),
       final id => _buildNewKnownBooru(id),
     };

@@ -9,6 +9,12 @@ import '../../../sidecar/types.dart';
 import 'download_network_policy.dart';
 import 'metadata.dart';
 
+/// Sources with a restricted transport provide the byte transfer themselves.
+typedef ProtectedDownloadTransfer = ({
+  Future<void> Function(String destination) write,
+  bool Function() isCurrent,
+});
+
 class DownloadOptions extends Equatable {
   const DownloadOptions({
     required this.url,
@@ -19,6 +25,7 @@ class DownloadOptions extends Equatable {
     this.path,
     this.folderName,
     this.sidecar,
+    this.protectedTransfer,
     this.networkConstraint = DownloadNetworkConstraint.unrestricted,
   });
 
@@ -32,6 +39,7 @@ class DownloadOptions extends Equatable {
     String? folderName,
     String? customPath,
     SidecarSnapshot? sidecar,
+    ProtectedDownloadTransfer? protectedTransfer,
     DownloadNetworkConstraint networkConstraint =
         DownloadNetworkConstraint.unrestricted,
   }) {
@@ -53,6 +61,7 @@ class DownloadOptions extends Equatable {
       headers: headers,
       metadata: metadata,
       sidecar: sidecar,
+      protectedTransfer: protectedTransfer,
       skipIfExists: settings.downloadFileExistedBehavior.skipDownloadIfExists,
       path: switch (path) {
         final String p when p.isNotEmpty => join(p, folderName),
@@ -71,6 +80,7 @@ class DownloadOptions extends Equatable {
   final String? path;
   final String? folderName;
   final SidecarSnapshot? sidecar;
+  final ProtectedDownloadTransfer? protectedTransfer;
   final DownloadNetworkConstraint networkConstraint;
 
   @override
@@ -83,6 +93,7 @@ class DownloadOptions extends Equatable {
     path,
     folderName,
     sidecar,
+    protectedTransfer,
     networkConstraint,
   ];
 }

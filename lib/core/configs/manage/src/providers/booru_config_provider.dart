@@ -15,6 +15,7 @@ import '../../../../analytics/providers.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/src/types/viewer_toolbar_layout.dart';
 import '../../../../settings/types.dart';
+import '../../../../posts/details_manager/types.dart';
 import '../../../../search/following_topics/providers.dart';
 import '../../../../search/following_topics/types.dart';
 import '../../../config/data.dart';
@@ -45,6 +46,41 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
   });
 
   final List<BooruConfig> initialConfigs;
+
+  Future<BooruConfig?> updateGalleryDetailsLayout({
+    required BooruConfig profile,
+    required List<CustomDetailsPartKey> parts,
+  }) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+    final updated = await updateBooruConfigAtomically(
+      repository: ref.read(booruConfigRepoProvider),
+      id: profile.id,
+      transform: (current) {
+        if (current.auth != profile.auth ||
+            !const ListEquality<CustomDetailsPartKey>().equals(
+              current.layout?.galleryDetails,
+              profile.layout?.galleryDetails,
+            )) {
+          return null;
+        }
+        final layout = current.layout ?? const LayoutConfigs.undefined();
+        return current
+            .copyWith(
+              layout: () => layout.copyWith(galleryDetails: () => parts),
+            )
+            .toBooruConfigData();
+      },
+    );
+    if (updated != null) {
+      state = [
+        for (final config in state)
+          if (config.id == updated.id) updated else config,
+      ];
+      await ref
+          .read(currentBooruConfigProvider.notifier)
+          .updateIfCurrent(updated);
+    }
+    return updated;
+  });
 
   Future<BooruConfig?> updateViewerToolbarLayout({
     required BooruConfig profile,

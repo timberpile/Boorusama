@@ -4,6 +4,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../boorus/nhentai/search/query.dart';
+import '../../boorus/booru/types.dart';
 import '../../boorus/engine/providers.dart';
 import '../../configs/config/types.dart';
 import '../../tags/autocompletes/types.dart';
@@ -47,7 +49,14 @@ class SearchSuggestionPanel extends ConsumerWidget {
     builder: (context, _) {
       final query = controller.textController.text;
       final capabilities = ref.watch(searchCapabilitiesProvider(config));
-      final current = capabilities.contextFor(query);
+      final nativeTerm = config.booruType == BooruType.nhentai
+          ? NhentaiSearchTerm.trailing(query)
+          : null;
+      final current =
+          config.booruType == BooruType.nhentai &&
+              !NhentaiSearchTerm.isSingle(query)
+          ? null
+          : capabilities.contextFor(query);
       final rows = <({Widget child, VoidCallback pick, bool isOption})>[];
 
       void addRow({
@@ -200,7 +209,15 @@ class SearchSuggestionPanel extends ConsumerWidget {
             ?.tagSuggestionItemBuilder;
         for (final tag in tags) {
           void pick() {
-            controller.tapTag(tag.value, category: tag.category);
+            if (nativeTerm case final term?) {
+              controller.tapNativeSuggestion(
+                '${term.operator}${tag.value}',
+                before: term.before,
+                category: tag.category,
+              );
+            } else {
+              controller.tapTag(tag.value, category: tag.category);
+            }
           }
 
           rows.add((
@@ -222,6 +239,23 @@ class SearchSuggestionPanel extends ConsumerWidget {
         }
       }
 
+      if (nativeTerm case final term?
+          when term.type == null && term.prefix.isNotEmpty) {
+        for (final key in const ['title', 'jtitle']) {
+          final option = capabilities.byKey(key)!;
+          final expression = option.compose(
+            term.prefix,
+            exclude: term.operator == '-',
+          );
+          if (expression == null) continue;
+          addRow(
+            label: searchOptionTitle(context, option),
+            syntax: expression,
+            pick: () =>
+                controller.tapNativeSuggestion(expression, before: term.before),
+          );
+        }
+      }
       if (allowRawQuery && query.trim().isNotEmpty) {
         addRow(
           label: query,

@@ -143,6 +143,18 @@ void main() {
       tags: const ['cat dog'],
       isUsable: true,
     ),
+    (
+      description: 'an exact quoted tag with spaces',
+      query: 'artist:"vanilla cream" tag:"vanilla"',
+      tags: const ['artist:"vanilla cream"', 'tag:"vanilla"'],
+      isUsable: true,
+    ),
+    (
+      description: 'two quoted tags pretending to be one tag',
+      query: 'artist:"vanilla cream" tag:"vanilla"',
+      tags: const ['artist:"vanilla cream" tag:"vanilla"'],
+      isUsable: false,
+    ),
   ]) {
     test('treats ${c.description} as ${c.isUsable ? 'typed' : 'raw'}', () {
       final structure = SearchQueryStructure.typedTags(c.tags);

@@ -5,16 +5,23 @@ import '../boorus/booru/types.dart';
 /// Public reads are an explicit source permission, never an engine-wide default.
 /// A matching imported host, redirect or image URL cannot extend this list.
 final class AnonymousSourcePolicy {
-  const AnonymousSourcePolicy({this.enabled = true});
+  const AnonymousSourcePolicy({
+    this.enabled = true,
+    this.nhentaiEnabled = false,
+  });
 
   final bool enabled;
+  final bool nhentaiEnabled;
 
   static const version = 1;
+
+  bool _enabledFor(BooruType engine) =>
+      enabled && (engine != BooruType.nhentai || nhentaiEnabled);
 
   /// Legacy Post origins retain a namespace rather than a transport URL. Select
   /// an explicitly registered public endpoint without rewriting that identity.
   AnonymousSource? forNamespace(BooruType engine, String namespace) {
-    if (!enabled) return null;
+    if (!_enabledFor(engine)) return null;
     for (final source in _sources) {
       if (source.engine == engine &&
           source.site.host == namespace &&
@@ -26,7 +33,7 @@ final class AnonymousSourcePolicy {
   }
 
   AnonymousSource? resolve(BooruType engine, Uri site) {
-    if (!enabled ||
+    if (!_enabledFor(engine) ||
         !_safeHttps(site) ||
         !const ['', '/'].contains(site.path) ||
         site.hasQuery) {
@@ -55,6 +62,7 @@ final class AnonymousSource extends Equatable {
   final String _site;
   final Set<String> _mediaHosts;
   final Set<String> _apiHosts;
+  bool get isNhentai => engine == BooruType.nhentai;
   Uri get site => Uri.parse(_site);
 
   bool allowsMedia(Uri target) =>
@@ -64,7 +72,13 @@ final class AnonymousSource extends Equatable {
       (_site != 'https://realbooru.com' ||
           RegExp('^/{1,2}(?:images|thumbnails|samples)/')
               .hasMatch(target.path)) &&
-      _mediaHosts.contains(target.host) &&
+      (_mediaHosts.contains(target.host) ||
+          (engine == BooruType.nhentai &&
+              RegExp(r'^[it][1-9][0-9]*\.nhentai\.net$')
+                  .hasMatch(target.host) &&
+              RegExp(
+                r'^/galleries/[1-9][0-9]*/[A-Za-z0-9_-]+(?:\.(?:jpg|jpeg|png|gif|webp|avif))+$',
+              ).hasMatch(target.path))) &&
       _safePath(target) &&
       RegExp(
         r'\.(?:jpg|jpeg|png|gif|webp|avif|bmp|webm|mp4)$',
@@ -78,6 +92,7 @@ final class AnonymousSource extends Equatable {
         target.queryParametersAll.keys.any(_credentialParameter)) {
       return false;
     }
+    if (engine == BooruType.nhentai) return _nhentaiApi(target);
     if (_site == 'https://realbooru.com') return _realbooruApi(target);
     if (_site == 'https://hypnohub.net' && _postHtmlRead(target)) return true;
     return switch (engine) {
@@ -131,6 +146,66 @@ bool _catalogPermits(AnonymousSource source) {
     return false;
   }
   return true;
+}
+
+bool _nhentaiApi(Uri target) {
+  if (target.queryParametersAll.values.any((values) => values.length != 1)) {
+    return false;
+  }
+  final query = target.queryParameters;
+  bool positive(String? value, {int maximum = 9007199254740991}) {
+    if (value == null || !RegExp(r'^[1-9][0-9]*$').hasMatch(value)) {
+      return false;
+    }
+    final number = int.tryParse(value);
+    return number != null && number <= maximum;
+  }
+
+  if (target.path == '/api/v2/config') return query.isEmpty;
+  if (const {
+    '/api/v2/galleries/random',
+    '/api/v2/galleries/popular',
+  }.contains(target.path)) {
+    return query.isEmpty;
+  }
+  if (RegExp(r'^/api/v2/galleries/[1-9][0-9]*/related$')
+      .hasMatch(target.path)) {
+    return query.isEmpty && positive(target.pathSegments[3]);
+  }
+  if (RegExp(r'^/api/v2/galleries/[1-9][0-9]*$').hasMatch(target.path)) {
+    return query.isEmpty && positive(target.pathSegments.last);
+  }
+  if (target.path == '/api/v2/tags/ids') {
+    final ids = query['ids']?.split(',');
+    return query.length == 1 &&
+        ids != null &&
+        ids.length <= 100 &&
+        ids.every(positive);
+  }
+  if (target.path == '/api/v2/search') {
+    return positive(query['page']) &&
+        (query['query']?.isNotEmpty ?? false) &&
+        (query.length == 2 ||
+            (query.length == 3 &&
+                const {
+                  'popular-today',
+                  'popular-week',
+                  'popular',
+                }.contains(query['sort'])));
+  }
+  if (target.path == '/api/v2/tags/search') return query.isEmpty;
+  final catalog =
+      RegExp(r'^/api/v2/tags/[a-z][a-z0-9_-]*$').hasMatch(target.path) &&
+      target.pathSegments.last != 'general';
+  return positive(query['page']) &&
+      positive(query['per_page'], maximum: 100) &&
+      (switch (target.path) {
+        '/api/v2/galleries' => query.length == 2,
+        _ =>
+          catalog &&
+              query.length == 3 &&
+              const ['popular', 'name'].contains(query['sort']),
+      });
 }
 
 bool _postHtmlRead(Uri target) =>
@@ -227,6 +302,7 @@ bool _credentialParameter(String name) => const {
 // Source sites are the exact built-in installations in boorus.yaml. CDN access
 // remains separate and explicit; unknown media hosts remain unavailable.
 const _sources = [
+  AnonymousSource._(BooruType.nhentai, 'https://nhentai.net', {}),
   AnonymousSource._(BooruType.eshuushuu, 'https://e-shuushuu.net', {
     'e-shuushuu.net',
     'cdn.e-shuushuu.net',

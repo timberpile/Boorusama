@@ -14,6 +14,7 @@ class NativeContentConfigurationHeader extends ConsumerWidget {
     this.allowPageModeChange = false,
     this.counterLabel,
     this.controls = const [],
+    this.action,
     this.menuItems = const [],
     super.key,
   });
@@ -21,19 +22,12 @@ class NativeContentConfigurationHeader extends ConsumerWidget {
   final String? counterLabel;
   final bool allowPageModeChange;
   final List<Widget> controls;
+  final Widget? action;
   final List<Widget> menuItems;
 
   @override
-  Widget build(
-    BuildContext context,
-    WidgetRef ref,
-  ) => PostListConfigurationHeader(
-    hiddenCount: null,
-    postCount: count,
-    counterLabel: counterLabel,
-    blacklistControls: const SizedBox.shrink(),
-    additionalControls: controls,
-    trailing: KurumiPopupMenuButton(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menu = KurumiPopupMenuButton(
       iconBackgroundColor: Colors.transparent,
       items: [
         ...menuItems,
@@ -87,6 +81,29 @@ class NativeContentConfigurationHeader extends ConsumerWidget {
           },
         ),
       ],
-    ),
-  );
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => PostListConfigurationHeader(
+        hiddenCount: null,
+        postCount: count,
+        counterLabel: counterLabel,
+        blacklistControls: const SizedBox.shrink(),
+        additionalControls: controls,
+        trailing: action == null
+            ? menu
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * .4,
+                    ),
+                    child: action,
+                  ),
+                  SizedBox.square(dimension: 48, child: menu),
+                ],
+              ),
+      ),
+    );
+  }
 }

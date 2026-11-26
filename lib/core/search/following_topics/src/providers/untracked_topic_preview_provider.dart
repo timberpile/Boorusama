@@ -18,6 +18,7 @@ import '../services/topic_preview_loader.dart';
 import '../types/following_topic.dart';
 import '../types/search_refresh.dart';
 import 'following_topic_selectors.dart';
+import 'following_topic_refresh_source_provider.dart';
 
 // A shared gate prevents a grid of unsupported Topics from flooding one site.
 final topicPreviewLoaderProvider = Provider((ref) => TopicPreviewLoader());
@@ -39,6 +40,9 @@ final untrackedTopicPreviewKeyProvider = Provider.autoDispose
     ) {
       final (topic, config) = input;
       final auth = config.auth;
+      if (ref.watch(followingTopicGalleryRefreshSourceProvider(auth)) != null) {
+        return null;
+      }
       if (config.anonymousReadScope == null &&
           topic.lastErrorKind != SearchRefreshErrorKind.unsupported &&
           ref.watch(followingTopicTrackingSupportedProvider(auth)) &&

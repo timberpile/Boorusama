@@ -42,6 +42,7 @@ final class BooruContentKeyCodec implements ContentKeyCodec {
       BooruType.danbooru => const {'pool', 'related'},
       BooruType.szurubooru => const {'pool'},
       BooruType.pixiv => const {'work'},
+      BooruType.nhentai => const {'gallery'},
       _ => const <String>{},
     };
     if (parts.length != 2 || !supported.contains(parts.first)) {

@@ -6,6 +6,8 @@ import 'package:kurumi/material.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
+import '../../../../../boorus/nhentai/search/query.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../queries/query_utils.dart';
 import '../../../selected_tags/tag_search_item.dart';
@@ -38,10 +40,13 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
   void initState() {
     super.initState();
 
-    final matcher = ref.read(queryMatcherProvider(ref.readConfigAuth));
+    final config = ref.readConfigAuth;
+    final matcher = ref.read(queryMatcherProvider(config));
 
     controller = RichTextController(
-      text: widget.tag.toString(),
+      text: config.booruType == BooruType.nhentai
+          ? widget.tag.originalTag
+          : widget.tag.toString(),
       matchers: matcher != null ? [matcher] : [],
     );
   }
@@ -64,6 +69,7 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfigAuth;
+    final isNhentai = config.booruType == BooruType.nhentai;
 
     return Column(
       children: [
@@ -80,7 +86,7 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
                 onSubmitted: (_) => _submit(context),
                 onChanged: (value) {
                   suggestionsListbox.clear();
-                  final query = value.lastQuery;
+                  final query = isNhentai ? value : value.lastQuery;
 
                   if (query == null || query.isEmpty) return;
 
@@ -106,9 +112,11 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
         ValueListenableBuilder(
           valueListenable: controller,
           builder: (_, query, _) {
-            final currentQuery = query.text.lastQuery;
+            final currentQuery = isNhentai ? query.text : query.text.lastQuery;
 
-            if (currentQuery == null) return const SizedBox.shrink();
+            if (currentQuery == null || currentQuery.isEmpty) {
+              return const SizedBox.shrink();
+            }
 
             final tags = ref.watch(suggestionProvider((config, currentQuery)));
 
@@ -125,8 +133,12 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
                     tags: tags,
                     listbox: suggestionsListbox,
                     onItemTap: (tag) {
-                      // replace the last word with the selected tag
-                      controller.text = query.text.replaceLastQuery(tag.value);
+                      final term = isNhentai
+                          ? NhentaiSearchTerm.trailing(query.text)
+                          : null;
+                      controller.text = term == null
+                          ? query.text.replaceLastQuery(tag.value)
+                          : '${term.before}${term.operator}${tag.value}';
                       showSuggestions.value = false;
 
                       focusNode.requestFocus();

@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../../../boorus/nhentai/search/query.dart';
+import '../../../../../boorus/nhentai/tags/presentation.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../tags/categories/providers.dart';
 import '../../../../tags/tag/providers.dart';
@@ -35,27 +38,40 @@ class FollowingTopicQueryText extends StatelessWidget {
     }
     return Consumer(
       builder: (context, ref, _) {
-        final resolved = ref
-            .watch(topicQueryTagCategoriesProvider((profile, query)))
-            .valueOrNull;
+        final isNhentai = profile.booruType == BooruType.nhentai;
+        final resolved = isNhentai
+            ? null
+            : ref
+                  .watch(topicQueryTagCategoriesProvider((profile, query)))
+                  .valueOrNull;
         final colors = <String, KurumiChipColors?>{};
-        for (final tag
-            in tokens
-                .map((token) => token.tagName)
-                .whereType<String>()
-                .toSet()) {
+        final labels = <String, String>{};
+        for (final token in tokens) {
+          if (isNhentai) {
+            if (NhentaiSearchTerm.qualifiedTag(token.raw) case final tag?) {
+              labels[token.raw] = '${token.operator}${tag.name}';
+              final color = NhentaiTagSection.fromSource(tag.type)
+                  .color(context, ref, profile);
+              colors[token.raw] = ref
+                  .watch(booruChipColorsProvider)
+                  .fromColor(color);
+            }
+            continue;
+          }
+          final tag = token.tagName;
+          if (tag == null) continue;
           final category =
               resolved?[tag] ??
               ref.watch(booruTagTypeProvider((profile, tag))).valueOrNull;
-          if (category == null || category == 'unknown') {
-            continue;
-          }
+          if (category == null || category == 'unknown') continue;
           final color = ref.watch(tagColorProvider((profile, category)));
           if (color != null) {
-            colors[tag] = ref.watch(booruChipColorsProvider).fromColor(color);
+            colors[token.raw] = ref
+                .watch(booruChipColorsProvider)
+                .fromColor(color);
           }
         }
-        return _chips(context, tokens, colors);
+        return _chips(context, tokens, colors, labels: labels);
       },
     );
   }
@@ -63,15 +79,19 @@ class FollowingTopicQueryText extends StatelessWidget {
   Widget _chips(
     BuildContext context,
     List<TopicQueryDisplayToken> tokens,
-    Map<String, KurumiChipColors?> colors,
-  ) {
+    Map<String, KurumiChipColors?> colors, {
+    Map<String, String> labels = const {},
+  }) {
+    String labelFor(TopicQueryDisplayToken token) =>
+        labels[token.raw] ?? '${token.operator}${token.displayBody}';
+
     final textStyle = DefaultTextStyle.of(context).style.merge(style);
     final scaledStyle = textStyle.copyWith(
       fontSize: MediaQuery.textScalerOf(context)
           .scale(textStyle.fontSize ?? 14),
     );
     return Semantics(
-      label: tokens.map((t) => '${t.operator}${t.displayBody}').join(),
+      label: tokens.map(labelFor).join(),
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, constraints) => Text.rich(
@@ -86,8 +106,8 @@ class FollowingTopicQueryText extends StatelessWidget {
                       child: IgnorePointer(
                         child: _chip(
                           context,
-                          token,
-                          colors[token.tagName],
+                          labelFor(token),
+                          colors[token.raw],
                           constraints.hasBoundedWidth
                               ? constraints.maxWidth
                               : MediaQuery.widthOf(context),
@@ -113,7 +133,7 @@ class FollowingTopicQueryText extends StatelessWidget {
 
   Widget _chip(
     BuildContext context,
-    TopicQueryDisplayToken token,
+    String label,
     KurumiChipColors? colors,
     double maxWidth,
   ) {
@@ -130,7 +150,7 @@ class FollowingTopicQueryText extends StatelessWidget {
       label: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: math.max(0, maxWidth - 8)),
         child: Text.rich(
-          TextSpan(text: '${token.operator}${token.displayBody}'),
+          TextSpan(text: label),
           style: DefaultTextStyle.of(context).style
               .merge(style)
               .copyWith(

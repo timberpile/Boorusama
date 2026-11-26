@@ -74,10 +74,12 @@ class NativeContentGrid extends ConsumerStatefulWidget {
     this.header,
     this.sliverHeaders = const [],
     this.toolbarControls = const [],
+    this.toolbarAction,
     this.toolbarMenuItems = const [],
     this.allowPageModeChange = false,
     this.counterLabel,
     this.groupLabel,
+    this.showGroupBadgeIcon = true,
     this.groupQuickAction,
     super.key,
   });
@@ -95,10 +97,12 @@ class NativeContentGrid extends ConsumerStatefulWidget {
   final Widget? header;
   final List<Widget> sliverHeaders;
   final List<Widget> toolbarControls;
+  final Widget? toolbarAction;
   final List<Widget> toolbarMenuItems;
   final bool allowPageModeChange;
   final String Function(BuildContext, int)? counterLabel;
   final String Function(BuildContext, ContentGroupSummary)? groupLabel;
+  final bool showGroupBadgeIcon;
   final Widget? Function(BuildContext, ContentGroupSummary)? groupQuickAction;
   @override
   ConsumerState<NativeContentGrid> createState() => _NativeContentGridState();
@@ -256,6 +260,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                           SliverToBoxAdapter(child: header),
                         if (_controller.entries.isNotEmpty ||
                             widget.toolbarControls.isNotEmpty ||
+                            widget.toolbarAction != null ||
                             widget.toolbarMenuItems.isNotEmpty)
                           TimelineHeaderSliver(
                             keepVisible: listing.keepTimelineToolbarVisible,
@@ -272,6 +277,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                               ),
                               allowPageModeChange: widget.allowPageModeChange,
                               controls: widget.toolbarControls,
+                              action: widget.toolbarAction,
                               menuItems: widget.toolbarMenuItems,
                             ),
                           ),
@@ -504,6 +510,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
       category: group == null ? null : widget.groupLabel?.call(context, group),
       name: group?.title,
       total: group?.memberCount,
+      showKindIcon: widget.showGroupBadgeIcon,
       trailingAction: group == null || _selection.isActive
           ? null
           : widget.groupQuickAction?.call(context, group),

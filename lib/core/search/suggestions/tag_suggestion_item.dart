@@ -22,6 +22,7 @@ class TagSuggestionItem extends StatelessWidget {
     required this.textColor,
     required this.showCount,
     required this.metatagExtractor,
+    this.categoryLabel,
     super.key,
   });
 
@@ -32,6 +33,7 @@ class TagSuggestionItem extends StatelessWidget {
   final Color? textColor;
   final bool showCount;
   final MetatagExtractor? metatagExtractor;
+  final String? categoryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +54,24 @@ class TagSuggestionItem extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: _buildTitle(),
+              child: categoryLabel == null
+                  ? _buildTitle()
+                  : Wrap(
+                      spacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(tag.label, style: TextStyle(color: textColor)),
+                        Text(
+                          categoryLabel!,
+                          style: Kurumi.themeOf(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Kurumi.themeOf(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
             ),
             if (showCount)
               Container(

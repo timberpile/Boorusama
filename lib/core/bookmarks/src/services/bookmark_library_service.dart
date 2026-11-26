@@ -6,6 +6,7 @@ import 'package:collection/collection.dart' show SetEquality, MapEquality;
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../content/groups/group_metadata.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../types/content_group_bookmark.dart';
@@ -228,15 +229,47 @@ class BookmarkLibraryService {
     if (record is! ContentGroupBookmark) {
       throw StateError('Saved Group is unavailable');
     }
-    final merged = authoritative
-        ? snapshot
-        : StoredGroupSnapshot(
-            summary: snapshot.summary,
-            details:
-                snapshot.details?.mergeWithPrevious(record.snapshot.details) ??
-                record.snapshot.details,
-            index: snapshot.index ?? record.snapshot.index,
-          );
+    final previous = record.snapshot;
+    var merged = snapshot;
+    if (!authoritative) {
+      final summary = snapshot.summary.withPreviewTags(
+        mergeGroupTagObservation(
+          snapshot.summary.previewTags,
+          previous.summary.previewTags,
+        ),
+      );
+      final details =
+          snapshot.details?.mergeWithPrevious(previous.details) ??
+          previous.details;
+      final observedTags =
+          snapshot.details?.tags ?? snapshot.summary.previewTags;
+      final tags = snapshot.details?.tags == null
+          ? summary.previewTags
+          : details?.tags;
+      var index = snapshot.index ?? previous.index;
+      if (snapshot.index?.basis == GroupTagIndexBasis.sourceGroup &&
+          observedTags != null &&
+          tags != null) {
+        index = GroupBookmarkIndex(
+          tags: {
+            for (final tag in tags.values) ...[
+              ?tag.name,
+              if (tag.displayName?.isNotEmpty ?? false) tag.displayName!,
+            ],
+          },
+          basis: GroupTagIndexBasis.sourceGroup,
+          coverage: tags.coverage,
+          oldestMemberUpload: index?.oldestMemberUpload,
+          newestMemberUpload: index?.newestMemberUpload,
+          coverPolicy: index?.coverPolicy,
+        );
+      }
+      merged = StoredGroupSnapshot(
+        summary: summary,
+        details: details,
+        index: index,
+      );
+    }
     final updated = record.copyWith(
       snapshot: merged,
       observedAt: observedAt ?? DateTime.now(),

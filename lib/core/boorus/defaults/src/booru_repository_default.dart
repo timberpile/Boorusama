@@ -38,6 +38,7 @@ import '../../../posts/sources/types.dart';
 import '../../../search/queries/providers.dart';
 import '../../../search/queries/tag_query_composer.dart';
 import '../../../search/following_topics/src/refresh/search_refresh_query_adapter.dart';
+import '../../../search/following_topics/src/refresh/gallery_topic_refresh_source.dart';
 import '../../../settings/providers.dart';
 import '../../../tags/autocompletes/autocomplete_repository.dart';
 import '../../../tags/local/providers.dart';
@@ -95,6 +96,11 @@ abstract class BooruRepositoryDefault implements BooruRepository {
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) {
     return const UnsupportedSearchRefreshQueryAdapter();
   }
+
+  @override
+  GalleryTopicRefreshSource? galleryTopicRefreshSource(
+    BooruConfigAuth config,
+  ) => null;
 
   @override
   PostCountRepository? postCount(BooruConfigSearch config) {

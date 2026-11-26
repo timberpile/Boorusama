@@ -226,7 +226,7 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
     final strings = context.t.content_viewer;
     final download = _downloading
         ? () => setState(() => _cancel = true)
-        : state.access == null || state.members == null || state.failed
+        : access?.key.profileId == null || state.members == null || state.failed
         ? null
         : () => _downloadAll(state);
     return PostActionToolbarScope(
@@ -261,7 +261,8 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
       additionalButtons: [
         if (bookmarks != null && bookmarkData != null)
           ...bookmarks.buildBookmarkMenuButtons(context, bookmarkData),
-        if (widget.entry.contentReference.sourceKey.startsWith('work:'))
+        if (entry.contentReference.sourceKey.startsWith('work:') ||
+            entry.contentReference.sourceKey.startsWith('gallery:'))
           ButtonData(
             title: _downloading
                 ? strings.download_progress(queued: _queued, total: _total)

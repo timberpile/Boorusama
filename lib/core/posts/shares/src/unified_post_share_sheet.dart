@@ -1,3 +1,5 @@
+import '../../../boorus/booru/types.dart';
+
 // ignore_for_file: avoid_catching_errors
 import 'dart:typed_data';
 import 'dart:async';
@@ -788,7 +790,9 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         if (!_permittedMedia(request.url)) {
           throw const ShareMediaException(ShareMediaFailure.unavailable);
         }
-        final public = auth.anonymousReadScope != null;
+        final public =
+            auth.anonymousReadScope != null ||
+            auth.booruType == BooruType.nhentai;
         final baseHeaders = ref.read(httpHeadersProvider(auth));
         final media = ref
             .read(networkSettingsProvider(auth))

@@ -25,6 +25,16 @@ final class ContentGroupSummary extends Equatable {
   final String? displayCategory;
   final GroupTags? previewTags;
   final BooruGroupSummaryData? sourceData;
+  ContentGroupSummary withPreviewTags(GroupTags? tags) => ContentGroupSummary(
+    reference: reference,
+    title: title,
+    cover: cover,
+    memberCount: memberCount,
+    displayCategory: displayCategory,
+    previewTags: tags,
+    sourceData: sourceData,
+  );
+
   @override
   List<Object?> get props => [
     reference,

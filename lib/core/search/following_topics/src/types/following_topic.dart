@@ -156,12 +156,22 @@ final class SearchQueryStructure extends Equatable {
     'tags': typedTags,
   };
 
-  bool matchesCanonicalQuery(String query) =>
-      typedTags.every(_preservesSingleQueryToken) &&
-      normalizeSearchIdentity(
-            SearchTagSet.fromList(typedTags).rawTagsString,
-          ) ==
-          normalizeSearchIdentity(query);
+  bool matchesCanonicalQuery(String query) {
+    // Some engines keep quoted whitespace inside a typed tag on the wire.
+    if (typedTags.join(' ') == query &&
+        typedTags.every(_exactQueryToken.hasMatch)) {
+      return true;
+    }
+    return typedTags.every(_preservesSingleQueryToken) &&
+        normalizeSearchIdentity(
+              SearchTagSet.fromList(typedTags).rawTagsString,
+            ) ==
+            normalizeSearchIdentity(query);
+  }
+
+  static final _exactQueryToken = RegExp(
+    r'^(?:[^\s"\\]|\\.|"(?:[^"\\]|\\.)*")+$',
+  );
 
   @override
   List<Object?> get props => [typedTags];

@@ -6,6 +6,7 @@ import '../core/boorus/booru/types.dart';
 import '../core/configs/config/types.dart';
 import '../core/navigation/destination_definition.dart';
 import 'eshuushuu/configs/extra_data.dart';
+import 'nhentai/favorites/account.dart';
 import 'pixiv/configs/extra_data.dart';
 import 'pixiv/following/l10n.dart';
 
@@ -18,6 +19,7 @@ ProfileNavigationCapabilities describeEngineNavigation({
   required bool hasFavoritesBuilder,
   int? knownUserId,
   bool? knownShimmieFavorites,
+  bool nhentaiAvailable = false,
 }) {
   const available = NavigationAvailability.available;
   const requiresAccount = NavigationAvailability.requiresAccount;
@@ -129,6 +131,15 @@ ProfileNavigationCapabilities describeEngineNavigation({
             : requiresAccount,
       ),
     ],
+    BooruType.nhentai when nhentaiAvailable && isNhentaiProfile(config.auth) =>
+      [
+        tool('nhentai.random', (c) => c.t.explore.random, Symbols.shuffle),
+        tool(
+          'nhentai.popular',
+          (c) => c.t.nhentai.popular_now,
+          Symbols.local_fire_department,
+        ),
+      ],
     _ => <SiteToolDefinition>[],
   };
   final favorites = !hasFavoritesBuilder
@@ -152,6 +163,9 @@ ProfileNavigationCapabilities describeEngineNavigation({
                 ? available
                 : requiresAccount,
           BooruType.hydrus => available,
+          BooruType.nhentai
+              when nhentaiAvailable && isNhentaiProfile(config.auth) =>
+            account,
           BooruType.sankaku =>
             config.login != null ? available : requiresAccount,
           BooruType.animePictures =>

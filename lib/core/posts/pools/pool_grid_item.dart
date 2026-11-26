@@ -35,6 +35,7 @@ class PoolGridItem extends ConsumerWidget {
     this.category,
     this.displayedCount,
     this.kind = PoolGridItemKind.collection,
+    this.showKindIcon = true,
     this.sourceIcon,
     this.trailingAction,
     this.padding = const EdgeInsets.all(2),
@@ -52,6 +53,7 @@ class PoolGridItem extends ConsumerWidget {
   /// Localized type text for accessibility; never shown in the compact badge.
   final String? category;
   final PoolGridItemKind kind;
+  final bool showKindIcon;
   final Widget? sourceIcon;
   final Widget? trailingAction;
   final EdgeInsetsGeometry padding;
@@ -66,8 +68,8 @@ class PoolGridItem extends ConsumerWidget {
       if (total != null) '$total',
       if (total == null && displayedCount != null) '$displayedCount/?',
     ];
-    // Keep the type icon. Prefer the total to the visible subset when tight.
-    final availableTextWidth = availableWidth - 8 - 16 - 4;
+    // Prefer the total to the visible subset when tight.
+    final availableTextWidth = availableWidth - 8 - (showKindIcon ? 20 : 0);
     if (availableTextWidth <= 0) return null;
     for (final candidate in candidates) {
       final painter = TextPainter(
@@ -153,8 +155,10 @@ class PoolGridItem extends ConsumerWidget {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  if (kind != PoolGridItemKind.collection ||
-                      (total ?? displayedCount ?? 0) >= 2)
+                  if (showKindIcon
+                      ? kind != PoolGridItemKind.collection ||
+                            (total ?? displayedCount ?? 0) >= 2
+                      : fullCount != null)
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -162,6 +166,9 @@ class PoolGridItem extends ConsumerWidget {
                             context,
                             constraints.maxWidth,
                           );
+                          if (!showKindIcon && count == null) {
+                            return const SizedBox.shrink();
+                          }
                           return Align(
                             alignment: AlignmentDirectional.centerStart,
                             child: Semantics(
@@ -183,16 +190,17 @@ class PoolGridItem extends ConsumerWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (kind.iconAsset case final asset?)
+                                      if (showKindIcon &&
+                                          kind.iconAsset != null)
                                         SvgPicture.asset(
-                                          asset,
+                                          kind.iconAsset!,
                                           key: ValueKey(
                                             'pool-kind-${kind.name}',
                                           ),
                                           width: 16,
                                           height: 16,
                                         )
-                                      else
+                                      else if (showKindIcon)
                                         const Icon(
                                           Symbols.photo_library,
                                           key: ValueKey('pool-kind-related'),
@@ -200,7 +208,8 @@ class PoolGridItem extends ConsumerWidget {
                                           color: Colors.white,
                                         ),
                                       if (count != null) ...[
-                                        const SizedBox(width: 4),
+                                        if (showKindIcon)
+                                          const SizedBox(width: 4),
                                         Text(
                                           count,
                                           style: _badgeCountStyle,

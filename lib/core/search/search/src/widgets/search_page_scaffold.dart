@@ -9,6 +9,7 @@ import 'package:rich_text_controller/rich_text_controller.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
+import '../../../../../boorus/nhentai/search/query.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/providers.dart';
@@ -34,7 +35,6 @@ import '../../../options/search_option.dart';
 import '../../../options/search_options_section.dart';
 import '../../../options/search_suggestion_panel.dart';
 import '../../../selected_tags/providers.dart';
-import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
 import '../../../following_topics/types.dart';
 import '../../../following_topics/src/widgets/topic_follow_control.dart';
@@ -59,6 +59,7 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.itemBuilder,
     this.resultGridBuilder,
     this.nativeResultBuilder,
+    this.preserveOriginalQuery = false,
     this.searchRegionBuilder,
     this.landingViewBuilder,
   });
@@ -76,6 +77,8 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   nativeResultBuilder;
 
   final SearchParams params;
+  final bool preserveOriginalQuery;
+
   String? get initialQuery => params.query;
   int? get initialPage => params.page;
   int? get initialScrollPosition => params.scrollPosition;
@@ -114,6 +117,7 @@ class _SearchPageScaffoldState<T extends Post>
     extends ConsumerState<SearchPageScaffold<T>> {
   late final SelectedTagController _tagsController;
   late final SearchPageController _controller;
+  SuggestionsNotifier? _nativeSuggestions;
   late final SelectionModeController _searchModeController;
   late final ValueNotifier<PostGridController<T>?> _postController;
   late final SearchAutoCommit _autoCommit;
@@ -124,7 +128,10 @@ class _SearchPageScaffoldState<T extends Post>
     super.initState();
     _searchModeController = OrderedSelectionController<Object>();
     final extractor = ref.read(metatagExtractorProvider(ref.readConfigAuth));
-    _tagsController = SelectedTagController(metatagExtractor: extractor);
+    _tagsController = SelectedTagController(
+      metatagExtractor: extractor,
+      preserveOriginalQuery: widget.preserveOriginalQuery,
+    );
     _controller = SearchPageController(
       onSearch: () {
         ref
@@ -183,23 +190,27 @@ class _SearchPageScaffoldState<T extends Post>
     if (!mounted) return;
     final config = ref.readConfigAuth;
     final query = _controller.textController.text;
-    final option = ref
-        .read(searchCapabilitiesProvider(config))
-        .contextFor(query)
-        ?.option;
-    ref
-        .read(suggestionsNotifierProvider(config).notifier)
-        .getSuggestions(
-          (option != null &&
-                  option.kind != SearchOptionKind.native &&
-                  option.input != SearchOptionInput.text)
-              ? ''
-              : query,
-        );
+    final option =
+        widget.preserveOriginalQuery && !NhentaiSearchTerm.isSingle(query)
+        ? null
+        : ref
+              .read(searchCapabilitiesProvider(config))
+              .contextFor(query)
+              ?.option;
+    final suggestions = ref.read(suggestionsNotifierProvider(config).notifier);
+    if (widget.preserveOriginalQuery) _nativeSuggestions = suggestions;
+    suggestions.getSuggestions(
+      (option != null &&
+              option.kind != SearchOptionKind.native &&
+              option.input != SearchOptionInput.text)
+          ? ''
+          : query,
+    );
   }
 
   @override
   void dispose() {
+    _nativeSuggestions?.cancelPending();
     _autoCommit.dispose();
     _tagsController.removeListener(_autoCommit.changed);
     _controller.inputIsRaw.removeListener(_requestSuggestions);
@@ -231,7 +242,7 @@ class _SearchPageScaffoldState<T extends Post>
       ref,
       profileId: profileId,
       query: query,
-      queryStructure: _typedQueryStructure(_tagsController.tags),
+      queryStructure: _queryStructure,
       originatingTopicId: origin?.value?.topic.id,
       original: origin?.value,
       onOriginChanged: (updated) {
@@ -245,6 +256,16 @@ class _SearchPageScaffoldState<T extends Post>
         }
       },
     );
+  }
+
+  SearchQueryStructure? get _queryStructure {
+    final tags = _tagsController.tags;
+    if (tags.isEmpty || tags.any((tag) => tag.isRaw)) return null;
+    final terms = tags.map(
+      (tag) => widget.preserveOriginalQuery ? tag.originalTag : tag.toString(),
+    );
+    if (terms.any((term) => term.trim().isEmpty)) return null;
+    return SearchQueryStructure.typedTags(terms);
   }
 
   @override
@@ -305,7 +326,7 @@ class _SearchPageScaffoldState<T extends Post>
     );
     Widget followAction(String query) => FollowTopicButton(
       query: query,
-      queryStructure: _typedQueryStructure(_tagsController.tags),
+      queryStructure: _queryStructure,
       originatingTopicId: origin?.value?.topic.id,
       original: origin?.value,
       onOpen: () => _openFollow(origin),
@@ -366,7 +387,7 @@ class _SearchPageScaffoldState<T extends Post>
                           builder: (context, _) => followAction(query),
                         ),
                         share: KurumiPopupMenuItem(
-                          title: Text(context.t.search.app_link.share),
+                          title: Text(context.t.post.action.share),
                           icon: const Icon(Icons.share, size: 18),
                           onTap: onShare,
                         ),
@@ -425,9 +446,7 @@ class _SearchPageScaffoldState<T extends Post>
                                   children: [
                                     SearchLinkShareMenu(
                                       profileName: ref.watchConfig.name,
-                                      link: switch (_typedQueryStructure(
-                                        _tagsController.tags,
-                                      )) {
+                                      link: switch (_queryStructure) {
                                         final structure? =>
                                           BoorusamaSearchLink.fromTags(
                                             auth: ref.watchConfigAuth,
@@ -479,12 +498,6 @@ class _SearchPageScaffoldState<T extends Post>
     );
   }
 }
-
-SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
-    tags.isNotEmpty &&
-        tags.every((tag) => !tag.isRaw && tag.toString().trim().isNotEmpty)
-    ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
-    : null;
 
 class DefaultMobileSearchLandingView extends ConsumerWidget {
   const DefaultMobileSearchLandingView({

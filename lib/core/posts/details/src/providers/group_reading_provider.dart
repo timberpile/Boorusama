@@ -28,6 +28,9 @@ import 'viewer_source_access_provider.dart';
 bool supportsGroupReading(GroupViewerEntry entry) =>
     switch (entry.contentReference.engine) {
       BooruType.pixiv => entry.contentReference.sourceKey.startsWith('work:'),
+      BooruType.nhentai => entry.contentReference.sourceKey.startsWith(
+        'gallery:',
+      ),
       BooruType.danbooru =>
         entry.contentReference.sourceKey.startsWith('pool:') ||
             entry.contentReference.sourceKey.startsWith('related:'),

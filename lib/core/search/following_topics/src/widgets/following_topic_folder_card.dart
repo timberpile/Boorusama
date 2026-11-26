@@ -17,6 +17,8 @@ import '../types/topic_organization.dart';
 import '../types/following_topic_sort.dart';
 import '../types/following_topic.dart';
 import 'following_topic_card.dart';
+import '../../../../../boorus/nhentai/galleries/followed_search.dart';
+import '../../../../boorus/booru/types.dart';
 import 'topic_new_posts_badge.dart';
 
 final class FollowingTopicFolderLastPost {
@@ -303,7 +305,26 @@ class _FollowingFolderPreviewStrip extends ConsumerWidget {
       if (config == null || config.anonymousReadScope?.isCurrent == false) {
         continue;
       }
-      if (config.anonymousReadScope == null &&
+      if (config.auth.booruType == BooruType.nhentai) {
+        if (!canFetch) continue;
+        final access = ref.watch(nhentaiTopicCoverAccessProvider(config));
+        if (access == null) continue;
+        candidateCount++;
+        final covers = ref.watch(
+          nhentaiTopicCoversProvider((
+            access,
+            topic.query,
+            topic.lastSuccessfulCheckAt,
+          )),
+        );
+        if (covers.isLoading) {
+          tiles.add(const KurumiImagePlaceholder());
+        } else if (covers case AsyncData(value: [final url, ...])) {
+          tiles.add(
+            BooruImage(imageUrl: url, config: config.auth, fit: BoxFit.cover),
+          );
+        }
+      } else if (config.anonymousReadScope == null &&
           storedUrl != null &&
           storedUrl.isNotEmpty) {
         candidateCount++;

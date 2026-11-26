@@ -183,6 +183,19 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final groupActions = PostActionToolbarScope.maybeOf(context)
+        ?.buildGroupFavoriteActions;
+    if (groupActions != null) {
+      return groupActions(
+        (context, actions) => SimplePostActionToolbar<T>(
+          post: post,
+          maxVisibleButtons: 5,
+          onStartSlideshow: PostDetailsPageViewScope.of(context).startSlideshow,
+          favoriteButton: null,
+          favoriteActions: actions,
+        ),
+      );
+    }
     final config = ref.watchConfigAuth;
     final isFaved = ref.watch(favoriteProvider((config, post.id)));
     final notifier = ref.watch(favoritesProvider(config).notifier);

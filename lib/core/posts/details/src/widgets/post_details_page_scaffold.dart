@@ -23,6 +23,7 @@ import '../../../../cache/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
 import '../../../../premiums/providers.dart';
+import '../../../../content/types.dart' show ContentAccessContext;
 import '../../../../settings/providers.dart';
 import '../../../../videos/lock/widgets.dart';
 import '../../../details_pageview/widgets.dart';
@@ -567,7 +568,8 @@ class _PostDetailPageScaffoldState<T extends Post>
                   ui != null &&
                   canCustomize &&
                   (page?.canCustomize ?? true) &&
-                  post != null,
+                  (post != null || page?.galleryAccess?.key.profileId != null),
+              galleryAccess: page?.galleryAccess,
             ),
           ];
         },
@@ -792,12 +794,14 @@ class PostDetailsPageConfiguration extends InheritedWidget {
     required super.child,
     this.preferredParts,
     this.canCustomize = true,
+    this.galleryAccess,
     super.key,
   });
   final PostDetailsUIBuilder? uiBuilder;
   final LayoutConfigs? layout;
   final Set<DetailsPart>? preferredParts;
   final bool canCustomize;
+  final ContentAccessContext? galleryAccess;
   static PostDetailsPageConfiguration? maybeOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<PostDetailsPageConfiguration>();
   @override
@@ -805,5 +809,6 @@ class PostDetailsPageConfiguration extends InheritedWidget {
       uiBuilder != oldWidget.uiBuilder ||
       layout != oldWidget.layout ||
       preferredParts != oldWidget.preferredParts ||
-      canCustomize != oldWidget.canCustomize;
+      canCustomize != oldWidget.canCustomize ||
+      galleryAccess != oldWidget.galleryAccess;
 }

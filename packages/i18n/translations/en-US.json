@@ -1,4 +1,35 @@
 {
+  "nhentai": {
+    "tags": {
+      "parody": "Parody",
+      "character": "Character",
+      "general": "Tags",
+      "tag": "Tag",
+      "artist": "Artist",
+      "group": "Group",
+      "language": "Language",
+      "category": "Category"
+    },
+    "uploaded": "Uploaded",
+    "id": "ID",
+    "unknown_date": "Unknown",
+    "more_like_this": "More Like This",
+    "gallery_info": "Gallery Info",
+    "gallery_title": "Title and Artist Info",
+    "popular_now": "Popular Now",
+    "sort_newest": "Newest",
+    "sort_popular_today": "Today",
+    "sort_popular_week": "Week",
+    "sort_popular_all_time": "All Time",
+    "next_random": "Next Random",
+    "randomizer_title": "nhentai Randomizer",
+    "random_unavailable": "This gallery is unavailable under the current profile.",
+    "api_key_hint": "Paste a key from your nhentai account settings. Verify the key, then save the profile.",
+    "key_verification_failed": "Couldn't verify the API key. Check the key and try again.",
+    "connected_as": "Connected as $user",
+    "favorite_failed": "Couldn't change the favorite. Try again.",
+    "favorites_require_key": "An API key is required to view Favorites."
+  },
   "local_media": {
     "title": "Local Media",
     "import_action": "Import",
@@ -2733,6 +2764,10 @@
     "save_failed": "Could not save this change.",
     "ext": {
       "labels": {
+        "nhentai_pages": "Page Count",
+        "nhentai_favorites": "Favorite Count",
+        "nhentai_title": "Title",
+        "nhentai_jtitle": "Japanese Title",
         "active_child_count": "Child Count · Active",
         "active_children": "Child Count · Active",
         "active_comment_count": "Comment Count · Active",
@@ -2958,6 +2993,9 @@
         "voteup": "Upvoted by"
       },
       "descriptions": {
+        "nhentai_number": "Filter by count",
+        "nhentai_uploaded": "Filter by time since upload",
+        "nhentai_title_text": "Search title text",
         "account_special": "Account-specific conditions may require sign-in",
         "api_sort": "Order matching results through the site API",
         "boolean": "Require or exclude this property where supported",
@@ -3088,6 +3126,10 @@
     "bookmark_page": "Current Page",
     "work": "Work",
     "pages": "Pages",
+    "gallery": "Gallery",
+    "gallery_number": "Gallery #$id",
+    "gallery_counter": {"one": "$n Post", "other": "$n Posts"},
+    "bookmark_gallery": "Bookmark Gallery",
     "work_counter": {"one": "$n Work", "other": "$n Works"},
     "page_unavailable": "Page unavailable",
     "download_page": "Download current Page",

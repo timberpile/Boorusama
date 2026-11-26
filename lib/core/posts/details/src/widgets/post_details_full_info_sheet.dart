@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/widgets.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../../content/types.dart';
+
 // Project imports:
 import '../../../details_manager/widgets.dart';
 import '../../../details_pageview/widgets.dart';
@@ -13,13 +15,20 @@ List<Widget> buildPostDetailsInfoSlivers(
   required PostDetailsUIBuilder? uiBuilder,
   required Set<DetailsPart>? preferredParts,
   required bool canCustomize,
+  ContentAccessContext? galleryAccess,
 }) => [
   if (uiBuilder != null && preferredParts != null)
     ...preferredParts
         .map((part) => uiBuilder.buildPart(context, part))
         .nonNulls,
   const SliverSizedBox(height: 12),
-  if (canCustomize) const SliverToBoxAdapter(child: AddCustomDetailsButton()),
+  if (canCustomize)
+    SliverToBoxAdapter(
+      child: AddCustomDetailsButton(
+        galleryAccess: galleryAccess,
+        galleryBuilder: uiBuilder,
+      ),
+    ),
 ];
 
 class PostDetailsFullInfoSheet extends ConsumerWidget {

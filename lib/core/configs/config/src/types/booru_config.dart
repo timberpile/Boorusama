@@ -513,22 +513,25 @@ class BooruConfigSearch extends Equatable {
   const BooruConfigSearch({
     required this.filter,
     required this.auth,
+    this.profileId,
   });
 
   factory BooruConfigSearch.fromConfig(BooruConfig config) {
     return BooruConfigSearch(
       filter: BooruConfigSearchFilter.fromConfig(config),
       auth: BooruConfigAuth.fromConfig(config),
+      profileId: config.anonymousReadScope == null ? config.id : null,
     );
   }
 
   final BooruConfigSearchFilter filter;
   final BooruConfigAuth auth;
+  final String? profileId;
 
   BooruType get booruType => auth.booruType;
 
   @override
-  List<Object?> get props => [filter, auth];
+  List<Object?> get props => [filter, auth, profileId];
 }
 
 class BooruConfigFilter extends Equatable {
@@ -746,6 +749,7 @@ class LayoutConfigs extends Equatable {
     required this.home,
     required this.details,
     required this.previewDetails,
+    this.galleryDetails,
   });
   factory LayoutConfigs.fromJson(Map<String, dynamic> json) {
     final home = json['home'] == null
@@ -768,22 +772,28 @@ class LayoutConfigs extends Equatable {
       home: home,
       details: details,
       previewDetails: previewDetails,
+      galleryDetails: (json['galleryDetails'] as List<dynamic>?)
+          ?.map(CustomDetailsPartKey.fromJson)
+          .toList(),
     );
   }
 
   const LayoutConfigs.undefined()
     : home = const CustomHomeViewKey.defaultValue(),
       previewDetails = null,
+      galleryDetails = null,
       details = null;
 
   final CustomHomeViewKey? home;
   final List<CustomDetailsPartKey>? details;
   final List<CustomDetailsPartKey>? previewDetails;
+  final List<CustomDetailsPartKey>? galleryDetails;
 
   LayoutConfigs copyWith({
     CustomHomeViewKey? Function()? home,
     List<CustomDetailsPartKey>? Function()? details,
     List<CustomDetailsPartKey>? Function()? previewDetails,
+    List<CustomDetailsPartKey>? Function()? galleryDetails,
   }) {
     return LayoutConfigs(
       home: home != null ? home() : this.home,
@@ -791,6 +801,9 @@ class LayoutConfigs extends Equatable {
       previewDetails: previewDetails != null
           ? previewDetails()
           : this.previewDetails,
+      galleryDetails: galleryDetails != null
+          ? galleryDetails()
+          : this.galleryDetails,
     );
   }
 
@@ -809,11 +822,13 @@ class LayoutConfigs extends Equatable {
       'home': home?.toJson(),
       'details': details?.map((e) => e.toJson()).toList(),
       'previewDetails': previewDetails?.map((e) => e.toJson()).toList(),
+      if (galleryDetails case final sections?)
+        'galleryDetails': sections.map((part) => part.toJson()).toList(),
     };
   }
 
   @override
-  List<Object?> get props => [home, details, previewDetails];
+  List<Object?> get props => [home, details, previewDetails, galleryDetails];
 }
 
 Set<DetailsPart>? getLayoutParsedParts({

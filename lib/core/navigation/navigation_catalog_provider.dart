@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../../boorus/danbooru/users/user/providers.dart';
 import '../../boorus/navigation_capabilities.dart';
+import '../../boorus/nhentai/availability.dart';
 import '../../boorus/shimmie2/favorites/providers.dart';
 import '../../foundation/boot/providers.dart';
 import '../boorus/engine/providers.dart';
@@ -26,6 +27,7 @@ final navigationCapabilitiesProvider =
         for (final config in ref.watch(navigationProfilesProvider))
           describeEngineNavigation(
             config: config,
+            nhentaiAvailable: ref.watch(nhentaiAvailableProvider),
             loginDetails: ref.watch(booruLoginDetailsProvider(config.auth)),
             hasFavoritesBuilder:
                 ref

@@ -127,10 +127,10 @@ void main() {
           matching: find.byType(KurumiPopupMenuButton),
         );
         expect(overflow.hitTestable(), findsOneWidget);
-        expect(find.text('Share Boorusama Search Link'), findsNothing);
+        expect(find.text('Share'), findsNothing);
         await tester.tap(overflow);
         await tester.pumpAndSettle();
-        final share = find.text('Share Boorusama Search Link');
+        final share = find.text('Share');
         expect(share, findsOneWidget);
         await tester.tap(share);
         await tester.pumpAndSettle();

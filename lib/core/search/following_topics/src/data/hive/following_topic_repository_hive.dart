@@ -472,6 +472,7 @@ class HiveFollowingTopicRepository
   Future<TopicFeed?> ensureFolderFeed(
     String folderId, {
     String? fallbackProfileId,
+    Set<String> excludedSourceIds = const {},
   }) => _serialize(() async {
     final storage = _organizationBox;
     if (storage == null) return null;
@@ -480,7 +481,10 @@ class HiveFollowingTopicRepository
         .where((f) => f.id == folderId && f.feedEnabled)
         .firstOrNull;
     if (folder == null) return null;
-    final ids = organization.recursiveIds(folderId);
+    final ids = organization
+        .recursiveIds(folderId)
+        .where((id) => !excludedSourceIds.contains(id))
+        .toList();
     final first = ids.isEmpty ? null : _box.get(ids.first);
     if (ids.isNotEmpty && first == null) return null;
     final existing = _feeds().where((f) => f.id == folderId).firstOrNull;
@@ -1590,9 +1594,12 @@ class HiveFollowingTopicRepository
         commit.discoveredPosts,
         commit.delta ? current.previews : const [],
       );
-      final highestSeenPostId = commit.discoveredPosts.fold<int>(
+      final matchedIds =
+          commit.matchedGalleryIds ??
+          commit.discoveredPosts.map((post) => post.postId);
+      final highestSeenPostId = matchedIds.fold<int>(
         current.highestSeenPostId ?? -1,
-        (highest, post) => post.postId > highest ? post.postId : highest,
+        (highest, id) => id > highest ? id : highest,
       );
       final foundHigherId = switch (current.highestSeenPostId) {
         final previousId? => highestSeenPostId > previousId,
@@ -1662,6 +1669,7 @@ class HiveFollowingTopicRepository
       final referencingFeeds = _decodeFeedRows(
         _feedMetadata().where(
           (feed) =>
+              commit.matchedGalleryIds == null &&
               feed.sourceIds.contains(current.id) &&
               (folderStates[feed.id] ?? true) &&
               (commit.expectedFeedGenerations == null ||
@@ -1680,9 +1688,7 @@ class HiveFollowingTopicRepository
             if (entry.key is String) entry.key as String: entry.value,
       };
       final newCount = !commit.baseline && current.highestSeenPostId != null
-          ? commit.discoveredPosts
-                .where((post) => post.postId > current.highestSeenPostId!)
-                .length
+          ? matchedIds.where((id) => id > current.highestSeenPostId!).length
           : 0;
       final previousEstimate = estimates[current.id];
       final previousCount =

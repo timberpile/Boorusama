@@ -153,11 +153,20 @@ class BackgroundDownloader implements DownloadService {
         }
       }
 
-      final cacheResult = await _tryDownloadFromCache(
-        targetDir: targetDir,
-        options: options,
-      );
-      if (cacheResult case final result?) {
+      final DownloadResult? immediate;
+      try {
+        immediate = switch (options.protectedTransfer) {
+          final transfer? => await _downloadProtected(task, transfer, options),
+          null => await _tryDownloadFromCache(
+            targetDir: targetDir,
+            options: options,
+          ),
+        };
+      } catch (_) {
+        if (sidecars != null) await sidecars.discard(task.taskId);
+        rethrow;
+      }
+      if (immediate case final result?) {
         if (sidecars != null) {
           if (result case DownloadCompleted(:final info)) {
             try {
@@ -205,6 +214,34 @@ class BackgroundDownloader implements DownloadService {
           message: e.toString(),
         ),
       );
+    }
+  }
+
+  Future<DownloadResult> _downloadProtected(
+    DownloadTask task,
+    ProtectedDownloadTransfer transfer,
+    DownloadOptions options,
+  ) async {
+    final path = await task.filePath();
+    final info = DownloadTaskInfo(path: path, id: task.taskId);
+    final skipExisting = options.skipIfExists ?? false;
+    if (skipExisting && fs.fileExistsSync(path)) return DownloadSkipped(info);
+    await fs.createDirectory(dirname(path), recursive: true);
+    final staging = join(dirname(path), '.boorusama-${task.taskId}.part');
+    try {
+      if (!transfer.isCurrent()) throw StateError('Download unavailable');
+      await transfer.write(staging);
+      if (!transfer.isCurrent()) throw StateError('Download access changed');
+      if (skipExisting) {
+        if (!await fs.publishFileIfAbsent(staging, path)) {
+          return DownloadSkipped(info);
+        }
+      } else {
+        await fs.renameFile(staging, path);
+      }
+      return DownloadCompleted(info, source: DownloadCompletionSource.network);
+    } finally {
+      await fs.deleteFileIfExists(staging);
     }
   }
 

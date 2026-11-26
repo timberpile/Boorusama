@@ -23,6 +23,7 @@ void main() {
     int? total = 29,
     int? displayedCount,
     bool withSource = true,
+    bool showKindIcon = true,
     Widget? sourceIcon,
     VoidCallback? onTap,
     TextDirection direction = TextDirection.ltr,
@@ -61,6 +62,7 @@ void main() {
                           total: total,
                           displayedCount: displayedCount,
                           kind: kind,
+                          showKindIcon: showKindIcon,
                           sourceIcon: withSource
                               ? sourceIcon ??
                                     const ColoredBox(color: Colors.blue)
@@ -88,6 +90,23 @@ void main() {
     }
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Gallery count-only badges keep one page with large text', (
+    tester,
+  ) async {
+    await showTile(
+      tester,
+      kind: PoolGridItemKind.collection,
+      width: 76,
+      textScale: 1.8,
+      total: 1,
+      withSource: false,
+      showKindIcon: false,
+    );
+    expect(find.text('1'), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-kind-collection')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Related items use the photo_library symbol', (tester) async {
     await showTile(tester, kind: PoolGridItemKind.related, total: null);

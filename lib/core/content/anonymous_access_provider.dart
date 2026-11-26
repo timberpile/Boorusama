@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../boorus/nhentai/availability.dart';
 import '../blacklists/providers.dart';
 import '../configs/config/types.dart';
 import '../ddos/handler/providers.dart';
@@ -11,9 +12,12 @@ import 'anonymous_read_scope.dart';
 import 'anonymous_source_policy.dart';
 import 'content_access.dart';
 import 'content_access_provider.dart';
+import 'nhentai_public_transport.dart';
 
 final anonymousSourcePolicyProvider = Provider(
-  (ref) => const AnonymousSourcePolicy(),
+  (ref) => AnonymousSourcePolicy(
+    nhentaiEnabled: ref.watch(nhentaiAvailableProvider),
+  ),
 );
 
 /// Only a visible consumer obtains a scope. Preparing it reads local policy;
@@ -66,23 +70,33 @@ anonymousContentAccessProvider = Provider.autoDispose
               userAgent: ref.read(defaultUserAgentProvider),
               headers: {'Referer': source.site.toString()},
             );
-            final protection = DioProtectionInterceptor(
-              protectionHandler: ref.read(publicReadProtectionHandlerProvider),
-              dio: dio,
-              canRecoverPublicRead: (request) =>
-                  scope.isCurrent &&
-                  request.cancelToken?.isCancelled != true &&
-                  request.uri.isScheme('https') &&
-                  request.uri.origin == source.site.origin,
-            );
-            dio.httpClientAdapter = PublicReadHttpClientAdapter(
-              delegate: dio.httpClientAdapter,
-              source: source,
-              current: () => scope.isCurrent,
-              prepareHeaders: protection.prepareTransportHeaders,
-            );
+            if (source.isNhentai) {
+              dio.httpClientAdapter = NhentaiPublicTransport(
+                dio: dio,
+                source: source,
+                current: () => scope.isCurrent,
+              );
+            } else {
+              final protection = DioProtectionInterceptor(
+                protectionHandler: ref.read(
+                  publicReadProtectionHandlerProvider,
+                ),
+                dio: dio,
+                canRecoverPublicRead: (request) =>
+                    scope.isCurrent &&
+                    request.cancelToken?.isCancelled != true &&
+                    request.uri.isScheme('https') &&
+                    request.uri.origin == source.site.origin,
+              );
+              dio.httpClientAdapter = PublicReadHttpClientAdapter(
+                delegate: dio.httpClientAdapter,
+                source: source,
+                current: () => scope.isCurrent,
+                prepareHeaders: protection.prepareTransportHeaders,
+              );
+              dio.interceptors.add(protection);
+            }
             coordinateApiDio(dio, coordinator);
-            dio.interceptors.add(protection);
             return dio;
           },
         );

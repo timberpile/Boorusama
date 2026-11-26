@@ -9,6 +9,7 @@ import '../../../../configs/manage/providers.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
 import 'following_topic_config_provider.dart';
+import 'following_topic_refresh_source_provider.dart';
 import 'following_topic_sort_provider.dart';
 import 'following_topics_notifier.dart';
 
@@ -128,11 +129,13 @@ final profileFollowingTopicHasNewPostsProvider = Provider.family<bool, String>((
 final followingTopicTrackingSupportedProvider =
     Provider.family<bool, BooruConfigAuth>(
       (ref, config) =>
-          ref
-              .watch(booruRepoProvider(config))
-              ?.searchRefreshQueryAdapter(config)
-              .isSupported ??
-          false,
+          ref.watch(followingTopicGalleryRefreshSourceProvider(config)) !=
+              null ||
+          (ref
+                  .watch(booruRepoProvider(config))
+                  ?.searchRefreshQueryAdapter(config)
+                  .isSupported ??
+              false),
     );
 
 final organizedFollowingTopicsProvider =

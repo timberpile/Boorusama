@@ -52,12 +52,17 @@ final class OwnedReadCache<K, T> {
     return true;
   }
 
-  Future<T> load(K reference, Future<T> Function() loader) {
+  Future<T> load(
+    K reference,
+    Future<T> Function() loader, {
+    bool refresh = false,
+  }) {
     if (_disposed) return Future.error(RequestCancelledError());
     if (validateKey?.call(reference) == false) {
       return Future.error(const FormatException('Invalid shared read key'));
     }
     var entry = _entries.remove(reference);
+    if (refresh && (entry?.done ?? false)) entry = null;
     final created = entry == null;
     if (entry == null) {
       while (_entries.length >= maxEntries) {
@@ -88,10 +93,19 @@ final class OwnedReadCache<K, T> {
   ) async {
     final owner = Object();
     entry.owners[owner] = caller;
+    if (entry.started && !entry.done && _isLive(caller)) {
+      caller.onStarted?.call();
+      for (final uri in entry.runningUris) {
+        caller.onDataTransport?.call(uri, true);
+      }
+    }
     entry.notify();
     final policy = caller.changes?.listen((_) => entry.notify());
     void detach() {
       if (entry.owners.remove(owner) == null) return;
+      for (final uri in entry.runningUris) {
+        caller.onDataTransport?.call(uri, false);
+      }
       entry.notify();
       if (!entry.done && !entry.owners.values.any(_isLive)) {
         _abort(reference, entry);
@@ -139,6 +153,7 @@ final class OwnedReadCache<K, T> {
           .fold(ApiRequestClass.preload, (a, b) => a.index < b.index ? a : b),
       replaySafety: ApiReplaySafety.safeRead,
       onStarted: () {
+        entry.started = true;
         final callbacks = entry.owners.values
             .where(_isLive)
             .map((owner) => owner.onStarted)
@@ -146,6 +161,20 @@ final class OwnedReadCache<K, T> {
             .toSet();
         for (final callback in callbacks) {
           callback();
+        }
+      },
+      onDataTransport: (uri, running) {
+        if (running) {
+          entry.runningUris.add(uri);
+        } else {
+          entry.runningUris.remove(uri);
+        }
+        final callbacks = entry.owners.values
+            .map((owner) => owner.onDataTransport)
+            .whereType<void Function(Uri, bool)>()
+            .toSet();
+        for (final callback in callbacks) {
+          callback(uri, running);
         }
       },
       cancelToken: entry.cancel,
@@ -224,7 +253,9 @@ final class _Envelope<T> {
   final cancel = CancelToken();
   final changes = StreamController<void>.broadcast(sync: true);
   final owners = <Object, ApiRequestContext>{};
+  final runningUris = <Uri>{};
   var done = false;
+  var started = false;
   var invalidated = false;
   void notify() {
     if (!changes.isClosed) changes.add(null);

@@ -15,6 +15,8 @@ import 'e621/popular/widgets.dart';
 import 'eshuushuu/configs/extra_data.dart';
 import 'eshuushuu/users/widgets.dart';
 import 'moebooru/popular/widgets.dart';
+import 'nhentai/galleries/random.dart';
+import 'nhentai/search/page.dart';
 import 'pixiv/explore/widgets.dart';
 import 'pixiv/following/page.dart';
 import 'shimmie2/extensions/page.dart';
@@ -60,6 +62,11 @@ Widget buildEngineNavigationPage(
     ),
   },
   'pixiv.explore' => const PixivExplorePage(),
+  'nhentai.random' => NhentaiRandomPage(config: config),
+  'nhentai.popular' => _toolHost(
+    context.t.nhentai.popular_now,
+    NhentaiPopularPage(config: config),
+  ),
   'pixiv.following-artists' => PixivFollowingArtistsPage(config: config),
   'shimmie2.extensions' => const Shimmie2ExtensionsPage(),
   'szurubooru.pools' => const SzurubooruPoolPage(),

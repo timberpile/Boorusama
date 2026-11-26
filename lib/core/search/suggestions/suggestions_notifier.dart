@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 
+import '../../boorus/booru/types.dart';
 import '../../configs/config/providers.dart';
 import '../../configs/config/types.dart';
 import '../../tags/autocompletes/providers.dart';
@@ -15,6 +17,7 @@ import '../queries/types.dart';
 class SuggestionsNotifier
     extends FamilyNotifier<SuggestionsState, BooruConfigAuth> {
   Timer? _timer;
+  CancelToken? _request;
   var _generation = 0;
   var _disposed = false;
   String? _pendingQuery;
@@ -34,7 +37,11 @@ class SuggestionsNotifier
     _timer?.cancel();
     _timer = null;
     _pendingQuery = null;
+    _request?.cancel();
+    _request = null;
   }
+
+  void cancelPending() => _cancelPending();
 
   void clear() {
     _cancelPending();
@@ -51,10 +58,13 @@ class SuggestionsNotifier
   }
 
   void getSuggestions(String query) {
-    final sanitized = sanitizeQuery(query);
+    final sanitized = _suggestionKey(arg, query);
     if (_pendingQuery == sanitized) return;
     _cancelPending();
-    if (sanitized.isEmpty || state.hasSuggestions(sanitized)) return;
+    final isNhentai = arg.booruType == BooruType.nhentai;
+    if (sanitized.isEmpty || (!isNhentai && state.hasSuggestions(sanitized))) {
+      return;
+    }
 
     final generation = _generation;
     final category = state.category;
@@ -62,12 +72,17 @@ class SuggestionsNotifier
     final tagInfo = ref.read(tagInfoProvider);
     final loginDetails = ref.read(booruLoginDetailsProvider(arg));
     _pendingQuery = sanitized;
+    final cancelToken = _request = CancelToken();
 
     bool current() => !_disposed && generation == _generation;
     _timer = Timer(const Duration(milliseconds: 200), () async {
       try {
         final data = await autocompleteRepo.getAutocomplete(
-          AutocompleteQuery(text: sanitized, category: category),
+          AutocompleteQuery(
+            text: sanitized,
+            category: category,
+            cancelToken: cancelToken,
+          ),
         );
         if (!current()) return;
         var filtered = filterNsfw(
@@ -79,7 +94,7 @@ class SuggestionsNotifier
         state = state.addSuggestions(sanitized, filtered);
         // Publish the server response before waiting for optional cache I/O.
         // A cache enrichment failure must not discard usable API suggestions.
-        if (filtered.isNotEmpty) {
+        if (filtered.isNotEmpty && !isNhentai) {
           try {
             final cache = await ref.read(tagCacheRepositoryProvider.future);
             if (!current()) return;
@@ -159,8 +174,13 @@ final suggestionProvider = Provider.autoDispose
       (ref, params) {
         final (config, tag) = params;
         final state = ref.watch(suggestionsNotifierProvider(config));
-        return state.getSuggestionsFor(sanitizeQuery(tag)) ??
+        return state.getSuggestionsFor(_suggestionKey(config, tag)) ??
             <AutocompleteData>[].lock;
       },
       dependencies: [suggestionsNotifierProvider],
     );
+
+String _suggestionKey(BooruConfigAuth config, String query) =>
+    config.booruType == BooruType.nhentai
+    ? query.trimLeft()
+    : sanitizeQuery(query);

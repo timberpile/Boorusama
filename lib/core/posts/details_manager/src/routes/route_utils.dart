@@ -7,7 +7,10 @@ import '../../../../configs/config/data.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../content/content_access_provider.dart';
+import '../../../../content/types.dart';
 import '../../../../router.dart';
+import '../../../details_parts/types.dart';
 import '../providers/details_layout_provider.dart';
 import '../types/custom_details.dart';
 
@@ -18,6 +21,49 @@ void goToDetailsLayoutManagerPage(
   ref.pushRoute(
     '/details_manager',
     extra: params,
+  );
+}
+
+void goToGalleryDetailsLayoutManager(
+  WidgetRef ref, {
+  required ContentAccessContext access,
+  required PostDetailsUIBuilder uiBuilder,
+}) {
+  final key = access.key;
+  final owner = ref.read(contentAccessContextProvider(key));
+  final profile = ref
+      .read(booruConfigProvider)
+      .where(
+        (config) =>
+            config.id == key.profileId && config.auth == access.config?.auth,
+      )
+      .firstOrNull;
+  if (owner == null || profile == null || !access.hasSameAuthorization(owner)) {
+    return;
+  }
+  final defaults = uiBuilder.full.keys.toSet();
+  final stored =
+      profile.layout?.galleryDetails
+          ?.where((part) => defaults.contains(parseDetailsPart(part.name)))
+          .toList() ??
+      const [];
+  final sourceContext = ref.context;
+  final container = ProviderScope.containerOf(sourceContext, listen: false);
+  final profiles = container.read(booruConfigProvider.notifier);
+
+  goToDetailsLayoutManagerPage(
+    ref,
+    params: DetailsLayoutManagerParams(
+      details: stored.isEmpty ? convertDetailsParts(defaults.toList()) : stored,
+      availableParts: defaults,
+      defaultParts: defaults,
+      onUpdate: (parts) {
+        if (!sourceContext.mounted) return;
+        final live = container.read(contentAccessContextProvider(key));
+        if (live == null || !access.hasSameAuthorization(live)) return;
+        profiles.updateGalleryDetailsLayout(profile: profile, parts: parts);
+      },
+    ),
   );
 }
 

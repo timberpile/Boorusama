@@ -4,6 +4,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../boorus/nhentai/availability.dart';
 import '../boorus/registry.dart';
 import '../foundation/app_rating/providers.dart';
 import '../foundation/app_update/providers.dart';
@@ -89,6 +90,7 @@ List<Override> buildBoorusamaOverrides(
   return [
     appFileSystemProvider.overrideWithValue(dependencies.fileSystem),
     appPlatformProvider.overrideWithValue(dependencies.platform),
+    nhentaiAvailableProvider.overrideWithValue(dependencies.platform.isAndroid),
     webViewUserAgentServiceProvider.overrideWithValue(
       dependencies.webViewUserAgentService,
     ),

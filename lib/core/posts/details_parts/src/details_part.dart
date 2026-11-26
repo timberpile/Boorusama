@@ -19,6 +19,9 @@ enum DetailsPart {
   characterList,
   uploaderPosts,
   parentWork,
+  galleryInfo,
+  galleryTitle,
+  galleryRelated,
 }
 
 final _knownPartsMap = {for (final part in DetailsPart.values) part.name: part};
@@ -55,5 +58,8 @@ String translateDetailsPart(BuildContext context, DetailsPart part) {
     DetailsPart.relatedPosts => context.t.post.detail.widgets.related_posts,
     DetailsPart.characterList => context.t.post.detail.widgets.character_list,
     DetailsPart.uploaderPosts => context.t.post.detail.widgets.uploader_posts,
+    DetailsPart.galleryInfo => context.t.nhentai.gallery_info,
+    DetailsPart.galleryTitle => context.t.nhentai.gallery_title,
+    DetailsPart.galleryRelated => context.t.nhentai.more_like_this,
   };
 }

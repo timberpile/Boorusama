@@ -9,8 +9,10 @@ import '../types/feed_series_membership.dart';
 import 'feed_series_enrichment.dart';
 import '../../../../errors/types.dart';
 import '../../../../http/client/coordination.dart';
+import '../../../../http/client/types.dart';
 import '../../../../posts/post/types.dart';
 import '../refresh/chronological_search_scanner.dart';
+import '../refresh/gallery_topic_refresh_source.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../refresh/search_refresh_fetch_policy.dart';
 import '../types/search_post_preview.dart';
@@ -37,6 +39,7 @@ class SearchRefreshService {
     required this.scanner,
     this.resolvePostDataCodec,
     this.resolveSeriesCapability,
+    this.resolveGallerySource,
     Clock clock = const Clock(),
   }) : _clock = clock;
 
@@ -45,6 +48,8 @@ class SearchRefreshService {
   final SearchPostDataCodecResolver? resolvePostDataCodec;
   final PoolBookmarkCapability? Function(BooruConfig)? resolveSeriesCapability;
   final SearchRefreshQueryAdapterResolver resolveQueryAdapter;
+  final GalleryTopicRefreshSource? Function(BooruConfigAuth)?
+  resolveGallerySource;
   final ChronologicalSearchScanner scanner;
   final Clock _clock;
 
@@ -56,6 +61,9 @@ class SearchRefreshService {
     int snapshotPostLimit = 1000,
   }) async {
     if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    if (resolveGallerySource?.call(config.auth) case final fetch?) {
+      return _refreshGallery(topic, config, fetch, automatic: automatic);
+    }
     final store = repository;
     final feeds = store is FollowingRefreshPublicationStore
         ? (await (store as FollowingRefreshPublicationStore)
@@ -282,6 +290,80 @@ class SearchRefreshService {
   bool _requestCurrent() =>
       !(ApiRequestContext.current().cancelToken?.isCancelled ?? false) &&
       (ApiRequestContext.current().canStart?.call() ?? true);
+
+  Future<SearchRefreshOutcome> _refreshGallery(
+    FollowingTopic topic,
+    BooruConfig config,
+    GalleryTopicRefreshSource fetch, {
+    required bool Function()? automatic,
+  }) async {
+    final query = topic.query;
+    final startedAt = _clock.now().toUtc();
+    if (query.trim().isEmpty) {
+      return _fail(topic, startedAt, SearchRefreshErrorKind.unsupported);
+    }
+    final result = await tryFetchRemoteData(fetcher: () => fetch(config, query))
+        .run();
+    if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    return result.fold<Future<SearchRefreshOutcome>>(
+      (error) => switch (error) {
+        RateLimitedError(:final retryAt) => Future.value(
+          SearchRefreshDeferred(retryAt),
+        ),
+        RequestCancelledError() => Future.value(const SearchRefreshDiscarded()),
+        _ => _fail(topic, startedAt, _mapError(error)),
+      },
+      (page) async {
+        final ids = page.ids;
+        if (ids.length > GalleryTopicRefreshPage.maxResults ||
+            ids.isEmpty && page.hasMore) {
+          return _fail(topic, startedAt, SearchRefreshErrorKind.pagination);
+        }
+        int? previous;
+        for (final id in ids) {
+          if (id <= 0 || previous != null && id >= previous) {
+            return _fail(topic, startedAt, SearchRefreshErrorKind.pagination);
+          }
+          previous = id;
+        }
+        final baseline = topic.lastSuccessfulCheckAt == null;
+        final previousId = topic.highestSeenPostId ?? -1;
+        final foundNew = !baseline && ids.isNotEmpty && ids.first > previousId;
+        final committed = await repository.commitRefresh(
+          SearchRefreshCommit(
+            topicId: topic.id,
+            expectedCreatedAt: topic.createdAt,
+            expectedRevision: topic.runtimeRevision,
+            expectedCheckpoint: topic.lastSuccessfulCheckAt,
+            startedAt: startedAt,
+            identityRetentionBoundary: startedAt,
+            baseline: baseline,
+            truncated: foundNew && page.hasMore && ids.last > previousId,
+            automaticResolver: automatic,
+            canCommit: _commitGuard(),
+            matchedGalleryIds: ids,
+            discoveredPosts: [
+              for (final id in ids)
+                if (page.coverUrls[id] case final cover?)
+                  SearchPostPreview(
+                    postId: id,
+                    postCreatedAt: null,
+                    thumbnailUrl: cover.toString(),
+                    sampleUrl: null,
+                    discoveredAt: startedAt,
+                  ),
+            ],
+          ),
+        );
+        if (committed == null) return const SearchRefreshDiscarded();
+        return SearchRefreshSucceeded(
+          topic: committed,
+          detectedNewPosts: foundNew,
+          baseline: baseline,
+        );
+      },
+    );
+  }
 
   Future<Map<String, FeedSeriesMembership>> _seriesForRefresh(
     FollowingTopic topic,

@@ -1,6 +1,7 @@
 import '../types/topic_feed.dart';
 import '../../../../configs/manage/providers.dart';
 import 'following_topic_config_provider.dart';
+import 'following_topic_refresh_source_provider.dart';
 
 import 'dart:async';
 
@@ -324,11 +325,10 @@ class SearchRefreshCoordinator extends Notifier<bool> {
 
   bool _supported(FollowingTopic search) {
     final config = _configFor(search);
-    if (config == null) return false;
-    final adapter = ref
-        .read(booruRepoProvider(config.auth))
-        ?.searchRefreshQueryAdapter(config.auth);
-    return supportsSearchRefreshQuery(adapter, search.query);
+    return config != null &&
+        ref.read(
+          followingTopicQueryTrackingSupportedProvider(config.auth),
+        )(search.query);
   }
 
   void _publishStatus() {
@@ -535,6 +535,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
                             false))) {
             return false;
           }
+          if (!initializing) return _supported(latest);
           final config = _configFor(latest);
           if (config == null) return false;
           final adapter = ref

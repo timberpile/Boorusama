@@ -29,6 +29,7 @@ class SearchRefreshCommit extends Equatable {
     required this.identityRetentionBoundary,
     required this.baseline,
     required List<SearchPostPreview> discoveredPosts,
+    List<int>? matchedGalleryIds,
     this.feedPosts = const [],
     this.feedSeriesMemberships = const {},
     this.expectedFeedGenerations,
@@ -38,7 +39,10 @@ class SearchRefreshCommit extends Equatable {
     bool automatic = false,
     this.automaticResolver,
   }) : _automatic = automatic,
-       discoveredPosts = List.unmodifiable(discoveredPosts);
+       discoveredPosts = List.unmodifiable(discoveredPosts),
+       matchedGalleryIds = matchedGalleryIds == null
+           ? null
+           : List.unmodifiable(matchedGalleryIds);
 
   /// Checked after acquiring the serialized write boundary, before mutation.
   final bool Function()? canCommit;
@@ -58,6 +62,7 @@ class SearchRefreshCommit extends Equatable {
   final bool Function()? automaticResolver;
   bool get automatic => automaticResolver?.call() ?? _automatic;
   final List<SearchPostPreview> discoveredPosts;
+  final List<int>? matchedGalleryIds;
 
   @override
   List<Object?> get props => [
@@ -69,6 +74,7 @@ class SearchRefreshCommit extends Equatable {
     identityRetentionBoundary,
     baseline,
     discoveredPosts,
+    matchedGalleryIds,
     feedPosts,
     feedSeriesMemberships,
     expectedFeedGenerations,

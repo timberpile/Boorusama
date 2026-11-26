@@ -9,6 +9,7 @@ import 'package:clock/clock.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 // Project imports:
+import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../widgets/time_pulse.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
@@ -83,12 +84,14 @@ class FollowingTopicCardMetadata extends StatelessWidget {
     required this.lastPostAt,
     required this.hasBaseline,
     this.leading,
+    this.showLastPost = true,
     super.key,
   });
 
   final String? leading;
   final DateTime? lastPostAt;
   final bool hasBaseline;
+  final bool showLastPost;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -103,17 +106,18 @@ class FollowingTopicCardMetadata extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-        if (leading != null)
+        if (leading != null && showLastPost)
           const SizedBox(width: followingTopicCardMetadataGap),
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: constraints.maxWidth * (leading == null ? 1 : 2 / 3),
+        if (showLastPost)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: constraints.maxWidth * (leading == null ? 1 : 2 / 3),
+            ),
+            child: FollowingTopicLastPost(
+              lastPostAt: lastPostAt,
+              hasBaseline: hasBaseline,
+            ),
           ),
-          child: FollowingTopicLastPost(
-            lastPostAt: lastPostAt,
-            hasBaseline: hasBaseline,
-          ),
-        ),
       ],
     ),
   );
@@ -324,6 +328,7 @@ class FollowingTopicCard extends StatelessWidget {
                       leading: ownerCaption,
                       lastPostAt: topic.lastPostAt,
                       hasBaseline: topic.hasBaseline,
+                      showLastPost: config?.booruType != BooruType.nhentai,
                     ),
                 if (sourceNotice case final notice?)
                   Text(notice, style: Theme.of(context).textTheme.bodySmall),

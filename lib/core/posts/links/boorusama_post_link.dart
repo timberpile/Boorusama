@@ -1,3 +1,4 @@
+import 'package:booru_clients/nhentai.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../boorus/booru/types.dart';
@@ -145,7 +146,14 @@ final class BoorusamaPostLink extends Equatable {
   static String? stableKeyForPost(Post post) =>
       switch ((post.origin.booruType, post.booruData)) {
         (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,
-        (BooruType.sankaku || BooruType.pixiv || BooruType.unknown, _) => null,
+        (
+          BooruType.sankaku ||
+              BooruType.pixiv ||
+              BooruType.nhentai ||
+              BooruType.unknown,
+          _,
+        ) =>
+          null,
         (_, _) when post.id > 0 => 'id:${post.id}',
         _ => null,
       };
@@ -203,6 +211,9 @@ final class BoorusamaPostLink extends Equatable {
         throw const FormatException('Invalid Pixiv page');
       }
       return NumericPostId(work * 1000 + page);
+    }
+    if (type == BooruType.nhentai) {
+      return StringPostId(NhentaiPageIdentity.parse(key).sourceKey);
     }
     if (!key.startsWith('id:')) {
       throw const FormatException('Invalid post reference');

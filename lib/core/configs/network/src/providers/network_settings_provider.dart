@@ -2,9 +2,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../boorus/booru/types.dart';
 import '../../../config/types.dart';
 
 final networkSettingsProvider =
     Provider.family<NetworkSettings, BooruConfigAuth>(
-      (ref, config) => config.networkSettings ?? const NetworkSettings(),
+      (ref, config) => config.booruType == BooruType.nhentai
+          ? const NetworkSettings()
+          : config.networkSettings ?? const NetworkSettings(),
     );

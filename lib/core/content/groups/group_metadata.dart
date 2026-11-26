@@ -158,6 +158,25 @@ final class GroupTags extends Equatable {
   List<Object?> get props => [values, coverage];
 }
 
+GroupTags? mergeGroupTagObservation(GroupTags? observed, GroupTags? prior) {
+  if (observed == null || observed.coverage == MetadataCoverage.unknown) {
+    return prior ?? observed;
+  }
+  if (prior == null || observed.coverage == MetadataCoverage.complete) {
+    return observed;
+  }
+  Object identity(GroupTag tag) => tag.sourceId == null
+      ? ('name', tag.category, tag.name?.toLowerCase())
+      : ('id', tag.category, tag.sourceId);
+  return GroupTags(
+    coverage: MetadataCoverage.partial,
+    values: {
+      for (final tag in prior.values) identity(tag): tag,
+      for (final tag in observed.values) identity(tag): tag,
+    }.values,
+  );
+}
+
 final class GroupTag extends Equatable {
   GroupTag({this.sourceId, this.name, this.category, this.displayName}) {
     if ((sourceId == null && name == null) || sourceId == '' || name == '') {

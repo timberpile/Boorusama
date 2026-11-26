@@ -15,6 +15,15 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
 import 'package:boorusama/boorus/pixiv/works/work_timeline.dart';
+import 'package:booru_clients/nhentai.dart';
+import 'package:boorusama/boorus/nhentai/availability.dart';
+import 'package:boorusama/boorus/nhentai/favorites/account.dart';
+import 'package:boorusama/boorus/nhentai/galleries/capability.dart';
+import 'package:boorusama/boorus/nhentai/galleries/mapper.dart';
+import 'package:boorusama/boorus/nhentai/galleries/related.dart';
+import 'package:boorusama/boorus/nhentai/galleries/source.dart';
+import 'package:boorusama/boorus/nhentai/nhentai_builder.dart';
+import 'package:boorusama/core/posts/details/src/widgets/group_media_timeline.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/artists/types.dart';
 import 'package:boorusama/core/local_media/local_media_actions.dart';
@@ -41,6 +50,7 @@ import 'package:boorusama/foundation/networking.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../boorus/pixiv/works/work_test_fixtures.dart' as works;
+import '../../../boorus/nhentai/fixtures.dart' as galleries;
 
 import 'package:flutter/gestures.dart'
     show kDoubleTapMinTime, kDoubleTapTimeout;
@@ -59,6 +69,7 @@ import 'package:boorusama/core/content/capabilities.dart';
 import 'package:boorusama/core/content/providers.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/details/src/widgets/group_viewer_scope.dart';
+import 'package:boorusama/core/configs/config/data.dart';
 
 import 'progressive_image_test_utils.dart';
 
@@ -139,6 +150,7 @@ import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details_manager/types.dart';
+import 'package:boorusama/core/posts/details_manager/src/providers/details_layout_provider.dart';
 import 'package:boorusama/core/posts/details/routes.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
@@ -179,7 +191,10 @@ import 'package:boorusama/foundation/url_launcher.dart';
 import '../../../support/fakes/test_platform_services.dart';
 import '../../../support/fakes/memory_app_file_system.dart';
 import '../../../support/fakes/memory_repositories.dart'
-    show MemoryMiscDataStore;
+    show
+        MemoryBooruConfigRepository,
+        MemoryMiscDataStore,
+        MemoryPersistentCacheStore;
 
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
@@ -1918,7 +1933,7 @@ void main() {
         for (final (id, direction) in [(122, -1.0), (120, 1.0)]) {
           final timeline = find.byWidgetPredicate(
             (widget) =>
-                widget is PixivWorkTimeline && widget.entry.occurrenceId == id,
+                widget is GroupMediaTimeline && widget.entry.occurrenceId == id,
             skipOffstage: false,
           );
           final drag = await tester.startGesture(
@@ -1960,6 +1975,265 @@ void main() {
         harness.dispose();
         await tester.pump(const Duration(minutes: 1));
       }
+    },
+  );
+
+  testWidgets(
+    'Gallery Customize UI saves the displayed profile and section order',
+    (tester) async {
+      _mobileViewport(tester, size: const Size(320, 800));
+      final access = galleries.galleryAccess();
+      final fixture = access.config!.copyWith(name: 'Gallery profile');
+      final profile = fixture.toBooruConfigData().toBooruConfig(
+        id: fixture.id,
+      )!;
+      final otherProfile = BooruConfig.fromJson({
+        ...profile.toJson(),
+        'id': '22222222-2222-4222-8222-222222222222',
+        'name': 'Other Gallery profile',
+      });
+      final profiles = MemoryBooruConfigRepository(
+        configs: [profile, otherProfile],
+      );
+      final gallery = NhentaiGalleryDetails.fromJson(galleries.galleryJson());
+      final entry = GroupViewerEntry(
+        summary: nhentaiGalleryDetails(
+          gallery,
+          access,
+          galleries.galleryPolicy(),
+        ).summary,
+        occurrenceId: 'customize-gallery',
+        source: ViewerSourceBinding(profile),
+      );
+      DetailsLayoutManagerParams? manager;
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => MixedPostDetailsPage(
+              posts: const [],
+              entries: [entry],
+              initialIndex: 0,
+              initialThumbnailUrl: null,
+              scrollController: null,
+              disclaimer: null,
+            ),
+          ),
+          GoRoute(
+            path: '/details_manager',
+            builder: (_, state) {
+              manager = state.extra! as DetailsLayoutManagerParams;
+              return const Scaffold(body: Text('Gallery layout editor'));
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      final harness = _Harness(
+        router: router,
+        configurations: [profile, otherProfile],
+        entries: [entry],
+        loadMedia: false,
+        hasPremiumLayout: true,
+        allowCustomize: true,
+        postPresentation: NhentaiBuilder().postPresentation,
+        overrides: [
+          booruConfigRepoProvider.overrideWithValue(profiles),
+          nhentaiAvailableProvider.overrideWithValue(true),
+          nhentaiRelatedGalleriesProvider.overrideWith((ref, key) => const []),
+          bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+        ],
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.nhentai,
+          keyCodec: const BooruContentKeyCodec(BooruType.nhentai),
+          presentation: const NhentaiGroupPresentation(),
+          createSource: (_, actor) => NhentaiGallerySource(
+            access: actor,
+            fetchGallery: (_) async => gallery,
+            mediaPolicy: () async => galleries.galleryPolicy(),
+          ),
+        ),
+      );
+      _disposeAfterUnmount(tester, harness.dispose, drainGridCaches: true);
+      await tester.pumpWidget(harness.buildRouter(router));
+      await tester.pumpAndSettle();
+      await _pageViewController(tester).expandToSnapPoint();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Uploaded', skipOffstage: false), findsOneWidget);
+      final customize = find.text('Customize UI', skipOffstage: false);
+      expect(customize, findsOneWidget);
+      await tester.ensureVisible(customize);
+      await tester.pumpAndSettle();
+      expect(customize.hitTestable(), findsOneWidget);
+      await tester.tap(customize.hitTestable());
+      await tester.pumpAndSettle();
+      expect(find.text('Gallery layout editor'), findsOneWidget);
+      expect(manager!.availableParts, {
+        DetailsPart.toolbar,
+        DetailsPart.galleryTitle,
+        DetailsPart.galleryInfo,
+        DetailsPart.tags,
+        DetailsPart.galleryRelated,
+        DetailsPart.fileDetails,
+      });
+      final savedOrder = convertDetailsParts([
+        DetailsPart.galleryInfo,
+        DetailsPart.galleryTitle,
+      ]);
+      manager!.onUpdate(savedOrder);
+      await tester.pumpAndSettle();
+      expect(profiles.configs.first.layout?.galleryDetails, savedOrder);
+      expect(profiles.configs.last, otherProfile);
+      expect(entry.source!.resolve(profiles.configs), isNotNull);
+      expect(
+        harness.container
+            .read(booruConfigProvider)
+            .first
+            .layout
+            ?.galleryDetails,
+        savedOrder,
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<PostDetailsPageConfiguration>(
+              find.byType(PostDetailsPageConfiguration, skipOffstage: false),
+            )
+            .where((page) => page.galleryAccess != null)
+            .single
+            .preferredParts,
+        orderedEquals([DetailsPart.galleryInfo, DetailsPart.galleryTitle]),
+      );
+      expect(find.byType(RawTagsTile, skipOffstage: false), findsNothing);
+      final uploaded = find.text('Uploaded', skipOffstage: false).hitTestable();
+      final title = find
+          .descendant(
+            of: find.byType(ArtistSection, skipOffstage: false),
+            matching: find.text('Fixture Gallery', skipOffstage: false),
+          )
+          .hitTestable();
+      expect(uploaded, findsOneWidget);
+      expect(title, findsOneWidget);
+      expect(
+        tester.getTopLeft(uploaded).dy,
+        lessThan(tester.getTopLeft(title).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Gallery viewer shows a working Favorite and retains Timeline page identity',
+    (tester) async {
+      _mobileViewport(tester, size: const Size(320, 800));
+      final access = galleries.galleryAccess();
+      final config = access.config!.copyWith(
+        apiKey: 'synthetic-gallery-api-key',
+      );
+      final gallery = NhentaiGalleryDetails.fromJson(galleries.galleryJson());
+      final requests = <(String, String)>[];
+      var favorited = false;
+      final account = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (request, handler) {
+              requests.add((request.method, request.uri.path));
+              if (request.method == 'POST') {
+                favorited = true;
+              }
+              handler.resolve(
+                Response(
+                  requestOptions: request,
+                  statusCode: 200,
+                  data: {'favorited': favorited},
+                ),
+              );
+            },
+          ),
+        );
+      addTearDown(() => account.close(force: true));
+      final entry = GroupViewerEntry(
+        summary: nhentaiGalleryDetails(
+          gallery,
+          access,
+          galleries.galleryPolicy(),
+        ).summary,
+        occurrenceId: 'gallery-fixture',
+        source: ViewerSourceBinding(config),
+      );
+      final harness = _Harness(
+        configurations: [config],
+        posts: const [],
+        entries: [entry],
+        loadMedia: false,
+        postPresentation: NhentaiBuilder().postPresentation,
+        overrides: [
+          nhentaiAvailableProvider.overrideWithValue(true),
+          persistentCacheStoreProvider.overrideWithValue(
+            MemoryPersistentCacheStore(),
+          ),
+          nhentaiAccountClientProvider.overrideWith(
+            (ref, _) => NhentaiAccountClient(dio: account),
+          ),
+          bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+        ],
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.nhentai,
+          keyCodec: const BooruContentKeyCodec(BooruType.nhentai),
+          presentation: const NhentaiGroupPresentation(),
+          createSource: (_, actor) => NhentaiGallerySource(
+            access: actor,
+            fetchGallery: (_) async => gallery,
+            mediaPolicy: () async => galleries.galleryPolicy(),
+          ),
+        ),
+      );
+      _disposeAfterUnmount(tester, harness.dispose, drainGridCaches: true);
+      await tester.pumpWidget(harness.build(textScale: 1.5));
+      await tester.pumpAndSettle();
+      final favorite = find.byType(FavoritePostButton).hitTestable();
+      expect(favorite, findsOneWidget);
+      expect(requests, isEmpty);
+      expect(tester.widget<FavoritePostButton>(favorite).isFaved, isFalse);
+      expect(
+        find.ancestor(
+          of: favorite,
+          matching: find.byType(SimplePostActionToolbar<Post>),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(favorite);
+      await tester.pumpAndSettle();
+      expect(tester.widget<FavoritePostButton>(favorite).isFaved, isTrue);
+      expect(requests, [('POST', '/api/v2/galleries/101/favorite')]);
+      final toggle = find
+          .byKey(const ValueKey('group-view-toggle'))
+          .hitTestable();
+      expect(toggle, findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      final timeline = find.byType(GroupMediaTimeline);
+      expect(timeline.hitTestable(), findsOneWidget);
+      expect(
+        find.descendant(of: timeline, matching: find.text('2')),
+        findsOneWidget,
+      );
+      final tiles = tester.widgetList<PostGridItem>(
+        find.descendant(of: timeline, matching: find.byType(PostGridItem)),
+      );
+      expect(tiles, hasLength(2));
+      tiles.last.onTap!(const GridThumbnailMedia(url: '', aspectRatio: null));
+      await tester.pumpAndSettle();
+      final reading = harness.container.read(groupReadingProvider(entry));
+      expect(reading.checkpoint.memberKey, 'gallery-page:101:3');
+      expect(reading.returnToTimeline, isTrue);
+      await Navigator.of(tester.element(find.byType(PostDetailsPageView)))
+          .maybePop();
+      await tester.pumpAndSettle();
+      expect(timeline.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -8440,6 +8714,7 @@ class _Harness {
     BooruGroupCapability? mediaCapability,
     List<BooruGroupCapability> groupCapabilities = const [],
     bool hasPremiumLayout = false,
+    bool allowCustomize = false,
     BooruPostPresentation? postPresentation,
     StateProvider<MediaGroupState>? mediaState,
     bool reduceAnimations = true,
@@ -8569,7 +8844,7 @@ class _Harness {
            ),
            deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
            hasPremiumLayoutProvider.overrideWithValue(hasPremiumLayout),
-           showPremiumFeatsProvider.overrideWithValue(false),
+           showPremiumFeatsProvider.overrideWithValue(allowCustomize),
            downloadServiceProvider.overrideWithValue(_DownloadService()),
            httpHeadersProvider.overrideWith((ref, config) => const {}),
            loggerProvider.overrideWithValue(const _Logger()),

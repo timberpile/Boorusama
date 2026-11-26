@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../../../boorus/nhentai/galleries/followed_search.dart';
+import '../../../../boorus/booru/types.dart';
+import '../../../../navigation/destination_activity.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
 import '../providers/following_topic_config_provider.dart';
@@ -30,6 +33,23 @@ class FollowingTopicPreview extends ConsumerWidget {
     if (fallback case final preview?) return preview;
     final resolved = ref.watch(followingTopicConfigProvider(topic.id));
     final owner = resolved?.auth == auth ? resolved : null;
+    if (auth.booruType == BooruType.nhentai) {
+      if (owner == null ||
+          !NavigationActivity.of(context) ||
+          !(ModalRoute.isCurrentOf(context) ?? true)) {
+        return const SizedBox.shrink();
+      }
+      final access = ref.watch(nhentaiTopicCoverAccessProvider(owner));
+      if (access == null) return const SizedBox.shrink();
+      final covers = ref.watch(
+        nhentaiTopicCoversProvider((
+          access,
+          topic.query,
+          topic.lastSuccessfulCheckAt,
+        )),
+      );
+      return _images(covers.valueOrNull ?? const []);
+    }
     final key = owner == null
         ? null
         : ref.watch(untrackedTopicPreviewKeyProvider((topic, owner)));

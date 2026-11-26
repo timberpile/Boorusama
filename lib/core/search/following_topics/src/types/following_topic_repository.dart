@@ -45,6 +45,7 @@ abstract interface class FollowingTopicRepository {
   Future<TopicFeed?> ensureFolderFeed(
     String folderId, {
     String? fallbackProfileId,
+    Set<String> excludedSourceIds = const {},
   });
   Future<void> clearFolderFeedCache(String folderId);
   Future<void> clearAllFeedCaches();

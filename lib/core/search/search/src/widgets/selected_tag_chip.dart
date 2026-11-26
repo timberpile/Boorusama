@@ -5,7 +5,10 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../../../boorus/nhentai/search/query.dart';
+import '../../../../../boorus/nhentai/tags/presentation.dart';
 import '../../../../../foundation/utils/flutter_utils.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../tags/categories/providers.dart';
 import '../../../../tags/tag/colors.dart';
@@ -24,6 +27,7 @@ class SelectedTagChip extends StatelessWidget {
     this.onUpdated,
     this.onTap,
     this.tagColor,
+    this.tagLabel,
     this.textScaler,
   });
 
@@ -32,6 +36,7 @@ class SelectedTagChip extends StatelessWidget {
   final void Function(String tag)? onUpdated;
   final VoidCallback? onTap;
   final Color? tagColor;
+  final String? tagLabel;
   final TextScaler? textScaler;
 
   @override
@@ -136,7 +141,7 @@ class SelectedTagChip extends StatelessWidget {
               TextSpan(
                 text: isRaw
                     ? tagSearchItem.tag
-                    : tagSearchItem.tag.replaceAll('_', ' '),
+                    : tagLabel ?? tagSearchItem.tag.replaceAll('_', ' '),
                 style: TextStyle(
                   color:
                       colors?.foregroundColor ?? colorScheme.onSurfaceVariant,
@@ -174,18 +179,24 @@ class CategoryAwareSelectedTagChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordinary = !tagSearchItem.isRaw && tagSearchItem.metatag == null;
-    final category = !ordinary
+    final nativeTag = ordinary && auth.booruType == BooruType.nhentai
+        ? NhentaiSearchTerm.qualifiedTag(tagSearchItem.originalTag)
+        : null;
+    final category = !ordinary || nativeTag != null
         ? null
         : tagSearchItem.category ??
               ref
                   .watch(booruTagTypeProvider((auth, tagSearchItem.rawTag)))
                   .valueOrNull;
-    final color = category == null
+    final color = nativeTag != null
+        ? NhentaiTagSection.fromSource(nativeTag.type).color(context, ref, auth)
+        : category == null
         ? null
         : ref.watch(tagColorProvider((auth, category)));
     return SelectedTagChip(
       tagSearchItem: tagSearchItem,
       tagColor: color,
+      tagLabel: nativeTag?.name,
       textScaler: textScaler,
       onDeleted: onDeleted,
       onUpdated: onUpdated,

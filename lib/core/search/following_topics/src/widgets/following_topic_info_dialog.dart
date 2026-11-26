@@ -5,15 +5,14 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
-import '../../../../boorus/engine/providers.dart';
 import '../providers/following_topic_config_provider.dart';
+import '../providers/following_topic_refresh_source_provider.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/src/types/search_refresh_settings.dart';
 import '../../../../widgets/time_pulse.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../providers/following_topics_notifier.dart';
-import '../refresh/search_refresh_query_adapter.dart';
 import '../services/conservative_refresh_policy.dart';
 import 'search_refresh_error_text.dart';
 
@@ -45,13 +44,12 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
     final settings = ref.watch(settingsProvider).searchRefresh;
     final status = ref.watch(searchRefreshStatusProvider);
     final profile = ref.watch(followingTopicConfigProvider(topicId));
-    final adapter = profile == null
-        ? null
-        : ref
-              .watch(booruRepoProvider(profile.auth))
-              ?.searchRefreshQueryAdapter(profile.auth);
     final supported =
-        source != null && supportsSearchRefreshQuery(adapter, source.query);
+        source != null &&
+        profile != null &&
+        ref.watch(
+          followingTopicQueryTrackingSupportedProvider(profile.auth),
+        )(source.query);
     String duration(Duration value) {
       final parts = <String>[];
       final days = value.inDays;

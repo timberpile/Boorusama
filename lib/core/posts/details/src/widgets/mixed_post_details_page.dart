@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 
 import '../../../../http/client/coordination.dart';
+import '../../../../../boorus/nhentai/galleries/information.dart';
+import '../../../../../boorus/nhentai/galleries/mapper.dart';
+import '../../../../../boorus/nhentai/galleries/related.dart';
 import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
 
 import 'package:foundation/performance.dart';
@@ -26,12 +29,15 @@ import '../../../../artists/types.dart';
 import '../../../../content/groups/group_capability.dart';
 import '../../../../content/groups/group_source_provider.dart';
 import '../../../../content/groups/group_summary.dart';
-import '../../../../content/types.dart' show GroupMetadataKey;
+import '../../../../content/types.dart'
+    show ContentAccessContext, GroupMetadataKey;
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../local_media/local_media_details.dart';
 import '../../../../local_media/local_media_reference.dart';
 import '../../../../developer_options/providers.dart';
+import '../../../../premiums/providers.dart';
 import 'group_viewer_scope.dart';
 import 'adjacent_group_preparation.dart';
 import 'group_reading_controls.dart';
@@ -577,13 +583,17 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   }
 
   bool _canShowTimeline(GroupViewerEntry entry, {bool active = true}) {
-    if (entry.contentReference.engine != BooruType.pixiv) return true;
+    final engine = entry.contentReference.engine;
+    if (engine != BooruType.pixiv && engine != BooruType.nhentai) return true;
     final provider = mediaGroupProvider(entry);
     final listedCount = active ? null : entry.summary.memberCount;
     // The active Work owns its metadata read. Neighbors can reuse an existing
     // result or use their listing without starting an offscreen request.
     if (!active && !ref.exists(provider)) return (listedCount ?? 0) > 1;
     final media = ref.read(provider);
+    if (engine == BooruType.nhentai && active) {
+      return !media.failed && (media.members?.members.length ?? 0) > 1;
+    }
     final count =
         media.details?.summary.memberCount ??
         media.members?.sourceTotal ??
@@ -823,6 +833,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   }
 
   final _isInitPage = ValueNotifier(true);
+  late final _relatedGalleries = NhentaiRelatedGalleryCache(ref);
   final _fallbackReasons = <int, PostPresentationFallbackReason>{};
   final _recovering = <int>{};
   final _recoveryOwners = <int, CancelToken>{};
@@ -843,6 +854,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     }
     _transformController.dispose();
     _isInitPage.dispose();
+    _relatedGalleries.dispose();
     super.dispose();
   }
 
@@ -1022,9 +1034,15 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     PostDetailsData<Post>? details,
   ) {
     final entry = widget.sequence?.entries[index];
-    final mediaGroup = entry is GroupViewerEntry && _hasMediaPager(index);
+    final groupEntry = entry is GroupViewerEntry ? entry : null;
+    final mediaGroup = groupEntry != null && _hasMediaPager(index);
+    final gallery = groupEntry?.contentReference.engine == BooruType.nhentai;
 
-    Widget buildPage({bool includePrepared = false}) {
+    Widget buildPage({
+      bool includePrepared = false,
+      ContentAccessContext? galleryAccess,
+      Set<DetailsPart>? galleryParts,
+    }) {
       final post = widget.sequence == null
           ? details?.posts.elementAtOrNull(index)
           : widget.sequence!.postAt(index) ??
@@ -1032,7 +1050,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       if (post == null && !mediaGroup) return child;
 
       Widget wrap(BuildContext context, PostPagePresentation? presentation) {
-        final ui = presentation == null
+        final ui = gallery
+            ? nhentaiGalleryDetailsUi
+            : presentation == null
             ? mediaGroup
                   ? _groupSummaryUiBuilder
                   : null
@@ -1040,16 +1060,20 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         Widget result = PostDetailsPageConfiguration(
           uiBuilder: ui,
           layout: presentation?.effectiveConfig.layout,
+          galleryAccess: galleryAccess,
           // Default Post statistics require an InheritedPost. An unresolved
           // Work has only Group metadata, even when a neighbor already has
           // a fully resolved Post presentation.
-          canCustomize:
-              presentation?.context.post.booruData is! LocalMediaPostData,
-          preferredParts: switch (presentation?.context.post.booruData) {
-            LocalMediaPostData() => localMediaDetailsParts,
-            _ when mediaGroup && post == null => _groupSummaryDetailsParts,
-            _ => null,
-          },
+          canCustomize: gallery
+              ? galleryAccess?.key.profileId != null
+              : presentation?.context.post.booruData is! LocalMediaPostData,
+          preferredParts:
+              galleryParts ??
+              switch (presentation?.context.post.booruData) {
+                LocalMediaPostData() => localMediaDetailsParts,
+                _ when mediaGroup && post == null => _groupSummaryDetailsParts,
+                _ => null,
+              },
           child: child,
         );
         if (mediaGroup) {
@@ -1062,8 +1086,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
                     selected: index == _mediaPager?.page,
                   ),
             child: GroupViewerScope(
-              entry: entry,
-              child: MediaGroupActions(entry: entry, child: result),
+              entry: groupEntry,
+              child: MediaGroupActions(entry: groupEntry, child: result),
             ),
           );
           final selected = PostDetailsPageViewScope.of(context).page == index;
@@ -1086,8 +1110,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       );
     }
 
-    if (!mediaGroup) return buildPage();
-    final groupEntry = entry;
+    if (groupEntry == null || (!mediaGroup && !gallery)) return buildPage();
     // The media-pager itself observes the manifest, but its surrounding
     // Details wrapper otherwise keeps the null Post from the first build.
     // Observe only pages whose media is already eligible for preparation.
@@ -1101,8 +1124,49 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
             pager.page == index ||
             _checkpoint(groupEntry).visited ||
             (automaticLoading && (pager.page - index).abs() <= 1);
-        if (canPrepare) ref.watch(mediaGroupProvider(groupEntry));
-        return buildPage(includePrepared: canPrepare);
+        if (canPrepare && mediaGroup) ref.watch(mediaGroupProvider(groupEntry));
+        if (!gallery) return buildPage(includePrepared: canPrepare);
+        final binding = groupEntry.source;
+        final access = binding == null
+            ? null
+            : ref.watch(viewerSourceAccessProvider(binding));
+        final available = nhentaiGalleryDetailsUi.full.keys.toSet();
+        final owner = access?.key.profileId == null
+            ? null
+            : ref.watch(
+                booruConfigProvider.select(
+                  (profiles) => profiles
+                      .where(
+                        (profile) =>
+                            profile.id == access!.key.profileId &&
+                            profile.auth == access.config?.auth,
+                      )
+                      .firstOrNull,
+                ),
+              );
+        final saved = getLayoutParsedParts(
+          details: owner?.layout?.galleryDetails,
+          hasPremium: ref.watch(hasPremiumLayoutProvider),
+        )?.where(available.contains).toSet();
+        final parts = saved == null || saved.isEmpty ? available : saved;
+        final page = buildPage(
+          includePrepared: canPrepare,
+          galleryAccess: access,
+          galleryParts: parts,
+        );
+        if (access == null || !access.accepts(groupEntry.contentReference)) {
+          return page;
+        }
+        return NhentaiRelatedGalleryWindow(
+          access: access,
+          galleryId: nhentaiIdFromReference(groupEntry.contentReference),
+          cache: _relatedGalleries,
+          prepare:
+              automaticLoading &&
+              NavigationActivity.of(context) &&
+              parts.contains(DetailsPart.galleryRelated),
+          child: page,
+        );
       },
     );
   }
@@ -1469,7 +1533,7 @@ class _GroupSummaryTags extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entry = GroupViewerScope.maybeEntryOf(context);
-    if (entry == null) {
+    if (entry == null || entry.contentReference.engine == BooruType.nhentai) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
     final state = ref.watch(mediaGroupProvider(entry));

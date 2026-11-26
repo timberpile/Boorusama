@@ -10,6 +10,7 @@ import '../../../../../foundation/loggers.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../../foundation/vendors/google/providers.dart';
 import '../../../../boorus/booru/providers.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
@@ -33,6 +34,9 @@ final apiRequestCoordinatorProvider = Provider<ApiRequestCoordinator>((ref) {
 
 final defaultDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
   if (config.anonymousReadScope case final scope?) return scope.dio;
+  if (config.booruType == BooruType.nhentai) {
+    return ref.watch(dioForWidgetProvider(config));
+  }
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 
@@ -79,6 +83,9 @@ final genericDioProvider = Provider<Dio>(
 final mediaOverrideDioProvider = Provider.autoDispose
     .family<Dio, BooruConfigAuth>((ref, config) {
       if (config.anonymousReadScope case final scope?) return scope.dio;
+      if (config.booruType == BooruType.nhentai) {
+        return ref.watch(dioForWidgetProvider(config));
+      }
       final dio = newDio(
         options: DioOptions(
           ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),
@@ -136,10 +143,13 @@ final userAgentProvider = Provider.family<String, BooruConfigAuth>(
 final httpHeadersProvider =
     Provider.family<Map<String, String>, BooruConfigAuth>(
       (ref, config) {
-        if (config.anonymousReadScope case final scope?) {
+        if (config.anonymousReadScope != null ||
+            config.booruType == BooruType.nhentai) {
           return {
             AppHttpHeaders.userAgentHeader: ref.watch(defaultUserAgentProvider),
-            'Referer': scope.source.site.toString(),
+            'Referer':
+                config.anonymousReadScope?.source.site.toString() ??
+                'https://nhentai.net/',
           };
         }
         return {

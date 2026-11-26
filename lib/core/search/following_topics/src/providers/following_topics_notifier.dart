@@ -1,4 +1,5 @@
 import 'following_topic_config_provider.dart';
+import 'following_topic_refresh_source_provider.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../../../settings/providers.dart';
 
@@ -18,6 +19,7 @@ import '../../../../http/client/providers.dart';
 
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../bookmarks/src/providers/pool_bookmark_provider.dart';
 import '../../../../configs/manage/providers.dart';
@@ -151,6 +153,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             ref.read(originAwarePostRepoProvider(config)),
         resolveSeriesCapability: (config) =>
             ref.read(poolBookmarkCapabilityProvider(config)),
+        resolveGallerySource: (config) =>
+            ref.read(followingTopicGalleryRefreshSourceProvider(config)),
         resolvePostDataCodec: (config) => ref
             .read(booruEngineRegistryProvider)
             .getPostCapability(config.auth.booruType)
@@ -467,6 +471,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             .where(
               (s) =>
                   sourceIds.contains(s.id) &&
+                  !_hasGalleryRefresh(s.id) &&
                   (folderFeed || s.profileId == feed.profileId),
             )
             .toList()
@@ -562,15 +567,16 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<void> deleteFeed(String id) =>
       runSerializedMutation((repository) => repository.deleteFeed(id));
 
-  Future<void> markFeedRead(String id) =>
-      runSerializedMutation((repository) async {
-        final feed = (await repository.getFeeds())
-            .where((feed) => feed.id == id)
-            .firstOrNull;
-        for (final sourceId in feed?.sourceIds ?? const <String>[]) {
-          await repository.markRead(sourceId);
-        }
-      });
+  Future<void> markFeedRead(String id) => runSerializedMutation((
+    repository,
+  ) async {
+    final feed = (await repository.getFeeds())
+        .where((feed) => feed.id == id)
+        .firstOrNull;
+    for (final sourceId in feed?.sourceIds ?? const <String>[]) {
+      if (!_hasGalleryRefresh(sourceId)) await repository.markRead(sourceId);
+    }
+  });
 
   Future<void> initializeUnifiedFollowing() async {
     final settings = ref.read(settingsProvider).searchRefresh;
@@ -602,8 +608,29 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     (repository) => repository.ensureFolderFeed(
       folderId,
       fallbackProfileId: ref.read(booruConfigProvider).firstOrNull?.id,
+      excludedSourceIds: {
+        for (final id in state.requireValue.organization.recursiveIds(folderId))
+          if (_hasGalleryRefresh(id)) id,
+      },
     ),
   );
+
+  bool _hasGalleryRefresh(String topicId) {
+    final topic = state.valueOrNull?.topics
+        .where((item) => item.id == topicId)
+        .firstOrNull;
+    if (topic == null) return false;
+    final sourceType =
+        _mirrors.owners[topicId]?.profile?['booruType'] ??
+        topic.localSource?.booruType;
+    if (sourceType != null) return sourceType == BooruType.nhentai.name;
+    final config = ref
+        .read(booruConfigProvider)
+        .firstWhereOrNull((item) => item.id == topic.profileId);
+    return config != null &&
+        ref.read(followingTopicGalleryRefreshSourceProvider(config.auth)) !=
+            null;
+  }
 
   Future<void> clearFolderFeedCache(String folderId) => runSerializedMutation(
     (repository) => repository.clearFolderFeedCache(folderId),

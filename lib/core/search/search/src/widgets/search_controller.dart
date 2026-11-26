@@ -146,6 +146,24 @@ class SearchPageController extends ChangeNotifier {
     _commitItem(TagSearchItem.raw(tag: textController.text));
   }
 
+  void tapNativeSuggestion(
+    String tag, {
+    required String before,
+    String? category,
+  }) {
+    if (before.trim().isNotEmpty) {
+      _commitItem(TagSearchItem.raw(tag: '$before$tag'));
+      return;
+    }
+    _commitItem(
+      TagSearchItem.fromString(
+        tag,
+        extractor: metatagExtractor,
+        category: category,
+      ),
+    );
+  }
+
   void tapTag(String tag, {String? category}) {
     final prefix = getFilterOperator(tag) == FilterOperator.none
         ? filterOperator.toString()
