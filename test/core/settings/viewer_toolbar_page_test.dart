@@ -8,6 +8,7 @@ import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/settings/src/pages/viewer_toolbar_layout_page.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/settings/src/types/viewer_toolbar_layout.dart';
+import 'package:boorusama/core/settings/src/widgets/viewer_toolbar_editor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
@@ -112,6 +113,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Iterable<String> availableActionNames(WidgetTester tester) => tester
+      .widget<ViewerToolbarEditor>(find.byType(ViewerToolbarEditor))
+      .availableActions
+      .map((action) => action.name);
+
+  testWidgets('Edit is configurable for signed-in Danbooru profiles', (
+    tester,
+  ) async {
+    await mount(tester, [_signed, _guest]);
+    expect(availableActionNames(tester), contains('edit'));
+    await select(tester, _guest);
+    expect(availableActionNames(tester), isNot(contains('edit')));
+  });
+
   testWidgets('each profile gets its own draft, icons and saved order', (
     tester,
   ) async {
@@ -209,6 +224,7 @@ void main() {
         find.byKey(const ValueKey(ViewerToolbarAction.tagHistory)),
         findsNothing,
       );
+      expect(availableActionNames(tester), isNot(contains('edit')));
     },
   );
 }

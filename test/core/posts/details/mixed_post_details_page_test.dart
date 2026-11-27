@@ -32,6 +32,7 @@ import 'package:boorusama/core/local_media/local_media_library.dart';
 import 'package:boorusama/core/local_media/local_media_providers.dart';
 import 'package:boorusama/core/local_media/local_media_reference.dart';
 import 'package:boorusama/boorus/danbooru/tags/edit/src/tag_edit_page.dart';
+import 'package:boorusama/boorus/danbooru/tags/edit/routes.dart';
 import 'package:boorusama/boorus/danbooru/tags/edit/src/widgets/tag_edit_rating_selector_section.dart';
 import 'package:boorusama/core/tags/categories/providers.dart';
 import 'package:boorusama/core/tags/categories/src/tag_type_store.dart';
@@ -161,6 +162,7 @@ import 'package:boorusama/core/posts/listing/src/widgets/post_duplicate_checker.
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_controller.dart';
 import 'package:boorusama/core/posts/details_parts/types.dart';
 import 'package:boorusama/core/posts/details_parts/widgets.dart';
+import 'package:boorusama/core/posts/details_parts/src/toolbars/customizable_post_toolbar.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
 import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
 import 'package:boorusama/core/navigation/destination_id.dart';
@@ -176,6 +178,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/core/themes/colors/src/colors.dart';
 import 'package:boorusama/core/widgets/interactive_viewer_extended.dart';
 import 'package:boorusama/core/videos/engines/types.dart';
 import 'package:boorusama/core/videos/player/widgets.dart';
@@ -605,6 +608,139 @@ void main() {
         }
       },
     );
+  }
+
+  for (final scenario in [
+    (
+      name: 'default menu',
+      signedIn: true,
+      layout: null,
+      pinned: false,
+      index: 0,
+    ),
+    (
+      name: 'existing saved layout',
+      signedIn: true,
+      layout: const ['bookmark'],
+      pinned: false,
+      index: 0,
+    ),
+    (
+      name: 'pinned action',
+      signedIn: true,
+      layout: const ['edit'],
+      pinned: true,
+      index: 0,
+    ),
+    (
+      name: 'guest profile',
+      signedIn: false,
+      layout: null,
+      pinned: false,
+      index: 0,
+    ),
+    (
+      name: 'another engine',
+      signedIn: true,
+      layout: null,
+      pinned: false,
+      index: 1,
+    ),
+  ]) {
+    testWidgets('mixed viewer Edit for ${scenario.name}', (tester) async {
+      _mobileViewport(tester);
+      final profile =
+          BooruConfig.fromJson({
+            ..._configs.first.toJson(),
+            if (scenario.signedIn) ...{
+              'login': 'viewer-user',
+              'apiKey': 'fixture',
+            },
+          }).copyWith(
+            viewerConfigs: () => scenario.layout == null
+                ? null
+                : ViewerConfigs.undefined().copyWith(
+                    toolbarLayout: () => ViewerToolbarLayout.tryParse({
+                      'version': 1,
+                      'toolbar': scenario.layout,
+                      'more': const <String>[],
+                    }),
+                  ),
+          );
+      final posts = _posts.take(2).toList();
+      DanbooruTagEditRouteData? opened;
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => MixedPostDetailsPage(
+              posts: posts,
+              initialIndex: scenario.index,
+              initialThumbnailUrl: null,
+              scrollController: null,
+              disclaimer: null,
+            ),
+          ),
+          GoRoute(
+            path: '/internal/danbooru/posts/:id/editor',
+            builder: (_, state) {
+              opened = state.extra! as DanbooruTagEditRouteData;
+              return const Scaffold(body: Text('Post editor'));
+            },
+          ),
+        ],
+      );
+      final harness = _Harness(
+        router: router,
+        posts: posts,
+        configurations: [profile, _configs[1], _globalConfig],
+        loadMedia: false,
+      );
+      try {
+        await tester.pumpWidget(
+          harness.buildRouter(router, theme: ThemeData().withBoorusamaColors()),
+        );
+        await tester.pumpAndSettle();
+        await _pageViewController(tester).expandToSnapPoint();
+        await tester.pumpAndSettle();
+
+        final pinned = find.byTooltip('Edit').hitTestable();
+        if (scenario.pinned) {
+          expect(pinned, findsOneWidget);
+          await tester.tap(pinned);
+        } else {
+          expect(pinned, findsNothing);
+          final more = find
+              .descendant(
+                of: find.byType(CustomizablePostToolbar),
+                matching: find.byIcon(Icons.more_horiz),
+              )
+              .hitTestable();
+          await tester.tap(more);
+          await tester.pumpAndSettle();
+          final edit = find.text('Edit');
+          if (!scenario.signedIn || scenario.index != 0) {
+            expect(edit, findsNothing);
+            return;
+          }
+          expect(edit, findsOneWidget);
+          await tester.ensureVisible(edit);
+          await tester.tap(edit.hitTestable());
+        }
+        await tester.pumpAndSettle();
+
+        expect(find.text('Post editor'), findsOneWidget);
+        expect(opened?.post, posts.first);
+        expect(opened?.config, profile);
+        router.pop();
+        await tester.pumpAndSettle();
+        expect(find.text('Edit'), findsNothing);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        router.dispose();
+        harness.dispose();
+      }
+    });
   }
 
   testWidgets(

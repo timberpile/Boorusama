@@ -18,6 +18,7 @@ enum ViewerToolbarAction {
   slideshow,
   favoriteGroup,
   tagHistory,
+  edit,
 }
 
 /// A null profile layout retains the engine's native arrangement.

@@ -21,6 +21,7 @@ String viewerToolbarActionLabel(
   ViewerToolbarAction.favoriteGroup =>
     context.t.post.action.add_to_favorite_group,
   ViewerToolbarAction.tagHistory => context.t.post.action.view_tag_history,
+  ViewerToolbarAction.edit => context.t.generic.action.edit,
 };
 
 IconData viewerToolbarActionIcon(ViewerToolbarAction action) =>
@@ -38,4 +39,5 @@ IconData viewerToolbarActionIcon(ViewerToolbarAction action) =>
       ViewerToolbarAction.slideshow => Icons.slideshow,
       ViewerToolbarAction.favoriteGroup => Icons.folder_special,
       ViewerToolbarAction.tagHistory => Icons.history,
+      ViewerToolbarAction.edit => Icons.edit_outlined,
     };

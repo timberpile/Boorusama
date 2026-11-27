@@ -21,6 +21,7 @@ import '../../../../../../core/widgets/adaptive_button_row.dart';
 import '../../../../configs/providers.dart';
 import '../../../../favgroups/favgroups/routes.dart';
 import '../../../../versions/routes.dart';
+import '../../../listing/providers.dart';
 import '../../../votes/providers.dart';
 
 ViewerToolbarProfileActions danbooruViewerToolbarActions(
@@ -42,6 +43,7 @@ ViewerToolbarProfileActions danbooruViewerToolbarActions(
       ViewerToolbarAction.comments,
       if (hasLogin) ViewerToolbarAction.favoriteGroup,
       ViewerToolbarAction.tagHistory,
+      if (hasLogin) ViewerToolbarAction.edit,
     ],
   );
 }
@@ -251,6 +253,14 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 title: context.t.post.action.view_tag_history,
                 onPressed: () => goToPostVersionPage(ref, post),
               ),
+              if (hasLogin)
+                ViewerToolbarSimpleButtonData(
+                  action: ViewerToolbarAction.edit,
+                  icon: Icons.edit_outlined,
+                  title: context.t.generic.action.edit,
+                  placement: ButtonPlacement.menuOnly,
+                  onPressed: () => ref.danbooruEdit(post),
+                ),
               ...?scoped?.additionalButtons,
               ...buttons,
             ],
