@@ -244,7 +244,7 @@ void main() {
   );
 
   testWidgets(
-    'mixed preloads cap Original at High in both directions and preserve source overrides',
+    'mixed preloads use each source’s configured image and explicit override',
     (
       tester,
     ) async {
@@ -332,8 +332,9 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(calls, contains((second.auth, '${second.url}/thumb')));
-      expect(calls, contains((highest.auth, '${highest.url}/sample')));
-      expect(calls.where((entry) => entry.$2.endsWith('/original')), isEmpty);
+      expect(calls, contains((second.auth, '${second.url}/original')));
+      expect(calls, contains((highest.auth, '${highest.url}/original')));
+      expect(calls, isNot(contains((first.auth, '${first.url}/original'))));
       expect(calls.every((entry) => entry.$2.startsWith(entry.$1.url)), isTrue);
       expect(
         calls,

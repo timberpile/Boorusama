@@ -120,7 +120,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
     setState(() => _completedCoverKey = key);
   }
 
-  void _preload(MediaGroupState state, int index) {
+  void _preload(ContentPreloadRequest source) {
     if (_preloadScheduled) return;
     _preloadScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -128,13 +128,22 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
       if (!mounted ||
           !NavigationActivity.of(context) ||
           PostDetailsPageViewScope.of(context).page != widget.index ||
+          !ref.read(automaticMediaLoadingEnabledProvider)) {
+        return;
+      }
+      final state = ref.read(mediaGroupProvider(widget.entry));
+      final access = state.access;
+      if (access?.key != source.access ||
           !identical(
-            ref.read(contentAccessContextProvider(state.access!.key)),
-            state.access,
+            ref.read(contentAccessContextProvider(source.access)),
+            access,
           )) {
         return;
       }
-      final config = state.access!.config!;
+      final members = state.members?.members;
+      final index = members == null ? null : widget.checkpoint.indexIn(members);
+      if (members == null || index == null || state.failed) return;
+      final config = access!.config!;
       final resolver = ref.read(mediaUrlResolverProvider(config.auth));
       _preloader?.preloadWithStrategy(
         strategy: DirectionBasedPreloadStrategy(
@@ -147,16 +156,27 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
           ),
         ),
         currentPage: index,
-        itemCount: state.members!.members.length,
+        itemCount: members.length,
         mediaBuilder: (page) {
           final post = state.postAt(page);
-          return post == null
-              ? null
-              : thumbnailOnlyViewerPreloadMedia(
-                  post,
-                  thumbnailUrl: post.sampleImageUrl,
-                  displayUrl: resolver.resolveMediaUrl(post, config.viewer),
-                );
+          if (post == null ||
+              ref
+                      .read(
+                        contentPostVisibilityProvider((
+                          access: access.key,
+                          post: post,
+                        )),
+                      )
+                      .asData
+                      ?.value !=
+                  true) {
+            return null;
+          }
+          return viewerPreloadMedia(
+            post,
+            thumbnailUrl: post.sampleImageUrl,
+            displayUrl: resolver.resolveMediaUrl(post, config.viewer),
+          );
         },
       );
     });
@@ -298,6 +318,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
           ],
         );
         if (index == null || (state.details == null && !state.failed)) {
+          _preloader?.cancelAll();
           if (index == null && state.members?.next != null) _loadNext(state);
           final connection = loadFailed
               ? ref.watch(currentConnectivityProvider).asData?.value
@@ -364,14 +385,16 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         final config = state.access!.config!;
         final active =
             outerIndex == widget.index && NavigationActivity.of(context);
-        if (active) {
+        if (active && autoLoad && !state.failed) {
+          final source = (auth: config.auth, access: state.access!.key);
           _preloader = ref.watch(
             contentOccurrencePreloadManagerProvider((
-              source: (auth: config.auth, access: state.access!.key),
+              source: source,
               occurrence: this,
             )),
           );
-          _preload(state, index);
+          ref.watch(mediaUrlResolverProvider(config.auth));
+          _preload(source);
         } else {
           _preloader?.cancelAll();
         }

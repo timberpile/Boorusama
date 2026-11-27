@@ -12,40 +12,30 @@ void main() {
       originalImageUrl: 'original',
     );
     expect(
-      thumbnailOnlyViewerPreloadMedia(
+      viewerPreloadMedia(
         post,
         displayUrl: 'sample',
         thumbnailUrl: 'original',
       )!.allUrls,
       {'thumb', 'sample'},
     );
-    final onlyOriginal = TestPost(
-      id: 1,
-      thumbnailImageUrl: 'original',
-      sampleImageUrl: 'original',
-      originalImageUrl: 'original',
-    );
-    expect(
-      thumbnailOnlyViewerPreloadMedia(
-        onlyOriginal,
-        displayUrl: 'original',
-        thumbnailUrl: 'original',
-      ),
-      isNull,
-    );
   });
-  test('an Original viewer choice preloads only a distinct intermediate', () {
+  test('an Original viewer choice preloads the original and a preview', () {
     final post = TestPost(
       id: 1,
       thumbnailImageUrl: 'thumb',
       sampleImageUrl: 'sample',
       originalImageUrl: 'original',
     );
-    final media = thumbnailOnlyViewerPreloadMedia(post, displayUrl: 'original');
-    expect(media!.allUrls, {'thumb', 'sample'});
+    final media = viewerPreloadMedia(
+      post,
+      displayUrl: 'original',
+      thumbnailUrl: post.sampleImageUrl,
+    );
+    expect(media!.allUrls, {'sample', 'original'});
   });
 
-  test('original-only media keeps the thumbnail rather than relabeling the original', () {
+  test('a full rendition shared by High and Original is preloaded once', () {
     final post = TestPost(
       id: 1,
       thumbnailImageUrl: 'thumb',
@@ -53,12 +43,16 @@ void main() {
       originalImageUrl: 'original',
     );
     expect(
-      thumbnailOnlyViewerPreloadMedia(post, displayUrl: 'original')!.allUrls,
-      {'thumb'},
+      viewerPreloadMedia(
+        post,
+        displayUrl: 'original',
+        thumbnailUrl: post.sampleImageUrl,
+      )!.allUrls,
+      {'thumb', 'original'},
     );
   });
 
-  test('an original aliased as its own thumbnail is never prefetched', () {
+  test('a resolved original aliased as its own thumbnail is queued once', () {
     final post = TestPost(
       id: 1,
       thumbnailImageUrl: 'original',
@@ -66,19 +60,23 @@ void main() {
       originalImageUrl: 'original',
     );
     expect(
-      thumbnailOnlyViewerPreloadMedia(post, displayUrl: 'original'),
-      isNull,
+      viewerPreloadMedia(post, displayUrl: 'original')!.allUrls,
+      {'original'},
     );
   });
 
-  test('unknown originals do not cause speculative full-image downloads', () {
+  test('unresolved listings admit only their thumbnail', () {
     final post = TestPost(
       id: 1,
       thumbnailImageUrl: 'thumb',
       sampleImageUrl: 'unverified',
     );
     expect(
-      thumbnailOnlyViewerPreloadMedia(post, displayUrl: 'unverified')!.allUrls,
+      viewerPreloadMedia(
+        post,
+        displayUrl: null,
+        thumbnailUrl: 'unverified-grid-url',
+      )!.allUrls,
       {'thumb'},
     );
   });

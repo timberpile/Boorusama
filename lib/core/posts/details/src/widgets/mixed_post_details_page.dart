@@ -909,6 +909,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           child: MixedPostDetailsImagePreloader(
             posts: details?.posts ?? const [],
             sequence: widget.sequence,
+            isMediaGroupAt: _hasMediaPager,
             child: ListenableBuilder(
               listenable: Listenable.merge([
                 pager.currentPage,

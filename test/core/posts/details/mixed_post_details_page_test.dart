@@ -4352,6 +4352,19 @@ void main() {
               reason: 'the current Work is displayed and both neighbors have decoded images',
             ),
           );
+          if (quality == PostQuality.original) {
+            await tester.runAsync(
+              () => pumpUntil(
+                tester,
+                () => [120, 122].every(
+                  (id) => adapter.requests.any(
+                    (url) => url.endsWith('/original/${id}_p0.jpg'),
+                  ),
+                ),
+                reason: 'both neighbors request Original before selection',
+              ),
+            );
+          }
           expect(displayed, {
             121,
           }, reason: 'decoded preloads must not mark adjacent Works read');
@@ -4518,14 +4531,13 @@ void main() {
             LoadState.completed,
           );
           expect(
-            adapter.requests.where(
-              (url) =>
-                  url.contains('/original/') &&
-                  !url.contains('/121_p0') &&
-                  !url.contains('/122_p0'),
-            ),
-            isEmpty,
-            reason: 'inactive neighboring Works must never fetch originals',
+            adapter.requests
+                .where((url) => url.contains('/original/'))
+                .map((url) => Uri.parse(url).pathSegments.last)
+                .toSet(),
+            quality == PostQuality.original
+                ? {'120_p0.jpg', '121_p0.jpg', '122_p0.jpg'}
+                : <String>{},
           );
           expect(displayed, containsAll([121, 122]));
           expect(displayed, isNot(contains(120)));
@@ -6239,9 +6251,13 @@ void main() {
     );
   }
 
-  for (final enabled in [false, true]) {
+  for (final (enabled, quality) in [
+    (false, PostQuality.original),
+    (true, PostQuality.high),
+    (true, PostQuality.original),
+  ]) {
     testWidgets(
-      'Work metadata and display preloading are bounded and honor automatic loading=$enabled',
+      'Work preloads the configured rendition within the window ($quality, enabled=$enabled)',
       (tester) async {
         _mobileViewport(tester);
         final access = ContentAccessContext.profile(
@@ -6251,6 +6267,7 @@ void main() {
         );
         final fetched = <int>[];
         final adapter = _PageImageAdapter();
+        final cache = TestImageCache({});
         final harness = _Harness(
           posts: const [],
           initialIndex: 2,
@@ -6258,13 +6275,17 @@ void main() {
           entries: [
             for (var id = 120; id < 127; id++)
               GroupViewerEntry(
-                summary: pixivWorkSummary(works.work(id: id), access),
+                summary: pixivWorkSummary(
+                  works.work(id: id, pageCount: 5),
+                  access,
+                ),
                 occurrenceId: id,
                 source: ViewerSourceBinding(_configs[2]),
               ),
           ],
           imageAdapter: adapter,
-          imageCache: TestImageCache({}),
+          imageCache: cache,
+          postQuality: quality,
           mediaCapability: BooruGroupCapability(
             engine: BooruType.pixiv,
             keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
@@ -6273,7 +6294,7 @@ void main() {
               access: actor,
               fetchWork: (id) async {
                 fetched.add(id);
-                return works.work(id: id);
+                return works.work(id: id, pageCount: 5);
               },
             ),
           ),
@@ -6282,30 +6303,54 @@ void main() {
           await tester.pumpWidget(harness.build());
           await tester.pumpAndSettle();
           if (enabled) {
+            String renditionPath(int work, int page) =>
+                quality == PostQuality.original
+                ? '/original/${work}_p$page.jpg'
+                : '/media/${work * 1000 + page}';
             await tester.runAsync(
               () => pumpUntil(
                 tester,
-                () =>
-                    adapter.requests.any(
-                      (url) => url.endsWith('/media/121000'),
-                    ) &&
-                    adapter.requests.any(
-                      (url) => url.endsWith('/media/123000'),
-                    ) &&
-                    adapter.requests.any(
-                      (url) => url.endsWith('/media/122001'),
-                    ) &&
-                    adapter.requests.any(
-                      (url) => url.endsWith('/media/122002'),
-                    ),
+                () => [(121, 0), (123, 0), (122, 1), (122, 2)].every(
+                  (page) => cache.bytes.keys.any(
+                    (url) => url.endsWith(renditionPath(page.$1, page.$2)),
+                  ),
+                ),
                 reason: 'adjacent Work covers and next two Page display renditions before navigation',
               ),
             );
             expect(fetched.toSet(), {121, 122, 123});
             expect(
-              adapter.requests.any((url) => url.contains('/original/')),
+              adapter.requests.any(
+                (url) => url.endsWith(renditionPath(122, 3)),
+              ),
               isFalse,
             );
+            if (quality == PostQuality.original) {
+              final work = tester
+                  .widgetList<MediaGroupPage>(find.byType(MediaGroupPage))
+                  .singleWhere((widget) => widget.index == 2);
+              work.checkpoint.pages!.jumpToPage(1);
+              await tester.runAsync(
+                () => pumpUntil(
+                  tester,
+                  () => adapter.requests.any(
+                    (url) => url.endsWith(renditionPath(122, 3)),
+                  ),
+                  reason: 'the inner lookahead advances after navigation',
+                ),
+              );
+              expect(
+                adapter.requests.where(
+                  (url) => url.endsWith(renditionPath(122, 1)),
+                ),
+                hasLength(1),
+              );
+            } else {
+              expect(
+                adapter.requests.any((url) => url.contains('/original/')),
+                isFalse,
+              );
+            }
           } else {
             expect(fetched.toSet(), {
               122,
@@ -6321,6 +6366,140 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Gallery preloads the next two pages and the next Gallery landing page',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = galleries.galleryAccess();
+      final config = access.config!;
+      final policy = galleries.galleryPolicy();
+      final adapter = _PageImageAdapter();
+      final cache = TestImageCache({});
+      final entries = <GroupViewerEntry>[];
+      final fixtures = <int, NhentaiGalleryDetails>{};
+      for (final id in [101, 102]) {
+        final mediaId = 7000 + id - 100;
+        final gallery = fixtures[id] = NhentaiGalleryDetails.fromJson({
+          ...galleries.galleryJson(),
+          'id': id,
+          'media_id': '$mediaId',
+          'num_pages': 5,
+          'thumbnail': {'path': 'galleries/$mediaId/thumb.webp'},
+          'pages': [
+            for (var page = 1; page <= 5; page++)
+              {
+                'number': page,
+                'path': 'galleries/$mediaId/$page.webp',
+                'width': 100,
+                'height': 200,
+              },
+          ],
+        });
+        entries.add(
+          GroupViewerEntry(
+            summary: nhentaiGalleryDetails(gallery, access, policy).summary,
+            occurrenceId: id,
+            source: ViewerSourceBinding(config),
+            initialMemberKey: id == 102 ? 'gallery-page:102:2' : null,
+          ),
+        );
+      }
+      final harness = _Harness(
+        posts: const [],
+        configurations: [config],
+        entries: entries,
+        imageAdapter: adapter,
+        imageCache: cache,
+        postQuality: PostQuality.original,
+        overrides: [
+          nhentaiAvailableProvider.overrideWithValue(true),
+          nhentaiRelatedGalleriesProvider.overrideWith((ref, key) => const []),
+        ],
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.nhentai,
+          keyCodec: const BooruContentKeyCodec(BooruType.nhentai),
+          presentation: const NhentaiGroupPresentation(),
+          createSource: (_, actor) => NhentaiGallerySource(
+            access: actor,
+            fetchGallery: (id) async => fixtures[id]!,
+            mediaPolicy: () async => policy,
+          ),
+        ),
+      );
+      const page2 = 'https://i1.nhentai.net/galleries/7001/2.webp';
+      const page3 = 'https://i1.nhentai.net/galleries/7001/3.webp';
+      const nextLanding = 'https://i1.nhentai.net/galleries/7002/2.webp';
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => cache.bytes.keys.toSet().containsAll([
+              page2,
+              page3,
+              nextLanding,
+            ]),
+            reason: 'the configured Gallery pages are ready before moving',
+          ),
+        );
+        expect(
+          adapter.requests,
+          isNot(contains('https://i1.nhentai.net/galleries/7001/4.webp')),
+        );
+        expect(
+          adapter.requests,
+          isNot(contains('https://i1.nhentai.net/galleries/7002/1.webp')),
+        );
+        final pager = _pageViewController(tester);
+        expect(pager.page, 0);
+        pager.jumpToPage(1);
+        await tester.pumpAndSettle();
+        expect(pager.page, 1);
+        final gallery = tester
+            .widgetList<MediaGroupPage>(find.byType(MediaGroupPage))
+            .singleWhere((widget) => widget.index == 1);
+        expect(gallery.checkpoint.pages!.page, 1);
+        expect(
+          adapter.requests.where((url) => url == nextLanding),
+          hasLength(1),
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'Danbooru Related preloads Original within Single before navigation',
+    (tester) async {
+      _mobileViewport(tester);
+      final adapter = _PageImageAdapter();
+      final fixture = _relatedReadingFixture(
+        imageAdapter: adapter,
+        postQuality: PostQuality.original,
+      );
+      final harness = fixture.harness;
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => adapter.requests.any((url) => url.endsWith('/original-2')),
+            reason: 'the next Related member requests Original in Single',
+          ),
+        );
+        final group = tester.widget<MediaGroupPage>(
+          find.byType(MediaGroupPage),
+        );
+        expect(group.checkpoint.pages!.page, 0);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+      }
+    },
+  );
 
   testWidgets(
     'uncropped Work preview survives metadata handoff and never displays the square thumbnail',
@@ -10313,6 +10492,8 @@ class _ViewerBookmarks extends BookmarkLibraryNotifier {
   int memberCount = 3,
   int? targetPageSize,
   void Function(int)? onTargetPage,
+  HttpClientAdapter? imageAdapter,
+  PostQuality postQuality = PostQuality.high,
 }) {
   final config = profileHideOverlay == null
       ? _configs.first
@@ -10345,6 +10526,8 @@ class _ViewerBookmarks extends BookmarkLibraryNotifier {
       reduceAnimations: reducedMotion,
       configurations: [config, ..._configs.skip(1)],
       hideOverlay: hideOverlay,
+      imageAdapter: imageAdapter,
+      postQuality: postQuality,
       overrides: [bookmarkProvider.overrideWith(_ViewerBookmarks.new)],
       mediaCapability: BooruGroupCapability(
         engine: BooruType.danbooru,

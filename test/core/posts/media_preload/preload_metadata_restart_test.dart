@@ -56,7 +56,7 @@ void main() {
         sampleImageUrl: 'guessed-sample',
         originalImageUrl: 'original',
       );
-      expect(thumbnailOnlyViewerPreloadMedia(post, displayUrl: null), isNull);
+      expect(viewerPreloadMedia(post, displayUrl: null), isNull);
     },
   );
 
@@ -68,7 +68,7 @@ void main() {
       originalImageUrl: 'original',
     );
     expect(
-      thumbnailOnlyViewerPreloadMedia(post, displayUrl: null)!.allUrls,
+      viewerPreloadMedia(post, displayUrl: null)!.allUrls,
       {'thumb'},
     );
   });

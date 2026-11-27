@@ -17,7 +17,7 @@ void main() {
   group('Realbooru media parsing', () {
     for (final knownOriginal in [false, true]) {
       test(
-        'Original viewer and capped preload reuse parsed source renditions (known=$knownOriginal)',
+        'Original viewer and preload reuse parsed source renditions (known=$knownOriginal)',
         () {
           final dto = parseRbPostHtml(
             _response('''
@@ -50,13 +50,11 @@ void main() {
             knownOriginal ? post.originalImageUrl : post.sampleImageUrl,
           );
           expect(post.originalImageUrl.isNotEmpty, knownOriginal);
-          final preload = thumbnailOnlyViewerPreloadMedia(
+          final preload = viewerPreloadMedia(
             post,
             displayUrl: visible,
           );
-          if (knownOriginal) {
-            expect(preload?.allUrls, isNot(contains(post.originalImageUrl)));
-          }
+          expect(preload?.allUrls, contains(visible));
         },
       );
     }

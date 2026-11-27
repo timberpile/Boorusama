@@ -22,7 +22,7 @@ class PreloadStrategyOptions {
 
   final int defaultPreloadDistance;
 
-  /// Native Work manifests already identify safe display renditions.
+  /// Include the viewer rendition for eligible neighbors on first entry.
   final bool preloadDisplayOnEntry;
   final int lowConfidenceBoost;
   final int mediumConfidenceBoost;

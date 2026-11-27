@@ -68,7 +68,9 @@ void main() {
           requests,
           unorderedEquals([
             '${_otherConfig.url}:thumb-49',
+            '${_otherConfig.url}:sample-49',
             '${_otherConfig.url}:thumb-51',
+            '${_otherConfig.url}:sample-51',
           ]),
         );
         for (final page in [51, 52, 51, 50, 80, 50]) {
@@ -129,35 +131,37 @@ void main() {
     );
   }
 
-  testWidgets(
-    'mixed preloader keeps video and original-quality prefetch to thumbnails',
-    (tester) async {
-      final pages = _pages();
-      addTearDown(pages.dispose);
-      final requests = <String>[];
-      final posts = [_post(0), _post(1, format: 'mp4'), _post(2)];
-      await tester.pumpWidget(
-        _preloadApp(
-          pages: pages,
-          posts: posts,
-          requests: requests,
-          resolver: const _OriginalResolver(),
-        ),
-      );
-      expect(requests, ['${_config.url}:video-thumb-1']);
-      pages.currentPage.value = 1;
-      await tester.pump();
-      expect(
-        requests,
-        unorderedEquals([
-          '${_config.url}:video-thumb-1',
-          '${_config.url}:thumb-0',
-          '${_config.url}:thumb-2',
-        ]),
-      );
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  for (final mixed in [false, true]) {
+    testWidgets(
+      'preloads Original on open and keeps video to its poster (mixed=$mixed)',
+      (tester) async {
+        final pages = _pages();
+        addTearDown(pages.dispose);
+        final requests = <String>[];
+        final posts = [_post(0), _post(1), _post(2, format: 'mp4')];
+        await tester.pumpWidget(
+          _preloadApp(
+            pages: pages,
+            posts: posts,
+            requests: requests,
+            mixed: mixed,
+            resolver: const _OriginalResolver(),
+          ),
+        );
+        expect(requests, contains('${_config.url}:original-1'));
+        expect(requests, isNot(contains('${_config.url}:original-0')));
+        pages.currentPage.value = 1;
+        await tester.pump();
+        expect(requests, contains('${_config.url}:video-thumb-2'));
+        expect(requests, isNot(contains('${_config.url}:original-2')));
+        expect(
+          requests.where((request) => request == '${_config.url}:original-1'),
+          hasLength(1),
+        );
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 
   testWidgets('missing and ambiguous profiles dispatch no preloads', (
     tester,
@@ -595,7 +599,8 @@ Widget _preloadApp({
         : PostDetailsImagePreloader<Post>(
             posts: posts,
             authConfig: _config.auth,
-            imageUrlBuilder: (post) => post.sampleImageUrl,
+            imageUrlBuilder: (post) =>
+                resolver.resolveMediaUrl(post, _config.viewer),
             child: const SizedBox(),
           ),
   ),

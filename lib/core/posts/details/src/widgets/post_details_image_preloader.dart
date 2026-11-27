@@ -24,7 +24,6 @@ import '../providers/viewer_source_access_provider.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../../settings/providers.dart';
-import '../../../../settings/types.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../listing/providers.dart';
 import '../../../media_preload/providers.dart';
@@ -34,6 +33,7 @@ import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
 import '../providers/media_group_provider.dart';
+import '../providers/group_reading_provider.dart';
 import '../types/viewer_entry.dart';
 import 'post_details_page_view_scope.dart';
 
@@ -42,11 +42,13 @@ class MixedPostDetailsImagePreloader extends ConsumerStatefulWidget {
     required this.child,
     required this.posts,
     this.sequence,
+    this.isMediaGroupAt,
     super.key,
   });
 
   final List<Post> posts;
   final ViewerEntrySequence? sequence;
+  final bool Function(int index)? isMediaGroupAt;
   int get pageCount => sequence?.entries.length ?? posts.length;
   Post? postAt(int page) =>
       sequence == null ? posts.elementAtOrNull(page) : sequence!.postAt(page);
@@ -93,7 +95,8 @@ class _MixedPostDetailsImagePreloaderState
           }
         },
       );
-  final _workStates = <int, MediaGroupState>{};
+  final _groupStates =
+      <GroupViewerEntry, ({MediaGroupState state, Post? landingPost})>{};
   final _directionHistory = DirectionHistory();
   PostDetailsPageViewController? _pageViewController;
   int? _lastPage;
@@ -107,18 +110,21 @@ class _MixedPostDetailsImagePreloaderState
   void _scheduleRefresh() {
     if (_refreshScheduled) return;
     _refreshScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback((_) {
       _refreshScheduled = false;
       if (mounted && _pageViewController != null) {
         _preloadAdjacentPages(_controller.page);
       }
     });
+    binding.ensureVisualUpdate();
   }
 
   @override
   void didUpdateWidget(MixedPostDetailsImagePreloader oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.posts, widget.posts) ||
+        !identical(oldWidget.sequence, widget.sequence) ||
         _lastItemCount != widget.pageCount) {
       _scheduleRefresh();
     }
@@ -257,8 +263,9 @@ class _MixedPostDetailsImagePreloaderState
     nearby.sort((a, b) => priority(a).compareTo(priority(b)));
     final indices = [
       if (currentPage >= 0 && currentPage < widget.pageCount) currentPage,
-      if (_directionHistory.entryPattern != EntryPattern.direct)
-        ...nearby.take(4),
+      ...(_directionHistory.entryPattern == EntryPattern.direct
+          ? nearby.where((index) => (index - currentPage).abs() == 1)
+          : nearby.take(4)),
     ];
     final requests =
         <
@@ -334,31 +341,17 @@ class _MixedPostDetailsImagePreloaderState
       _preloadManager.preloadWithStrategy(
         strategy: DirectionBasedPreloadStrategy(
           directionHistory: _directionHistory,
-          options: PreloadStrategyOptions(
-            preloadDisplayOnEntry: _workStates.isNotEmpty,
-          ),
+          options: const PreloadStrategyOptions(preloadDisplayOnEntry: true),
         ),
         currentPage: currentPage,
         itemCount: widget.pageCount,
         mediaBuilder: (index) {
           if (diagnosticRecording) diagnosticResolved++;
-          final work = _workStates[index];
-          final workPost = work?.postAt(0);
-          if (workPost != null && work?.access?.config != null) {
-            final access = work!.access!;
-            final config = access.config!;
-            final resolver = ref.read(mediaUrlResolverProvider(config.auth));
-            final media = thumbnailOnlyViewerPreloadMedia(
-              workPost,
-              thumbnailUrl: workPost.sampleImageUrl,
-              displayUrl: resolver.resolveMediaUrl(workPost, config.viewer),
-            );
-            return media == null
-                ? null
-                : (
-                    group: (auth: config.auth, access: access.key),
-                    media: media,
-                  );
+          final entry = widget.sequence?.entries[index];
+          if (entry is GroupViewerEntry) {
+            return (index - currentPage).abs() <= 1
+                ? _groupPreloadMedia(entry)
+                : null;
           }
           final input = widget.postAt(index);
           if (input == null || input.booruData is LocalMediaPostData) {
@@ -393,42 +386,22 @@ class _MixedPostDetailsImagePreloaderState
             return null;
           }
           final auth = config.auth;
-          if (post.isVideo) {
-            return (
-              group: (auth: auth, access: accessKey),
-              media: ImageMedia.fromUrl(
-                post.videoThumbnailUrl,
-                estimatedSizeBytes: post.fileSize,
-              ),
-            );
-          }
-
           final resolver = ref.read(mediaUrlResolverProvider(auth));
-          final imageUrl = resolver.resolveMediaUrl(post, config.viewer);
-          if (needsMetadata) {
-            final media = thumbnailOnlyViewerPreloadMedia(
-              post,
-              displayUrl: resolved == null ? null : imageUrl,
-            );
-            return media == null
-                ? null
-                : (group: (auth: auth, access: accessKey), media: media);
-          }
-          final thumbnail = ref
-              .read(gridThumbnailUrlGeneratorProvider(auth))
-              .resolve(
-                post,
-                settings: ref.read(gridThumbnailSettingsProvider(auth)),
-              )
-              .url;
-          final media = thumbnailOnlyViewerPreloadMedia(
+          final thumbnail = needsMetadata || post.isVideo
+              ? null
+              : ref
+                    .read(gridThumbnailUrlGeneratorProvider(auth))
+                    .resolve(
+                      post,
+                      settings: ref.read(gridThumbnailSettingsProvider(auth)),
+                    )
+                    .url;
+          final media = viewerPreloadMedia(
             post,
             thumbnailUrl: thumbnail,
-            displayUrl: imageUrl == post.originalImageUrl
-                ? ref.read(postQualityProvider(auth)) == PostQuality.original
-                      ? post.sampleImageUrl
-                      : null
-                : imageUrl,
+            displayUrl: needsMetadata && resolved == null
+                ? null
+                : resolver.resolveMediaUrl(post, config.viewer),
           );
           return media == null
               ? null
@@ -446,6 +419,42 @@ class _MixedPostDetailsImagePreloaderState
     );
   }
 
+  GroupedPreloadMedia<({BooruConfigAuth auth, ContentAccessKey? access})>?
+  _groupPreloadMedia(GroupViewerEntry entry) {
+    final group = _groupStates[entry];
+    final access = group?.state.access;
+    final config = access?.config;
+    final post = group?.landingPost;
+    if (access == null ||
+        config == null ||
+        post == null ||
+        !identical(
+          ref.read(viewerSourceAccessProvider(entry.source!)),
+          access,
+        ) ||
+        ref
+                .read(
+                  contentPostVisibilityProvider((
+                    access: access.key,
+                    post: post,
+                  )),
+                )
+                .asData
+                ?.value !=
+            true) {
+      return null;
+    }
+    final resolver = ref.read(mediaUrlResolverProvider(config.auth));
+    final media = viewerPreloadMedia(
+      post,
+      thumbnailUrl: post.sampleImageUrl,
+      displayUrl: resolver.resolveMediaUrl(post, config.viewer),
+    );
+    return media == null
+        ? null
+        : (group: (auth: config.auth, access: access.key), media: media);
+  }
+
   @override
   void dispose() {
     _pageViewController?.currentPage.removeListener(_onPageChanged);
@@ -456,8 +465,8 @@ class _MixedPostDetailsImagePreloaderState
 
   @override
   Widget build(BuildContext context) {
-    final previousWorks = Map<int, MediaGroupState>.of(_workStates);
-    _workStates.clear();
+    final previousGroups = Map.of(_groupStates);
+    _groupStates.clear();
     if (_pageViewController != null &&
         NavigationActivity.of(context) &&
         ref.watch(automaticMediaLoadingEnabledProvider)) {
@@ -473,8 +482,7 @@ class _MixedPostDetailsImagePreloaderState
       } else {
         _preparingNeighbor = null;
       }
-      // Keep only the current and immediately adjacent native Work manifests
-      // alive. They share the foreground's source/envelope and actor lifetime.
+      // Share the foreground's manifest for the current and adjacent entries.
       for (final index in [
         _controller.page - 1,
         _controller.page,
@@ -488,17 +496,34 @@ class _MixedPostDetailsImagePreloaderState
         if (entry is! GroupViewerEntry || entry.source == null) {
           continue;
         }
-        if (entry.contentReference.engine != BooruType.pixiv) continue;
-        _workStates[index] = ref.watch(mediaGroupProvider(entry));
-      }
-      if (previousWorks.length != _workStates.length ||
-          _workStates.entries.any(
-            (entry) => !identical(previousWorks[entry.key], entry.value),
-          )) {
-        _scheduleRefresh();
+        final isMediaGroup = widget.isMediaGroupAt?.call(index) ?? false;
+        if (!isMediaGroup && entry.contentReference.engine != BooruType.pixiv) {
+          continue;
+        }
+        final state = ref.watch(mediaGroupProvider(entry));
+        Post? landingPost;
+        if (state.members case final members? when isMediaGroup) {
+          final checkpoint = ref.watch(groupReadingProvider(entry)).checkpoint;
+          final memberIndex = checkpoint.indexIn(members.members);
+          if (memberIndex != null) landingPost = state.postAt(memberIndex);
+        }
+        if (state.access case final access? when landingPost != null) {
+          final visibility = (access: access.key, post: landingPost);
+          ref.listen(
+            contentPostVisibilityProvider(visibility),
+            (_, _) => _scheduleRefresh(),
+          );
+        }
+        _groupStates[entry] = (state: state, landingPost: landingPost);
       }
     } else {
       _preparingNeighbor = null;
+    }
+    if (previousGroups.length != _groupStates.length ||
+        _groupStates.entries.any(
+          (entry) => previousGroups[entry.key] != entry.value,
+        )) {
+      _scheduleRefresh();
     }
     if (_pageViewController != null) {
       final indices =
@@ -526,6 +551,10 @@ class _MixedPostDetailsImagePreloaderState
       }
     }
     ref.listen(booruConfigProvider, (_, _) => _scheduleRefresh());
+    ref.listen(
+      settingsProvider.select((settings) => settings.viewer.postQuality),
+      (_, _) => _scheduleRefresh(),
+    );
     ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
       if (!enabled) {
         _metadata.cancel();
@@ -536,11 +565,13 @@ class _MixedPostDetailsImagePreloaderState
     });
     return PixivWorkAvatarWindow(
       creators: [
-        for (final state in _workStates.values)
-          if (state.access case final access?)
-            for (final creator
-                in state.details?.creators ?? const <CreatorRef>[])
-              (creator: creator, access: access),
+        for (final group in _groupStates.entries)
+          if (group.key.contentReference.engine == BooruType.pixiv)
+            if (group.value.state.access case final access?)
+              for (final creator
+                  in group.value.state.details?.creators ??
+                      const <CreatorRef>[])
+                (creator: creator, access: access),
       ],
       child: widget.child,
     );
@@ -575,9 +606,45 @@ class _PostDetailsImagePreloaderState<T extends Post>
   // Direction tracking
   int? _lastPage;
   var _wasActive = false;
+  var _refreshScheduled = false;
   final _directionHistory = DirectionHistory();
 
   PostDetailsPageViewController get _controller => _pageViewController!;
+
+  void _scheduleRefresh() {
+    if (_refreshScheduled) return;
+    _refreshScheduled = true;
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback((_) {
+      _refreshScheduled = false;
+      if (mounted && _pageViewController != null) {
+        _preloadAdjacentPages(_controller.page);
+      }
+    });
+    binding.ensureVisualUpdate();
+  }
+
+  void _bindPreloadManager() {
+    final auth = widget.authConfig;
+    final dio = ref.read(dioForWidgetProvider(auth));
+    _preloadManager = ref.read(
+      preloadManagerProvider((dio: dio, authConfig: auth)),
+    );
+  }
+
+  @override
+  void didUpdateWidget(PostDetailsImagePreloader<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.authConfig != widget.authConfig) {
+      _preloadManager?.cancelAll();
+      _bindPreloadManager();
+    }
+    if (oldWidget.authConfig != widget.authConfig ||
+        !identical(oldWidget.posts, widget.posts) ||
+        oldWidget.imageUrlBuilder != widget.imageUrlBuilder) {
+      _scheduleRefresh();
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -589,11 +656,7 @@ class _PostDetailsImagePreloaderState<T extends Post>
     if (!active) _preloadManager?.cancelAll();
     final controller = PostDetailsPageViewScope.of(context);
     if (identical(_pageViewController, controller)) {
-      if (resumed) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _preloadAdjacentPages(controller.page);
-        });
-      }
+      if (resumed) _scheduleRefresh();
       return;
     }
 
@@ -602,15 +665,9 @@ class _PostDetailsImagePreloaderState<T extends Post>
     _pageViewController = controller;
     _directionHistory.clear();
     _lastPage = controller.page;
-    final dio = ref.read(dioForWidgetProvider(widget.authConfig));
-    _preloadManager = ref.read(
-      preloadManagerProvider((dio: dio, authConfig: widget.authConfig)),
-    );
+    _bindPreloadManager();
     controller.currentPage.addListener(_onPageChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !identical(_pageViewController, controller)) return;
-      _preloadAdjacentPages(controller.page);
-    });
+    _scheduleRefresh();
   }
 
   void _onPageChanged() {
@@ -625,8 +682,10 @@ class _PostDetailsImagePreloaderState<T extends Post>
     _lastPage = currentPage;
   }
 
-  Future<void> _preloadAdjacentPages(int currentPage) async {
-    if (!mounted || !NavigationActivity.of(context)) {
+  void _preloadAdjacentPages(int currentPage) {
+    if (!mounted ||
+        !NavigationActivity.of(context) ||
+        !ref.read(automaticMediaLoadingEnabledProvider)) {
       _preloadManager?.cancelAll();
       return;
     }
@@ -644,27 +703,19 @@ class _PostDetailsImagePreloaderState<T extends Post>
       _preloadManager?.preloadWithStrategy(
         strategy: DirectionBasedPreloadStrategy(
           directionHistory: _directionHistory,
+          options: const PreloadStrategyOptions(preloadDisplayOnEntry: true),
         ),
         currentPage: currentPage,
         itemCount: widget.posts.length,
-        mediaBuilder: (index) => switch (widget.posts[index]) {
-          // Treat video as image for now, it will be changed when video preload is implemented
-          final post when post.isVideo => ImageMedia.fromUrl(
-            post.videoThumbnailUrl,
-            estimatedSizeBytes: post.fileSize,
-          ),
-          final post => thumbnailOnlyViewerPreloadMedia(
+        mediaBuilder: (index) {
+          final post = widget.posts[index];
+          return viewerPreloadMedia(
             post,
-            thumbnailUrl: gridThumbnailUrlBuilder
-                .resolve(post, settings: settings)
-                .url,
-            displayUrl: widget.imageUrlBuilder(post) == post.originalImageUrl
-                ? ref.read(postQualityProvider(widget.authConfig)) ==
-                          PostQuality.original
-                      ? post.sampleImageUrl
-                      : null
-                : widget.imageUrlBuilder(post),
-          ),
+            thumbnailUrl: post.isVideo
+                ? null
+                : gridThumbnailUrlBuilder.resolve(post, settings: settings).url,
+            displayUrl: post.isVideo ? null : widget.imageUrlBuilder(post),
+          );
         },
       );
     });
@@ -680,6 +731,13 @@ class _PostDetailsImagePreloaderState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
+      if (enabled) {
+        _scheduleRefresh();
+      } else {
+        _preloadManager?.cancelAll();
+      }
+    });
     return widget.child;
   }
 }
