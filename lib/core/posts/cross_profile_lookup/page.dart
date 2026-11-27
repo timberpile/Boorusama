@@ -8,22 +8,138 @@ import 'package:kurumi/material.dart';
 
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
+import '../../content/content_access.dart';
 import '../../images/booru_image.dart';
 import '../../router.dart';
-import '../details/routes.dart';
 import '../post/types.dart';
-import '../post/providers.dart';
+import '../../local_media/local_media_reference.dart';
+import 'data.dart';
+import 'iqdb_remote_image.dart';
+import 'lookup_preferences.dart';
+import 'lookup_selector.dart';
 import 'providers.dart';
+import 'selected_lookup_page.dart';
 import 'results.dart';
 import 'types.dart';
 
-void findOnOtherProfiles(WidgetRef ref, Post source) {
-  ref.pushRoute('/cross-profile-lookup', extra: source);
+typedef _RemoteLookupSource = ({
+  ContentAccessContext? access,
+  String? excludedProfileId,
+  Set<PostLookupMatchKind> Function(BooruConfig) methods,
+});
+
+_RemoteLookupSource _remoteLookupSource(
+  WidgetRef ref,
+  Post source,
+  ContentAccessContext? accessOverride,
+) {
+  final access = lookupSourceAccess(
+    ref,
+    source,
+    accessOverride: accessOverride,
+  );
+  final sourceConfig = const PostOriginResolver().resolve(
+    source.origin,
+    ref.read(booruConfigProvider),
+    allowProfileHintFallback: false,
+  );
+  return (
+    access: access,
+    excludedProfileId:
+        access?.key.profileId ??
+        (sourceConfig is ResolvedPostOrigin
+            ? sourceConfig.config.id
+            : source.origin.profileIdHint),
+    methods: (profile) => remoteLookupMethods(profile, source)
+        .where(
+          (method) =>
+              method != PostLookupMatchKind.similarImage || access != null,
+        )
+        .toSet(),
+  );
 }
+
+bool canFindOnOtherProfiles(
+  WidgetRef ref,
+  Post source, {
+  ContentAccessContext? access,
+}) {
+  if (source.booruData is LocalMediaPostData) return false;
+  final lookup = _remoteLookupSource(ref, source, access);
+  if (access != null && lookup.access == null) return false;
+  return ref
+      .read(booruConfigProvider)
+      .any(
+        (profile) =>
+            profile.id != lookup.excludedProfileId &&
+            lookup
+                .methods(profile)
+                .any(
+                  (method) =>
+                      method != PostLookupMatchKind.similarImage ||
+                      supportsIqdbLookup(profile),
+                ),
+      );
+}
+
+Future<void> findOnOtherProfiles(
+  WidgetRef ref,
+  Post source, {
+  ContentAccessContext? access,
+}) async {
+  final view = ref.context;
+  final context = Navigator.of(view, rootNavigator: true).context;
+  final container = ProviderScope.containerOf(context, listen: false);
+  final lookup = _remoteLookupSource(ref, source, access);
+  if (access != null && lookup.access == null) return;
+  final targets = await selectLookupTargets(
+    context,
+    container,
+    available: lookup.methods,
+    excludedProfileId: lookup.excludedProfileId,
+    useSourceDefaults: ExactPostLookup.normalizeMd5(source.md5) == null,
+  );
+  if (targets == null || !context.mounted) return;
+  unawaited(
+    container
+        .read(routerProvider)
+        .push(
+          '/cross-profile-lookup',
+          extra: SelectedLookupRequest(
+            targets: targets,
+            source: source,
+            access: lookup.access,
+            permission: IqdbPermission.persistent,
+          ),
+        ),
+  );
+}
+
+void openSelectedLookup(WidgetRef ref, SelectedLookupRequest request) =>
+    ref.pushRoute('/cross-profile-lookup', extra: request);
+
+void findLocalFileOnOtherProfiles(
+  WidgetRef ref,
+  String md5,
+  List<BooruConfig> profiles,
+) {
+  ref.pushRoute(
+    '/cross-profile-lookup',
+    extra: (md5: md5, profiles: profiles),
+  );
+}
+
+typedef LocalFileLookupRequest = ({String md5, List<BooruConfig> profiles});
 
 GoRoute crossProfileLookupRoute() => GoRoute(
   path: 'cross-profile-lookup',
   builder: (context, state) => switch (state.extra) {
+    final SelectedLookupRequest request => CrossProfileLookupPage.selected(
+      request,
+    ),
+    final LocalFileLookupRequest request => CrossProfileLookupPage.local(
+      request,
+    ),
     final Post source => CrossProfileLookupPage(source: source),
     final PixivArtworkReference artwork => CrossProfileLookupPage.pixiv(
       artwork: artwork,
@@ -37,15 +153,29 @@ GoRoute crossProfileLookupRoute() => GoRoute(
 class CrossProfileLookupPage extends ConsumerStatefulWidget {
   const CrossProfileLookupPage({required Post source, super.key})
     : source = source,
-      artwork = null;
+      artwork = null,
+      local = null,
+      selected = null;
   const CrossProfileLookupPage.pixiv({
     required PixivArtworkReference artwork,
     super.key,
   }) : artwork = artwork,
-       source = null;
+       source = null,
+       local = null,
+       selected = null;
+  const CrossProfileLookupPage.local(this.local, {super.key})
+    : artwork = null,
+      source = null,
+      selected = null;
+  const CrossProfileLookupPage.selected(this.selected, {super.key})
+    : artwork = null,
+      source = null,
+      local = null;
 
+  final SelectedLookupRequest? selected;
   final Post? source;
   final PixivArtworkReference? artwork;
+  final LocalFileLookupRequest? local;
 
   @override
   ConsumerState<CrossProfileLookupPage> createState() => _PostLookupPageState();
@@ -56,10 +186,17 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
   final _pages = <String, int>{};
   final _cancellations = <String, PostLookupCancellation>{};
   final _queue = CrossProfileLookupQueue();
+  final _invalidLocalTargets = <BooruConfig>{};
+
+  bool _isLocalTarget(BooruConfig profile) =>
+      widget.local == null ||
+      (widget.local!.profiles.contains(profile) &&
+          !_invalidLocalTargets.contains(profile));
 
   @override
   void initState() {
     super.initState();
+    if (widget.selected != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncProfiles();
     });
@@ -84,6 +221,11 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
   void _syncProfiles() {
     final profiles = ref.read(booruConfigProvider);
     final sourceConfig = _sourceConfig(profiles);
+    if (widget.local case final local?) {
+      _invalidLocalTargets.addAll(
+        local.profiles.where((p) => !profiles.contains(p)),
+      );
+    }
     for (final entry in _results.entries.toList()) {
       if (!profiles.contains(entry.value.profile)) {
         _cancellations.remove(entry.key)?.cancel();
@@ -92,7 +234,8 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
       }
     }
     for (final profile in profiles) {
-      if (profile.id !=
+      if (_isLocalTarget(profile) &&
+          profile.id !=
               (sourceConfig?.id ?? widget.source?.origin.profileIdHint) &&
           _supports(profile) &&
           _results[profile.id]?.profile != profile) {
@@ -124,11 +267,26 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
         matchKind: more ? previous?.matchKind : null,
       );
     });
-    final lookup = widget.artwork != null
-        ? ref.read(sharedPixivLookupSessionProvider(widget.artwork!)).find
-        : ref.read(crossProfileLookupSessionProvider(widget.source!)).find;
+    final local = widget.local;
+    final localLookup = local == null
+        ? null
+        : ref.read(localFileHashLookupProvider);
+    final lookup = switch ((widget.artwork, widget.source)) {
+      (final artwork?, _) =>
+        ref.read(sharedPixivLookupSessionProvider(artwork)).find,
+      (_, final source?) =>
+        ref.read(crossProfileLookupSessionProvider(source)).find,
+      _ => null,
+    };
     final result = await _queue.run(
-      () => lookup(target, page: page, cancellation: cancellation),
+      () => local == null
+          ? lookup!(target, page: page, cancellation: cancellation)
+          : localLookup!(
+              target,
+              local.md5,
+              page: page,
+              cancellation: cancellation,
+            ),
     );
     if (!mounted || cancellation.isCancelled) return;
     if (!ref.read(booruConfigProvider).contains(target)) {
@@ -182,22 +340,11 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
     });
   }
 
-  void _open(BooruConfig profile, Post post) {
-    if (!ref.read(booruConfigProvider).contains(profile) ||
-        post.origin != postOriginFromConfig(profile)) {
-      return;
-    }
-    goToPostDetailsPageFromPosts(
-      ref: ref,
-      posts: [post],
-      initialIndex: 0,
-      initialThumbnailUrl: post.thumbnailImageUrl,
-      config: profile,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (widget.selected case final request?) {
+      return SelectedLookupPage(request: request);
+    }
     // Keep the refresh cache scoped to the lifetime of this results page.
     if (widget.artwork case final artwork?) {
       ref.watch(sharedPixivLookupSessionProvider(artwork));
@@ -219,15 +366,28 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
           _syncProfiles();
         });
       });
-    } else {
-      ref.watch(crossProfileLookupSessionProvider(widget.source!));
+    } else if (widget.source case final source?) {
+      ref.watch(crossProfileLookupSessionProvider(source));
     }
     ref.listen(booruConfigProvider, (_, _) => _syncProfiles());
     final profiles = ref.watch(orderedProfileConfigsProvider);
     final sourceConfig = _sourceConfig(profiles);
     final targets = profiles.where(
-      (p) => p.id != (sourceConfig?.id ?? widget.source?.origin.profileIdHint),
+      (p) =>
+          _isLocalTarget(p) &&
+          p.id != (sourceConfig?.id ?? widget.source?.origin.profileIdHint),
     );
+    final results = [
+      for (final profile in targets)
+        _results[profile.id]?.profile == profile
+            ? _results[profile.id]!
+            : CrossProfileResult(
+                profile: profile,
+                status: _supports(profile)
+                    ? CrossProfileResultStatus.idle
+                    : CrossProfileResultStatus.unsupported,
+              ),
+    ];
     return Scaffold(
       appBar: KurumiAppBar(
         title: Text(
@@ -244,6 +404,8 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
                     id: widget.artwork!.id,
                   ),
                 )
+              : widget.local != null
+              ? Text(context.t.local_media.title)
               : Row(
                   children: [
                     if (sourceConfig != null)
@@ -263,20 +425,11 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
                     ),
                   ],
                 ),
-          results: [
-            for (final profile in targets)
-              _results[profile.id]?.profile == profile
-                  ? _results[profile.id]!
-                  : CrossProfileResult(
-                      profile: profile,
-                      status: _supports(profile)
-                          ? CrossProfileResultStatus.idle
-                          : CrossProfileResultStatus.unsupported,
-                    ),
-          ],
+          results: results,
           onSelect: _select,
           onMore: (profile) => _select(profile, more: true),
-          onOpen: _open,
+          onOpen: (profile, post) =>
+              unawaited(openCrossProfileResults(ref, results, profile, post)),
         ),
       ),
     );

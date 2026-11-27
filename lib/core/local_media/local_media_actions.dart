@@ -19,6 +19,7 @@ import '../tags/categories/types.dart';
 import '../tags/tag/types.dart';
 import '../widgets/adaptive_button_row.dart';
 import '../widgets/booru_menu_button_row.dart';
+import 'local_media_enrichment_ui.dart';
 import 'local_media_library.dart';
 import 'local_media_models.dart';
 import 'local_media_providers.dart';
@@ -72,6 +73,24 @@ class LocalMediaActions extends ConsumerWidget {
                   ),
                 ),
               ),
+            if (media.file != null) ...[
+              SimpleButtonData(
+                icon: Icons.manage_search,
+                title: context.t.post.cross_profile.action,
+                placement: ButtonPlacement.menuOnly,
+                onPressed: () => unawaited(
+                  findLocalMediaMatches(context, ref, media.item),
+                ),
+              ),
+              SimpleButtonData(
+                icon: Icons.auto_awesome_outlined,
+                title: t.enrich_other_profiles,
+                placement: ButtonPlacement.menuOnly,
+                onPressed: () => unawaited(
+                  enrichLocalMedia(context, ref, [reference]),
+                ),
+              ),
+            ],
             SimpleButtonData(
               icon: Icons.edit_outlined,
               title: t.edit,

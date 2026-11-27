@@ -15,7 +15,6 @@ import 'package:kurumi/material.dart';
 
 import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
-import '../../../../local_media/local_media_reference.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/widgets.dart';
@@ -168,12 +167,14 @@ List<PostActionDefinition> postActionDefinitions(
       ? null
       : ref.watch(booruLoginDetailsProvider(config.auth));
   return [
-    if (post != null && post.booruData is! LocalMediaPostData)
+    if (post != null &&
+        canFindOnOtherProfiles(ref, post, access: snapshot.access))
       PostActionDefinition(
         id: PostActionId.findOnOtherProfiles,
         label: context.t.post.cross_profile.action,
         icon: Icons.travel_explore,
-        execute: () => run(() async => findOnOtherProfiles(ref, post)),
+        execute: () =>
+            run(() => findOnOtherProfiles(ref, post, access: snapshot.access)),
       ),
     if (snapshot.allResolved &&
         (downloadOverride != null ||

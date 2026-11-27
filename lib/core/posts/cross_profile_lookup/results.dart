@@ -1,10 +1,18 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../blacklists/providers.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
+import '../../configs/manage/providers.dart';
 import '../../images/booru_image.dart';
+import '../details/routes.dart';
+import '../details/src/types/viewer_entry.dart';
+import '../post/providers.dart';
 import '../post/types.dart';
+import 'lookup_selector.dart';
+import 'providers.dart';
 import 'types.dart';
 
 enum CrossProfileResultStatus {
@@ -13,6 +21,7 @@ enum CrossProfileResultStatus {
   success,
   noMatch,
   unsupported,
+  permissionRequired,
   missingHash,
   incomplete,
   error,
@@ -29,6 +38,7 @@ class CrossProfileResult {
     this.matchKind,
     this.coverageIssue,
     this.hasMore,
+    this.scores = const {},
   });
 
   final BooruConfig profile;
@@ -38,7 +48,92 @@ class CrossProfileResult {
   final PostLookupMatchKind? matchKind;
   final PixivLookupCoverageIssue? coverageIssue;
   final bool? hasMore;
+  final Map<int, double> scores;
   bool get canLoadMore => hasMore ?? !complete;
+}
+
+Future<void> openCrossProfileResults(
+  WidgetRef ref,
+  Iterable<CrossProfileResult> rows,
+  BooruConfig selectedProfile,
+  Post selectedPost, {
+  bool Function(CrossProfileResult)? canOpen,
+}) async {
+  final profiles = ref.read(booruConfigProvider);
+  final filters = {
+    for (final row in rows)
+      if (row.posts.isNotEmpty && profiles.contains(row.profile))
+        row.profile: blacklistTagsProvider(row.profile.filter),
+  };
+  final subscriptions = [
+    for (final provider in filters.values.toSet())
+      ref.listenManual(provider, (_, _) {}),
+  ];
+  try {
+    await Future.wait([
+      for (final provider in filters.values.toSet())
+        ref
+            .read(provider.future)
+            .timeout(const Duration(seconds: 10))
+            .then<void>(
+              (_) {},
+              onError: (Object _, StackTrace _) {},
+            ),
+    ]);
+    if (!ref.context.mounted ||
+        ModalRoute.of(ref.context)?.isCurrent == false) {
+      return;
+    }
+    final currentProfiles = ref.read(booruConfigProvider);
+    final entries = <PostViewerEntry>[];
+    final seen = <(String, String)>{};
+    var initialIndex = -1;
+    for (final row in rows) {
+      final profile = row.profile;
+      final provider = filters[profile];
+      if (provider == null ||
+          !currentProfiles.contains(profile) ||
+          canOpen?.call(row) == false) {
+        continue;
+      }
+      final state = ref.read(provider);
+      final tags = state.isLoading ? null : state.asData?.value;
+      if (tags == null) continue;
+      for (final post in row.posts) {
+        final key = (profile.id, post.sitePostId ?? post.id.toString());
+        if (post.origin != postOriginFromConfig(profile) ||
+            !isExactLookupPostVisible(post, profile, tags) ||
+            !seen.add(key)) {
+          continue;
+        }
+        if (profile == selectedProfile &&
+            key.$2 == (selectedPost.sitePostId ?? selectedPost.id.toString())) {
+          initialIndex = entries.length;
+        }
+        entries.add(
+          PostViewerEntry(
+            post: post,
+            occurrenceId: key,
+            source: ViewerSourceBinding(profile),
+          ),
+        );
+      }
+    }
+    if (initialIndex < 0) return;
+    goToPostDetailsPageCore(
+      ref: ref,
+      posts: [for (final entry in entries) entry.post],
+      entries: entries,
+      initialIndex: initialIndex,
+      initialThumbnailUrl: selectedPost.thumbnailImageUrl,
+      hero: false,
+      config: selectedProfile,
+    );
+  } finally {
+    for (final subscription in subscriptions) {
+      subscription.close();
+    }
+  }
 }
 
 class CrossProfileResults extends StatelessWidget {
@@ -108,8 +203,10 @@ class CrossProfileResultSection extends StatelessWidget {
     required this.onSelect,
     required this.onOpen,
     required this.onMore,
+    this.showMethod = false,
     super.key,
   });
+  final bool showMethod;
   final CrossProfileResult result;
   final VoidCallback onSelect;
   final ValueChanged<Post> onOpen;
@@ -130,6 +227,7 @@ class CrossProfileResultSection extends StatelessWidget {
       CrossProfileResultStatus.loading => t.loading,
       CrossProfileResultStatus.noMatch => t.no_match,
       CrossProfileResultStatus.unsupported => t.unsupported,
+      CrossProfileResultStatus.permissionRequired => t.iqdb_permission_required,
       CrossProfileResultStatus.missingHash => t.missing_hash,
       CrossProfileResultStatus.error => t.failed,
       CrossProfileResultStatus.incomplete =>
@@ -140,11 +238,13 @@ class CrossProfileResultSection extends StatelessWidget {
       PostLookupMatchKind.exactFile => t.exact_file,
       PostLookupMatchKind.pixivSource => t.pixiv_match,
       PostLookupMatchKind.sourceUrl => t.source_match,
+      PostLookupMatchKind.similarImage => t.similar_image,
       null => null,
     };
     final canSelect =
         result.status != CrossProfileResultStatus.loading &&
-        result.status != CrossProfileResultStatus.unsupported;
+        result.status != CrossProfileResultStatus.unsupported &&
+        result.status != CrossProfileResultStatus.permissionRequired;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -153,7 +253,11 @@ class CrossProfileResultSection extends StatelessWidget {
           ListTile(
             key: ValueKey('profile-${result.profile.id}'),
             leading: _ProfileIcon(profile: result.profile),
-            title: Text(result.profile.name),
+            title: Text(
+              showMethod && result.matchKind != null
+                  ? lookupMethodLabel(context, result.matchKind!)
+                  : result.profile.name,
+            ),
             subtitle: message == null ? null : Text(message),
             trailing: result.status == CrossProfileResultStatus.loading
                 ? const SizedBox.square(
@@ -171,7 +275,7 @@ class CrossProfileResultSection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Text(coverageMessage),
             ),
-          if (kindLabel != null && result.posts.isNotEmpty)
+          if (!showMethod && kindLabel != null && result.posts.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Text(
@@ -193,7 +297,17 @@ class CrossProfileResultSection extends StatelessWidget {
               itemCount: result.posts.length,
               itemBuilder: (context, index) {
                 final post = result.posts[index];
-                final label = '#${post.sitePostId ?? post.id}';
+                final id = '#${post.sitePostId ?? post.id}';
+                final rawScore = result.scores[post.id];
+                final score = rawScore == null
+                    ? null
+                    : t.similarity_score(score: rawScore.toStringAsFixed(1));
+                final label = score == null ? id : '$id · $score';
+                final image = BooruImage(
+                  config: result.profile.auth,
+                  imageUrl: post.thumbnailImageUrl,
+                  fit: BoxFit.cover,
+                );
                 return Semantics(
                   button: true,
                   label: label,
@@ -204,11 +318,32 @@ class CrossProfileResultSection extends StatelessWidget {
                       key: ValueKey('match-${result.profile.id}-${post.id}'),
                       borderRadius: BorderRadius.circular(8),
                       onTap: () => onOpen(post),
-                      child: BooruImage(
-                        config: result.profile.auth,
-                        imageUrl: post.thumbnailImageUrl,
-                        fit: BoxFit.cover,
-                      ),
+                      child: score == null
+                          ? image
+                          : Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                image,
+                                Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: ColoredBox(
+                                    color: Colors.black87,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      child: Text(
+                                        score,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 );

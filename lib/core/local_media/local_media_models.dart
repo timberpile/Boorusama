@@ -43,6 +43,22 @@ enum LocalMediaFormat {
 typedef LocalMediaProbe = ({int width, int height, int? durationMs});
 typedef LocalMediaTag = ({String name, String category});
 
+typedef LocalMediaExactMatch = ({PostOrigin origin, String postId});
+typedef LocalMediaSimilarMatch = ({
+  PostOrigin origin,
+  String postId,
+  double score,
+});
+
+typedef LocalMediaEnrichment = ({
+  List<LocalMediaTag> tags,
+  Rating rating,
+  String? source,
+  Set<LocalMediaExactMatch> matches,
+});
+
+enum LocalMediaEnrichmentResult { updated, unchanged, skipped }
+
 class LocalMediaItem {
   const LocalMediaItem({
     required this.id,
@@ -58,6 +74,7 @@ class LocalMediaItem {
     this.source,
     this.sourceMd5,
     this.editorMade = false,
+    this.metadataRevision = 0,
   });
 
   final int id;
@@ -73,6 +90,7 @@ class LocalMediaItem {
   final String? source;
   final String? sourceMd5;
   final bool editorMade;
+  final int metadataRevision;
 
   Post toPost() => localMediaPost(
     reference,

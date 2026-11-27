@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'local_media_enrichment.dart';
 import 'local_media_library.dart';
 import 'local_media_models.dart';
 import 'local_media_reference.dart';
@@ -192,6 +193,7 @@ class LocalMediaImportProgress {
 final localMediaImportProvider =
     NotifierProvider<LocalMediaImportNotifier, LocalMediaImportProgress>(
       LocalMediaImportNotifier.new,
+      dependencies: [localMediaEnrichmentServiceProvider],
     );
 
 class LocalMediaImportNotifier extends Notifier<LocalMediaImportProgress> {
@@ -248,7 +250,18 @@ class LocalMediaImportNotifier extends Notifier<LocalMediaImportProgress> {
     report(true);
     try {
       final library = await ref.read(localMediaLibraryProvider.future);
-      if (library == null || !await android.pick(folder: folder)) return;
+      if (_disposed || library == null || !await android.pick(folder: folder)) {
+        return;
+      }
+      if (_disposed || cancellation.isCancelled) return;
+      void Function(LocalMediaItem)? onImported;
+      try {
+        onImported = ref
+            .read(localMediaEnrichmentServiceProvider)
+            .automaticImporter(library, cancellation);
+      } catch (_) {
+        // Local import works even when settings or profiles cannot load.
+      }
       final selection = await android.prepare();
       total = selection.total;
       failed = selection.failed;
@@ -266,6 +279,7 @@ class LocalMediaImportNotifier extends Notifier<LocalMediaImportProgress> {
             inspect: android.inspect,
             cancellation: cancellation,
             budget: budget,
+            onImported: onImported,
           );
           switch (result) {
             case LocalMediaImportResult.imported:

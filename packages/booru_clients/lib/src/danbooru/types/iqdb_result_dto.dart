@@ -13,7 +13,7 @@ class IqdbResultDto {
     return IqdbResultDto(
       hash: json['hash'],
       postId: json['post_id'],
-      score: json['score'],
+      score: (json['score'] as num?)?.toDouble(),
       post: json['post'] != null ? PostDto.fromJson(json['post']) : null,
     );
   }

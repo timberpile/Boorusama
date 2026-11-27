@@ -226,7 +226,7 @@ void main() {
       final item = LocalMediaItem(
         id: 13,
         reference: reference,
-        md5: '',
+        md5: 'fedcba9876543210fedcba9876543210',
         format: LocalMediaFormat.png,
         byteSize: 100,
         importedAt: DateTime.utc(2026),
@@ -344,6 +344,22 @@ void main() {
         await tester.tapAt(tester.getTopLeft(hashBox) + const Offset(5, 5));
         await tester.pump();
         expect(copiedText, reference.sha256);
+        expect(find.text('MD5'), findsOneWidget);
+        final md5Box = find
+            .ancestor(of: find.text(item.md5), matching: find.byType(InkWell))
+            .first;
+        await tester.scrollUntilVisible(
+          md5Box.hitTestable(),
+          120,
+          scrollable: detailsScroll,
+        );
+        expect(
+          find.descendant(of: md5Box, matching: find.byTooltip('Copy MD5')),
+          findsOneWidget,
+        );
+        await tester.tapAt(tester.getTopLeft(md5Box) + const Offset(5, 5));
+        await tester.pump();
+        expect(copiedText, item.md5);
         await tester.pump(KurumiDurations.shortToast);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

@@ -4,6 +4,7 @@ import '../search_option.dart';
 const localMediaRatingKey = 'rating';
 const localMediaFormatKey = 'filetype';
 const localMediaOrderKey = 'order';
+const localMediaTagCountKey = 'tagcount';
 
 final localMediaSearchOptions = [
   const SearchOption(
@@ -32,6 +33,18 @@ final localMediaSearchOptions = [
           format.extension,
           literal: true,
         ),
+    ],
+  ),
+  const SearchOption(
+    kind: SearchOptionKind.metadata,
+    key: localMediaTagCountKey,
+    input: SearchOptionInput.number,
+    negation: SearchOptionNegation.prefix,
+    descriptionKey: 'local_tag_count',
+    allowNegative: false,
+    choices: [
+      SearchOptionChoice('0', '0', literal: true),
+      SearchOptionChoice('>0', '>0', literal: true),
     ],
   ),
   const SearchOption(

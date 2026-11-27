@@ -74,7 +74,7 @@ Future<GoRouter> pumpPixivLookup(
               return Scaffold(
                 appBar: AppBar(),
                 body: Text(
-                  'Opened ${payload.posts.single.id} with ${payload.config!.name}',
+                  'Opened ${payload.posts[payload.initialIndex].id} with ${payload.config!.name}',
                 ),
               );
             },

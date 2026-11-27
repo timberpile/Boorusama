@@ -12,6 +12,7 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../foundation/filesystem/io_file_system.dart';
 import '../../foundation/utils/file_utils.dart';
 import '../bookmarks/src/types/bookmark_search_token.dart';
+import '../posts/post/types.dart';
 import '../posts/rating/types.dart';
 import '../search/options/catalog/local_media.dart';
 import 'local_media_models.dart';
@@ -31,6 +32,7 @@ class LocalMediaLibrary {
 
   static const schemaVersion = 1;
   static const _fs = IoFileSystem();
+  static final _tagCountValue = RegExp(r'^(<=|>=|<|>)?([0-9]+)$');
 
   final Directory _root;
   final Database _db;
@@ -63,6 +65,7 @@ class LocalMediaLibrary {
       if (version == 0 && !await media.exists()) {
         library._transaction(() {
           db.execute(_schema);
+          db.execute(_matchSchema);
           db.userVersion = schemaVersion;
         });
         await _fs.syncDirectory(root.path);
@@ -83,6 +86,19 @@ class LocalMediaLibrary {
           });
         }
         db.select('SELECT sha256 FROM media LIMIT 1');
+        final columns = db
+            .select("SELECT name FROM pragma_table_info('media')")
+            .map((row) => row['name'])
+            .toSet();
+        // Keep installations with the original v1 library readable in place.
+        library._transaction(() {
+          if (!columns.contains('metadata_revision')) {
+            db.execute(
+              'ALTER TABLE media ADD metadata_revision INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+          db.execute(_matchSchema);
+        });
       }
       await library._recover();
       return library;
@@ -111,7 +127,8 @@ class LocalMediaLibrary {
       source TEXT,
       source_md5 TEXT,
       editor_made INTEGER NOT NULL DEFAULT 0,
-      damaged INTEGER NOT NULL DEFAULT 0
+      damaged INTEGER NOT NULL DEFAULT 0,
+      metadata_revision INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX media_md5 ON media(md5);
     CREATE INDEX media_imported ON media(imported_at DESC, id DESC);
@@ -127,6 +144,28 @@ class LocalMediaLibrary {
       sha256 TEXT NOT NULL,
       format TEXT NOT NULL,
       operation TEXT NOT NULL CHECK (operation IN ('import', 'delete'))
+    );
+  ''';
+
+  static const _matchSchema = '''
+    CREATE TABLE IF NOT EXISTS media_exact_match (
+      media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+      type_id INTEGER NOT NULL,
+      booru_id INTEGER NOT NULL,
+      host TEXT NOT NULL,
+      profile_id TEXT NOT NULL,
+      post_id TEXT NOT NULL,
+      PRIMARY KEY (media_id, type_id, booru_id, host, profile_id, post_id)
+    );
+    CREATE TABLE IF NOT EXISTS media_similar_match (
+      media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+      type_id INTEGER NOT NULL,
+      booru_id INTEGER NOT NULL,
+      host TEXT NOT NULL,
+      profile_id TEXT NOT NULL,
+      post_id TEXT NOT NULL,
+      score REAL NOT NULL CHECK(score BETWEEN 0 AND 100),
+      PRIMARY KEY (media_id, type_id, booru_id, host, profile_id, post_id)
     );
   ''';
 
@@ -250,6 +289,21 @@ class LocalMediaLibrary {
           if (format == null) return null;
           clauses.add('format $equality ?');
           arguments.add(format.name);
+        case localMediaTagCountKey:
+          final match = _tagCountValue.firstMatch(value);
+          if (match == null) return null;
+          final count = int.tryParse(match[2]!);
+          if (count == null) return null;
+          final operator = match[1] ?? '=';
+          const tagRows = 'FROM media_tag WHERE media_id = media.id';
+          if (count == 0 && (operator == '=' || operator == '>')) {
+            final exclude = (operator == '=') != token.isNegative;
+            clauses.add("${exclude ? 'NOT ' : ''}EXISTS (SELECT 1 $tagRows)");
+          } else {
+            final exclude = token.isNegative ? 'NOT ' : '';
+            clauses.add('$exclude((SELECT COUNT(*) $tagRows) $operator ?)');
+            arguments.add(count);
+          }
         case localMediaOrderKey:
           final selected = switch (value) {
             'newest' => 'imported_at DESC, id DESC',
@@ -310,6 +364,7 @@ class LocalMediaLibrary {
       source: row['source'] as String?,
       sourceMd5: row['source_md5'] as String?,
       editorMade: row['editor_made'] == 1,
+      metadataRevision: row['metadata_revision'] as int,
     );
   }
 
@@ -355,13 +410,125 @@ class LocalMediaLibrary {
     if (row == null) return;
     final id = row['id'] as int;
     _transaction(() {
-      _db.execute('UPDATE media SET rating = ? WHERE id = ?', [
-        rating.name,
-        id,
-      ]);
+      _db.execute(
+        'UPDATE media SET rating = ?, metadata_revision = metadata_revision + 1 WHERE id = ?',
+        [rating.name, id],
+      );
       _replaceTags(id, normalized);
     });
     _changes.add(reference);
+  });
+
+  List<LocalMediaExactMatch> exactMatches(int itemId) => [
+    for (final row in _db.select(
+      'SELECT * FROM media_exact_match WHERE media_id = ? ORDER BY host, profile_id, post_id',
+      [itemId],
+    ))
+      (
+        origin: _matchOrigin(row),
+        postId: row['post_id'] as String,
+      ),
+  ];
+
+  List<LocalMediaSimilarMatch> similarMatches(int itemId) => [
+    for (final row in _db.select(
+      'SELECT * FROM media_similar_match WHERE media_id = ? ORDER BY score DESC, host, profile_id, post_id',
+      [itemId],
+    ))
+      (
+        origin: _matchOrigin(row),
+        postId: row['post_id'] as String,
+        score: row['score'] as double,
+      ),
+  ];
+
+  PostOrigin _matchOrigin(Row row) => PostOrigin.fromSnapshot(
+    PostOriginSnapshot(
+      booruTypeId: row['type_id'] as int,
+      booruId: row['booru_id'] as int,
+      sourceHost: row['host'] as String,
+      profileIdHint: row['profile_id'] as String,
+    ),
+  );
+
+  /// Rechecks the item and lookup state inside the same writer as local edits.
+  Future<LocalMediaEnrichmentResult> applyEnrichment(
+    LocalMediaItem original,
+    LocalMediaEnrichment? Function() resolve, {
+    LocalMediaSimilarMatch? similarMatch,
+  }) => _mutate(() async {
+    final row = _row(original.reference);
+    if (row == null ||
+        row['id'] != original.id ||
+        row['damaged'] == 1 ||
+        await _completeFile(original.reference, row) == null) {
+      return LocalMediaEnrichmentResult.skipped;
+    }
+    final enrichment = resolve();
+    if (enrichment == null) return LocalMediaEnrichmentResult.skipped;
+    var updated = false;
+    var matchesUpdated = false;
+    _transaction(() {
+      if (row['metadata_revision'] == original.metadataRevision) {
+        for (final tag in enrichment.tags) {
+          _db.execute(
+            'INSERT OR IGNORE INTO media_tag VALUES (?, ?, ?)',
+            [original.id, tag.name, tag.category],
+          );
+          updated |= _db.updatedRows > 0;
+        }
+        final rating = row['rating'] == Rating.unknown.name
+            ? enrichment.rating.name
+            : row['rating'];
+        final originalSource = row['source'] as String?;
+        final source = (originalSource?.trim().isEmpty ?? true)
+            ? enrichment.source ?? originalSource
+            : originalSource;
+        if (rating != row['rating'] || source != originalSource) {
+          _db.execute('UPDATE media SET rating = ?, source = ? WHERE id = ?', [
+            rating,
+            source,
+            original.id,
+          ]);
+          updated = true;
+        }
+        if (similarMatch case final match?) {
+          final origin = match.origin;
+          _db.execute(
+            'INSERT OR IGNORE INTO media_similar_match VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [
+              original.id,
+              origin.booruType.id,
+              origin.booruId,
+              origin.sourceHost,
+              origin.profileIdHint,
+              match.postId,
+              match.score,
+            ],
+          );
+          matchesUpdated |= _db.updatedRows > 0;
+        }
+      }
+      for (final match in enrichment.matches) {
+        final origin = match.origin;
+        _db.execute(
+          'INSERT OR IGNORE INTO media_exact_match VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            original.id,
+            origin.booruType.id,
+            origin.booruId,
+            origin.sourceHost,
+            origin.profileIdHint,
+            match.postId,
+          ],
+        );
+        matchesUpdated |= _db.updatedRows > 0;
+      }
+    });
+    if (updated || matchesUpdated) _changes.add(original.reference);
+    return (updated || (similarMatch != null && matchesUpdated))
+        ? LocalMediaEnrichmentResult.updated
+        : LocalMediaEnrichmentResult.unchanged;
   });
 
   void _replaceTags(int id, Map<String, String> tags) {
@@ -387,6 +554,7 @@ class LocalMediaLibrary {
     String? sourceMd5,
     bool editorMade = false,
     DateTime Function()? clock,
+    void Function(LocalMediaItem)? onImported,
   }) => _mutate(() async {
     await _recover();
     try {
@@ -454,9 +622,11 @@ class LocalMediaLibrary {
       });
       _changes.add(reference);
       _onFault?.call(LocalMediaFaultPoint.committed);
-      return row == null
-          ? LocalMediaImportResult.imported
-          : LocalMediaImportResult.repaired;
+      if (row != null) return LocalMediaImportResult.repaired;
+      if (onImported != null && !staged.format.isVideo && normalized.isEmpty) {
+        onImported(_item(_row(reference)!));
+      }
+      return LocalMediaImportResult.imported;
     } finally {
       await _deleteIfPresent(_incoming);
     }

@@ -12,6 +12,7 @@ import '../../../../navigation/navigation_catalog_provider.dart';
 import '../../../../navigation/navigation_chrome_controller.dart';
 import '../../../../navigation/navigation_controller.dart';
 import '../../../../navigation/profile_context_menu.dart';
+import '../../../../navigation/search_destination_handoff.dart';
 import 'search_controller.dart';
 import 'search_profile_session.dart';
 
@@ -52,8 +53,11 @@ class SearchContextProfilePicker extends ConsumerWidget {
                   navigation.binding?.currentDestination == source &&
                   ref.read(localMediaAvailableProvider)) {
                 unawaited(
-                  navigation.selectDestination(
+                  switchSearchDestination(
+                    context,
+                    navigation,
                     const DestinationId.app(AppDestination.localMedia),
+                    InheritedSearchPageController.of(context).tagString.value,
                   ),
                 );
               }

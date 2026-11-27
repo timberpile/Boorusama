@@ -7,6 +7,10 @@ void main() {
   for (final (host, interval) in [
     ('api.rule34.xxx', const Duration(seconds: 2)),
     ('rule34.xxx', const Duration(seconds: 2)),
+    ('danbooru.donmai.us', const Duration(milliseconds: 1250)),
+    ('safebooru.donmai.us', const Duration(milliseconds: 1250)),
+    ('gelbooru.com', const Duration(milliseconds: 1250)),
+    ('safebooru.org', const Duration(milliseconds: 1250)),
     ('other.test', const Duration(milliseconds: 1250)),
   ]) {
     test(
@@ -67,6 +71,78 @@ void main() {
       },
     );
   }
+
+  test('Donmai host aliases share admission, cooldowns and queue events', () {
+    fakeAsync((time) {
+      final now = DateTime.utc(2026, 11, 26);
+      final coordinator = ApiRequestCoordinator(
+        elapsed: () => time.elapsed,
+        now: () => now.add(time.elapsed),
+      );
+      final main = ApiQuotaKey.fromUri(Uri.https('danbooru.donmai.us'));
+      final safe = ApiQuotaKey.fromUri(Uri.https('safebooru.donmai.us'));
+      final independent = ApiQuotaKey.fromUri(Uri.https('safebooru.org'));
+      expect(main, isNot(safe));
+      const bulk = ApiRequestContext(
+        requestClass: ApiRequestClass.bulkTransfer,
+      );
+      final events = <ApiQuotaSnapshot>[];
+      coordinator.watch(main).listen(events.add);
+      coordinator
+          .acquire(main, context: bulk)
+          .then((permit) => permit.release());
+      var admitted = false;
+      coordinator.acquire(safe, context: bulk).then((permit) {
+        admitted = true;
+        permit.release();
+      });
+      time.flushMicrotasks();
+      expect(admitted, isFalse);
+      expect(coordinator.snapshot(main).waiting[ApiWaitReason.bulkPacing], 1);
+      expect(events.last.queued, 1);
+      expect(events.last.quota, main);
+      time.elapse(const Duration(milliseconds: 1250));
+      expect(admitted, isTrue);
+
+      final retryAt = coordinator.recordRateLimit(safe, retryAfter: '60');
+      expect(coordinator.snapshot(main).retryAt, retryAt);
+      expect(coordinator.snapshot(independent).retryAt, isNull);
+      coordinator.dispose();
+    });
+  });
+
+  test('background enrichment uses both the bulk and passive windows', () {
+    fakeAsync((time) {
+      final coordinator = ApiRequestCoordinator(elapsed: () => time.elapsed);
+      final key = ApiQuotaKey.fromUri(Uri.parse('https://api.rule34.xxx'));
+      final starts = <Duration>[];
+      for (var i = 0; i < 13; i++) {
+        coordinator
+            .acquire(
+              key,
+              context: const ApiRequestContext(
+                requestClass: ApiRequestClass.automaticBulk,
+              ),
+            )
+            .then((permit) {
+              expect(permit.isPassive, isTrue);
+              starts.add(time.elapsed);
+              permit.release();
+            });
+      }
+      time.flushMicrotasks();
+      expect(starts, [Duration.zero]);
+      time.elapse(const Duration(seconds: 59));
+      expect(starts, [
+        for (var i = 0; i < 12; i++) Duration(seconds: i * 2),
+      ]);
+      expect(coordinator.snapshot(key).waiting[ApiWaitReason.passiveBudget], 1);
+      time.elapse(const Duration(seconds: 1));
+      expect(starts.last, const Duration(minutes: 1));
+      expect(coordinator.snapshot(key).queued, 0);
+      coordinator.dispose();
+    });
+  });
 
   test('expired admission is separate from live-owner cancellation', () {
     fakeAsync((time) {

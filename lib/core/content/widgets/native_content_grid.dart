@@ -12,6 +12,9 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 import '../../configs/manage/widgets.dart';
 import '../../configs/config/types.dart';
+import '../../configs/manage/providers.dart';
+import '../../posts/cross_profile_lookup/page.dart';
+import '../../widgets/multi_select_button.dart';
 import '../../http/client/coordination.dart';
 import '../../images/booru_image.dart';
 import '../../posts/details/routes.dart';
@@ -240,6 +243,18 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                       _controller.viewerEntries[index].occurrenceId,
                 ], scope: _controller);
                 final selectedKeys = _selection.selectedKeys;
+                final selectedPost = selectedKeys.length == 1
+                    ? [
+                        for (final (index, entry)
+                            in _controller.entries.indexed)
+                          if (entry is PostContentEntry &&
+                              selectedKeys.contains(
+                                _controller.viewerEntries[index].occurrenceId,
+                              ))
+                            entry.post,
+                      ].firstOrNull
+                    : null;
+                if (selectedPost != null) ref.watch(booruConfigProvider);
                 final columns = calculateGridCount(
                   size.maxWidth,
                   listing.gridSize,
@@ -386,26 +401,44 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                             child: SingleChildScrollView(
                               child: CollectionSelectionBar(
                                 controller: _selection,
-                                actions:
-                                    presentation
-                                        is BooruGroupSelectionPresentation
-                                    ? (presentation!
-                                              as BooruGroupSelectionPresentation)
-                                          .buildSelectionActions(context, [
-                                            for (final (index, entry)
-                                                in _controller.entries.indexed)
-                                              if (entry is GroupContentEntry &&
-                                                  selectedKeys.contains(
-                                                    _controller
-                                                        .viewerEntries[index]
-                                                        .occurrenceId,
-                                                  ))
-                                                GroupBookmarkPresentationData(
-                                                  access: widget.access,
-                                                  summary: entry.summary,
-                                                ),
-                                          ])
-                                    : const [],
+                                actions: [
+                                  if (selectedPost != null &&
+                                      canFindOnOtherProfiles(
+                                        ref,
+                                        selectedPost,
+                                        access: widget.access,
+                                      ))
+                                    MultiSelectButton(
+                                      icon: const Icon(Icons.travel_explore),
+                                      name: context.t.post.cross_profile.action,
+                                      menuOnly: true,
+                                      onPressed: () => unawaited(
+                                        findOnOtherProfiles(
+                                          ref,
+                                          selectedPost,
+                                          access: widget.access,
+                                        ),
+                                      ),
+                                    ),
+                                  if (presentation
+                                      is BooruGroupSelectionPresentation)
+                                    ...(presentation!
+                                            as BooruGroupSelectionPresentation)
+                                        .buildSelectionActions(context, [
+                                          for (final (index, entry)
+                                              in _controller.entries.indexed)
+                                            if (entry is GroupContentEntry &&
+                                                selectedKeys.contains(
+                                                  _controller
+                                                      .viewerEntries[index]
+                                                      .occurrenceId,
+                                                ))
+                                              GroupBookmarkPresentationData(
+                                                access: widget.access,
+                                                summary: entry.summary,
+                                              ),
+                                        ]),
+                                ],
                               ),
                             ),
                           ),

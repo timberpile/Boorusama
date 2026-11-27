@@ -11,10 +11,16 @@ import 'navigation_catalog_provider.dart';
 import 'navigation_chrome_controller.dart';
 import 'navigation_controller.dart';
 import 'profile_context_menu.dart';
+import 'search_destination_handoff.dart';
 
 class NavigationProfilePicker extends ConsumerWidget {
-  const NavigationProfilePicker({required this.favorites, super.key});
+  const NavigationProfilePicker({
+    required this.favorites,
+    this.appliedSearch,
+    super.key,
+  });
   final bool favorites;
+  final String Function()? appliedSearch;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final id = DestinationScope.maybeOf(context)?.id;
@@ -61,6 +67,17 @@ class NavigationProfilePicker extends ConsumerWidget {
             if (!ref
                 .read(navigationProfilesProvider)
                 .any((p) => p.id == profileId)) {
+              return;
+            }
+            if (id == localMedia && appliedSearch != null) {
+              unawaited(
+                switchSearchDestination(
+                  context,
+                  controller,
+                  DestinationId.browse(profileId),
+                  appliedSearch!(),
+                ),
+              );
               return;
             }
             final liveEligible = ref

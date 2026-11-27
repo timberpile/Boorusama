@@ -68,6 +68,9 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
                 child: child!,
               ),
               child: SearchPage(
+                key: state.extra is SearchParams
+                    ? ObjectKey(state.extra)
+                    : null,
                 initialConfig: local ? owner : null,
                 closeOnClear:
                     fresh &&

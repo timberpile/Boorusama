@@ -1,7 +1,7 @@
 // Project imports:
 import '../../../post/types.dart';
 
-enum PostLookupMatchKind { exactFile, pixivSource, sourceUrl }
+enum PostLookupMatchKind { exactFile, pixivSource, sourceUrl, similarImage }
 
 enum PixivLookupCoverageIssue {
   authentication,
@@ -75,9 +75,13 @@ final class PostLookupCancelled extends PostLookupResult {
 /// Discards late completions after dismissal or a different target selection.
 /// This does not abort the underlying repository's HTTP request.
 final class PostLookupCancellation {
+  PostLookupCancellation({bool Function()? shouldCancel})
+    : _shouldCancel = shouldCancel;
+
+  final bool Function()? _shouldCancel;
   var _isCancelled = false;
 
-  bool get isCancelled => _isCancelled;
+  bool get isCancelled => _isCancelled || (_shouldCancel?.call() ?? false);
 
   void cancel() => _isCancelled = true;
 }

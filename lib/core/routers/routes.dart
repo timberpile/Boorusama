@@ -15,6 +15,7 @@ import '../configs/create/routes.dart';
 import '../debug/routes.dart';
 import '../donate/routes.dart';
 import '../download_manager/routes.dart';
+import '../local_media/local_media_page.dart';
 import '../posts/details/routes.dart';
 import '../posts/cross_profile_lookup/page.dart';
 import '../posts/links/boorusama_post_link_page.dart';
@@ -57,6 +58,7 @@ class Routes {
     singlePostDetailsRoutes(ref),
     boorusamaPostLinkRoute(),
     crossProfileLookupRoute(),
+    localMediaSearchRoute(),
     lazyPostDetailsRoutes(ref),
     postFavoritesRoutes(ref),
     artists(ref),

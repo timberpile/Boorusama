@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:http_parser/http_parser.dart' show parseHttpDate;
 import 'package:dio/dio.dart';
+
 import 'api_quota_key.dart';
 import 'api_quota_policy.dart';
 import 'api_request_context.dart';
@@ -49,6 +51,17 @@ final class ApiQuotaSnapshot {
   final int inFlight;
   final int queued;
   final DateTime? retryAt;
+
+  ApiQuotaSnapshot _forOrigin(ApiQuotaKey key) => quota == key
+      ? this
+      : ApiQuotaSnapshot(
+          quota: key,
+          inFlight: inFlight,
+          queued: queued,
+          retryAt: retryAt,
+          passiveInFlight: passiveInFlight,
+          waiting: waiting,
+        );
 }
 
 final class ApiRequestPermit {
@@ -90,10 +103,30 @@ final class ApiRequestCoordinator {
   final _events = StreamController<ApiQuotaSnapshot>.broadcast();
   var _disposed = false;
 
-  Stream<ApiQuotaSnapshot> watch(ApiQuotaKey key) =>
-      _events.stream.where((s) => s.quota == key);
-  _Quota _quota(ApiQuotaKey key) =>
-      _quotas.putIfAbsent(key, () => _Quota(_policy(key)));
+  static final _danbooruQuota = ApiQuotaKey.fromUri(
+    Uri.https('danbooru.donmai.us'),
+  );
+  static final _legacySafebooruQuota = ApiQuotaKey.fromUri(
+    Uri.https('safebooru.donmai.us'),
+  );
+
+  // Donmai's legacy safe frontend shares the main service. Normalize only
+  // accounting here so transport origin checks still separate credentials.
+  static ApiQuotaKey _bucketKey(ApiQuotaKey key) =>
+      key == _legacySafebooruQuota ? _danbooruQuota : key;
+
+  Stream<ApiQuotaSnapshot> watch(ApiQuotaKey key) {
+    final bucket = _bucketKey(key);
+    return _events.stream
+        .where((state) => _bucketKey(state.quota) == bucket)
+        .map((state) => state._forOrigin(key));
+  }
+
+  _Quota _quota(ApiQuotaKey key) {
+    final bucket = _bucketKey(key);
+    return _quotas.putIfAbsent(bucket, () => _Quota(_policy(bucket)));
+  }
+
   ApiQuotaSnapshot snapshot(ApiQuotaKey key) {
     final q = _quota(key);
     return ApiQuotaSnapshot(
@@ -233,7 +266,7 @@ final class ApiRequestCoordinator {
             reason = ApiWaitReason.passiveBudget;
           }
         }
-        if (candidate.context.requestClass == ApiRequestClass.bulkTransfer &&
+        if (candidate.context.isBulk &&
             q.bulkStarts.length >= q.policy.bulkWindow.capacity) {
           final refill =
               q
@@ -268,7 +301,7 @@ final class ApiRequestCoordinator {
       for (final rule in rules) {
         rule.admit(start);
       }
-      final bulk = w.context.requestClass == ApiRequestClass.bulkTransfer;
+      final bulk = w.context.isBulk;
       if (bulk) q.bulkStarts.add(start);
       q.inFlight++;
       if (passive) {

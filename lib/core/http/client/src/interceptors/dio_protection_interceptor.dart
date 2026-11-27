@@ -9,7 +9,6 @@ import 'package:dio/dio.dart';
 // Project imports:
 import '../../../../ddos/handler/types.dart';
 import '../../../../ddos/solver/types.dart';
-import '../coordination/api_request_context.dart';
 import '../coordination/coordinated_dio.dart';
 
 class DioProtectionInterceptor extends Interceptor {
@@ -245,8 +244,7 @@ class DioProtectionInterceptor extends Interceptor {
       _isProtectionRetry(options) ||
       !isApiSafeRead(options) ||
       _canRecoverPublicRead?.call(options) == false ||
-      apiRequestContextFor(options).requestClass ==
-          ApiRequestClass.bulkTransfer;
+      apiRequestContextFor(options).isBulk;
 
   Future<Response<dynamic>> _recoverRule34Safely(
     RequestOptions options,

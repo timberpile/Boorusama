@@ -172,6 +172,41 @@ void main() {
     },
   );
 
+  test('tag count composes with other filters before pagination', () async {
+    await import(
+      tags: [
+        (name: 'character', category: 'character'),
+        (name: 'artist', category: 'artist'),
+      ],
+    );
+    final gif = Uint8List.fromList('GIF89a123'.codeUnits);
+    final gifReference = LocalMediaReference.parse(
+      sha256.convert(gif).toString(),
+    );
+    await import(
+      stream: Stream.value(gif),
+      inspector: (_, _) async => (width: 1, height: 1, durationMs: null),
+    );
+
+    expect(library.list(query: 'tagcount:0').single.reference, gifReference);
+    expect(
+      library.list(query: 'tagcount:>0', limit: 1).single.reference,
+      reference,
+    );
+    expect(
+      library
+          .list(query: 'character tagcount:>=2 filetype:png')
+          .single
+          .reference,
+      reference,
+    );
+    expect(library.list(query: '-tagcount:>0').single.reference, gifReference);
+    expect(library.list(query: 'tagcount:>1 filetype:gif'), isEmpty);
+    expect(library.list(query: 'tagcount:-1'), isEmpty);
+    expect(library.list(query: 'tagcount:>abc'), isEmpty);
+    expect(library.suggestTags('char', query: 'tagcount:0'), isEmpty);
+  });
+
   test(
     'suggests stored tags and counts eligible files within the query',
     () async {

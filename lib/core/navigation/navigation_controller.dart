@@ -64,21 +64,25 @@ class NavigationController extends Notifier<NavigationPreferences> {
     );
   }
 
-  Future<bool> selectDestination(DestinationId id) async {
+  Future<bool> selectDestination(
+    DestinationId id, {
+    Uri? location,
+    Object? extra,
+  }) async {
     final registry = binding;
     if (registry == null ||
         _selecting ||
         ref.read(navigationChromeProvider).selectionActive) {
       return false;
     }
-    if (registry.currentDestination == id) {
+    if (registry.currentDestination == id && location == null) {
       _rememberLocalBrowse(id);
       return true;
     }
     _selecting = true;
     try {
       if (!await registry.dismissTransientRoutes()) return false;
-      final accepted = registry.select(id);
+      final accepted = registry.select(id, location: location, extra: extra);
       if (accepted) {
         _rememberLocalBrowse(id);
         ref.read(navigationChromeProvider.notifier).show();
@@ -121,13 +125,21 @@ class NavigationController extends Notifier<NavigationPreferences> {
     }
   }
 
-  Future<bool> selectBrowseProfile(String id) async {
+  Future<bool> selectBrowseProfile(
+    String id, {
+    Uri? location,
+    Object? extra,
+  }) async {
     final config = ref
         .read(booruConfigProvider)
         .where((e) => e.id == id)
         .firstOrNull;
     if (config == null ||
-        !(await selectDestination(DestinationId.browse(id)))) {
+        !(await selectDestination(
+          DestinationId.browse(id),
+          location: location,
+          extra: extra,
+        ))) {
       return false;
     }
     state = state.selectBrowse(id);

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 enum ApiRequestClass {
@@ -6,6 +7,7 @@ enum ApiRequestClass {
   userInitiated,
   bulkTransfer,
   automatic,
+  automaticBulk,
   preload,
 }
 
@@ -57,9 +59,16 @@ final class ApiRequestContext {
   final bool _allowCooldownRetry;
   bool get allowCooldownRetry =>
       allowCooldownRetryResolver?.call() ?? _allowCooldownRetry;
-  bool get isPassive =>
-      requestClass == ApiRequestClass.automatic ||
-      requestClass == ApiRequestClass.preload;
+  bool get isPassive => switch (requestClass) {
+    ApiRequestClass.automatic ||
+    ApiRequestClass.automaticBulk ||
+    ApiRequestClass.preload => true,
+    _ => false,
+  };
+  bool get isBulk => switch (requestClass) {
+    ApiRequestClass.bulkTransfer || ApiRequestClass.automaticBulk => true,
+    _ => false,
+  };
 }
 
 Future<T> runWithApiRequestContext<T>(

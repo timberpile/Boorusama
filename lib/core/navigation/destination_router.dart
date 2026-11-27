@@ -137,13 +137,19 @@ final class DestinationRouterBinding {
     return true;
   }
 
-  bool select(DestinationId id) {
+  bool select(DestinationId id, {Uri? location, Object? extra}) {
     final index = indexOf(id);
     if (index < 0) {
       _router?.go(
         const DestinationId.app(AppDestination.browseRecovery).location,
       );
       return false;
+    }
+    if (location != null) {
+      final router = _router;
+      if (router == null) return false;
+      router.go(location.toString(), extra: extra);
+      return true;
     }
     if (currentDestination == id) return true;
     final shell = shellKey.currentState;

@@ -60,6 +60,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
     this.detailsImageBuilder,
     this.presentationConfig,
     this.allowOriginalImage = true,
+    this.mediaWrapper,
     super.key,
   });
 
@@ -67,6 +68,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
   final PostDetailsImageBuilder? detailsImageBuilder;
   final BooruConfig? presentationConfig;
   final bool allowOriginalImage;
+  final Widget Function(BuildContext, int, Widget)? mediaWrapper;
   final Size? contentSize;
   final ValueChanged<Size>? onImageSize;
 
@@ -497,14 +499,14 @@ class _PostDetailsItemState<T extends Post>
                   return ValueListenableBuilder<Set<String>>(
                     valueListenable:
                         widget.detailsController.originalImagePostKeys,
-                    builder: (_, originalImagePostKeys, _) {
+                    builder: (context, originalImagePostKeys, _) {
                       final useOriginal =
                           widget.allowOriginalImage &&
                           originalImagePostKeys.contains(
                             postViewerIdentity(post),
                           );
 
-                      return PostMedia<T>(
+                      final media = PostMedia<T>(
                         post: post,
                         config: widget.authConfig,
                         viewer: widget.viewerConfig,
@@ -545,6 +547,12 @@ class _PostDetailsItemState<T extends Post>
                         detailsImageBuilder: widget.detailsImageBuilder,
                         presentationConfig: widget.presentationConfig,
                       );
+                      return widget.mediaWrapper?.call(
+                            context,
+                            widget.index,
+                            media,
+                          ) ??
+                          media;
                     },
                   );
                 },

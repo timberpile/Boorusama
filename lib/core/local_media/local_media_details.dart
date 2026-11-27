@@ -7,6 +7,7 @@ import '../../foundation/clipboard.dart';
 import '../posts/details_parts/types.dart';
 import '../posts/details_parts/widgets.dart';
 import 'local_media_actions.dart';
+import 'local_media_enrichment_ui.dart';
 import 'local_media_models.dart';
 import 'local_media_providers.dart';
 import 'local_media_reference.dart';
@@ -50,7 +51,22 @@ PostDetailsUIBuilder localMediaDetailsUi(LocalMediaReference reference) {
       ),
       DetailsPart.fileDetails: itemSection((context, item) {
         final t = context.t.local_media;
-        final sha256 = item.reference.sha256;
+        FileDetailTile digest(String title, String value, String copyLabel) =>
+            FileDetailTile(
+              title: title,
+              valueLabel: value,
+              valueMaxLines: 1,
+              valueTrailing: Tooltip(
+                message: copyLabel,
+                child: Icon(
+                  Icons.copy,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              onValueTap: () =>
+                  AppClipboard.copyWithDefaultToast(context, value),
+            );
         return FileDetailsSection(
           post: item.toPost(),
           rating: item.rating,
@@ -63,23 +79,11 @@ PostDetailsUIBuilder localMediaDetailsUi(LocalMediaReference reference) {
                   locale: Localizations.localeOf(context),
                 ),
               ),
-            FileDetailTile(
-              title: t.sha256,
-              valueLabel: sha256,
-              valueMaxLines: 1,
-              valueTrailing: Tooltip(
-                message: t.copy_sha256,
-                child: Icon(
-                  Icons.copy,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              onValueTap: () => AppClipboard.copyWithDefaultToast(
-                context,
-                sha256,
-              ),
-            ),
+            digest(t.sha256, item.reference.sha256, t.copy_sha256),
+            digest(t.md5, item.md5, t.copy_md5),
+            if (item.source case final source? when source.isNotEmpty)
+              FileDetailTile(title: t.source, valueLabel: source),
+            LocalMediaMatchLinks(item),
           ],
         );
       }),

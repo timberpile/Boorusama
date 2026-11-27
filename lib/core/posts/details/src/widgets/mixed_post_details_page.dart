@@ -104,6 +104,8 @@ class MixedPostDetailsPage extends StatefulWidget {
     this.fallbackUiBuilderDecorator,
     this.postRecoveryBuilder,
     this.onEntryDisplayed,
+    this.onPageChanged,
+    this.mediaWrapper,
     this.fallbackConfig,
     this.liveSource,
     this.entries,
@@ -129,6 +131,8 @@ class MixedPostDetailsPage extends StatefulWidget {
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
   final ValueChanged<ViewerEntry>? onEntryDisplayed;
+  final ValueChanged<int>? onPageChanged;
+  final Widget Function(BuildContext, int, Widget)? mediaWrapper;
   final BooruConfig? fallbackConfig;
   final PostDetailsLiveSource? liveSource;
 
@@ -197,6 +201,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   void _loadNearEnd(int index) {
     final pageChanged = index != _currentIndex;
     _currentIndex = index;
+    if (pageChanged) widget.onPageChanged?.call(index);
     if (_needsManualLoadMore && !pageChanged) return;
     if (_needsManualLoadMore) {
       setState(() => _needsManualLoadMore = false);
@@ -297,6 +302,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
         onRetryNext: _retryLoading,
         onLoadMoreNext: _continueLoading,
         onPageChanged: _loadNearEnd,
+        mediaWrapper: widget.mediaWrapper,
       ),
     ),
   );
@@ -315,6 +321,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
     required this.onPageChanged,
     this.sequence,
     this.onEntryDisplayed,
+    this.mediaWrapper,
   });
 
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
@@ -329,6 +336,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   final ValueChanged<int> onPageChanged;
   final ViewerEntrySequence? sequence;
   final ValueChanged<ViewerEntry>? onEntryDisplayed;
+  final Widget Function(BuildContext, int, Widget)? mediaWrapper;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -1222,6 +1230,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
                   if (entry != null) widget.onEntryDisplayed!(entry);
                 },
           detailsController: details.controller,
+          mediaWrapper: widget.mediaWrapper,
           imageUrlBuilder: (post) =>
               resolver?.resolveMediaUrl(post, config.viewer) ?? '',
           mediaAspectRatioBuilder: (post) =>

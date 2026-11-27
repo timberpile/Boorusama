@@ -1,3 +1,4 @@
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 
@@ -66,7 +67,7 @@ Future<GoRouter> pumpLookup(
               return Scaffold(
                 appBar: AppBar(),
                 body: Text(
-                  'Opened ${payload.posts.single.id} with ${payload.config!.name}',
+                  'Opened ${payload.posts[payload.initialIndex].id} with ${payload.config!.name}',
                 ),
               );
             },
@@ -80,6 +81,7 @@ Future<GoRouter> pumpLookup(
     ProviderScope(
       overrides: [
         routerProvider.overrideWithValue(router),
+        blacklistTagsProvider.overrideWith((_, _) => const <String>{}),
         settingsNotifierProvider.overrideWith(
           () => SettingsNotifier(Settings.defaultSettings),
         ),

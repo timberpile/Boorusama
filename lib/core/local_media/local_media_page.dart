@@ -20,6 +20,7 @@ import '../posts/listing/src/widgets/post_grid.dart';
 import '../posts/listing/src/widgets/post_grid_controller.dart';
 import '../posts/listing/src/widgets/post_grid_config_icon_button.dart';
 import '../posts/post/types.dart';
+import '../router.dart';
 import '../search/options/providers.dart';
 import '../search/options/search_auto_commit.dart';
 import '../search/options/search_options_section.dart';
@@ -27,18 +28,37 @@ import '../search/search/routes.dart';
 import '../search/search/src/widgets/selected_tag_list.dart';
 import '../search/search/widgets.dart';
 import '../search/selected_tags/providers.dart';
+import '../search/selected_tags/types.dart';
 import '../selection/ordered_selection_controller.dart';
 import '../settings/providers.dart';
 import '../tags/autocompletes/types.dart';
 import '../widgets/multi_select_button.dart';
 import 'local_media_actions.dart';
+import 'local_media_enrichment_ui.dart';
+import '../configs/config/providers.dart';
+import '../posts/cross_profile_lookup/lookup_preferences.dart';
 import 'local_media_library.dart';
 import 'local_media_providers.dart';
 import 'local_media_reference.dart';
 import 'local_media_tags.dart';
 
+GoRoute localMediaSearchRoute() => GoRoute(
+  path: 'local-media-search',
+  builder: (_, state) {
+    final extra = state.extra;
+    return LocalMediaPage(
+      key: extra is SearchParams ? ObjectKey(extra) : null,
+      initialTag: extra is String ? extra : null,
+      initialTags: SearchParams.fromUri(state.uri).tags,
+    );
+  },
+);
+
 class LocalMediaPage extends ConsumerWidget {
-  const LocalMediaPage({super.key});
+  const LocalMediaPage({this.initialTag, this.initialTags, super.key});
+
+  final String? initialTag;
+  final SearchTagSet? initialTags;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +78,12 @@ class LocalMediaPage extends ConsumerWidget {
       ),
       data: (library) => library == null
           ? const _LocalMediaUnavailableScaffold(body: SizedBox.shrink())
-          : _LocalMediaGrid(key: ObjectKey(library), library: library),
+          : _LocalMediaGrid(
+              key: ObjectKey(library),
+              library: library,
+              initialTag: initialTag,
+              initialTags: initialTags,
+            ),
     );
   }
 }
@@ -177,9 +202,16 @@ final _localMediaSearchAuth = BooruConfig.defaultConfig(
 ).auth;
 
 class _LocalMediaGrid extends ConsumerStatefulWidget {
-  const _LocalMediaGrid({required this.library, super.key});
+  const _LocalMediaGrid({
+    required this.library,
+    required this.initialTag,
+    required this.initialTags,
+    super.key,
+  });
 
   final LocalMediaLibrary library;
+  final String? initialTag;
+  final SearchTagSet? initialTags;
 
   @override
   ConsumerState<_LocalMediaGrid> createState() => _LocalMediaGridState();
@@ -207,7 +239,14 @@ class _LocalMediaGridState extends ConsumerState<_LocalMediaGrid> {
       optionKeys: {
         for (final option in _localMediaSearchCapabilities.options) option.key,
       },
-    )..commitSelection();
+    );
+    if (widget.initialTag case final tag?) {
+      _search.skipToResultWithTag(tag);
+    } else if (widget.initialTags case final tags?) {
+      _search.skipToResultWithTags(tags);
+    } else {
+      _search.commitSelection();
+    }
     _autoCommit = SearchAutoCommit(
       readQuery: () => _search.tagsController.rawTagsString,
       readApplied: () => _search.tagString.value,
@@ -362,19 +401,25 @@ class _LocalMediaGridState extends ConsumerState<_LocalMediaGrid> {
                 _search.focus.hasFocus ||
                 _search.state.value != SearchState.initial ||
                 _search.tagString.value.isNotEmpty;
-            const profilePicker = NavigationProfilePicker(favorites: false);
+            final profilePicker = NavigationProfilePicker(
+              favorites: false,
+              appliedSearch: () => _search.tagString.value,
+            );
             return RawSearchRegion(
               controller: _search,
               searchBarPosition: position,
               showOptions: active,
-              onBackPressed: _search.tagString.value.isNotEmpty
+              onBackPressed:
+                  widget.initialTag != null || widget.initialTags != null
+                  ? () => Navigator.maybePop(context)
+                  : _search.tagString.value.isNotEmpty
                   ? _returnToLibrary
                   : null,
               innerSearchButton: active
                   ? const SizedBox.shrink()
-                  : const Row(
+                  : Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [_ImportButton(), profilePicker],
+                      children: [const _ImportButton(), profilePicker],
                     ),
               trailingSearchButton: active ? profilePicker : null,
               tagList: ValueListenableBuilder(
@@ -408,6 +453,7 @@ class _LocalMediaGridState extends ConsumerState<_LocalMediaGrid> {
     Widget? leadingSliver,
   ) {
     final t = context.t.local_media;
+    final lookupProfiles = ref.watch(orderedProfileConfigsProvider);
     return PostGrid<Post>(
       controller: _controller,
       scrollController: _scroll,
@@ -451,6 +497,29 @@ class _LocalMediaGridState extends ConsumerState<_LocalMediaGrid> {
                 shareLocalMedia(context, widget.library, references),
               ),
             ),
+            if (item != null &&
+                lookupProfiles.any(
+                  (profile) => localLookupMethods(
+                    profile,
+                    stillImage: supportsIqdbImageFormat(item.format.extension),
+                  ).isNotEmpty,
+                ))
+              MultiSelectButton(
+                icon: const Icon(Icons.travel_explore),
+                name: context.t.post.cross_profile.action,
+                menuOnly: true,
+                onPressed: () =>
+                    unawaited(findLocalMediaMatches(context, ref, item)),
+              ),
+            if (posts.isNotEmpty)
+              MultiSelectButton(
+                icon: const Icon(Icons.auto_awesome_outlined),
+                name: t.enrich_other_profiles,
+                menuOnly: true,
+                onPressed: () => unawaited(
+                  enrichLocalMedia(context, ref, references),
+                ),
+              ),
             if (item != null)
               MultiSelectButton(
                 icon: const Icon(Icons.edit_outlined),

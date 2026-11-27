@@ -77,6 +77,31 @@ void main() {
   );
 
   test(
+    'Donmai quota aliases retain distinct redirect credential origins',
+    () async {
+      final coordinator = ApiRequestCoordinator();
+      addTearDown(coordinator.dispose);
+      final transport = _DonmaiRedirectTransport();
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: 'https://danbooru.donmai.us',
+          headers: {'Authorization': 'fixture'},
+        ),
+      )..httpClientAdapter = transport;
+      addTearDown(() => dio.close(force: true));
+      coordinateApiDio(dio, coordinator);
+      await dio.get('/data');
+
+      expect(transport.requests.map((options) => options.uri.host), [
+        'danbooru.donmai.us',
+        'safebooru.donmai.us',
+      ]);
+      expect(transport.requests.first.headers['Authorization'], 'fixture');
+      expect(transport.requests.last.headers['Authorization'], isNull);
+    },
+  );
+
+  test(
     'unavailable speculative status drops immediately while explicit status can wait and recover',
     () async {
       final c = ApiRequestCoordinator();
@@ -142,6 +167,32 @@ class _Transport implements HttpClientAdapter {
         302,
         headers: {
           'location': ['https://www.zerochan.net/result'],
+        },
+      );
+    }
+    return ResponseBody.fromString('', 200);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _DonmaiRedirectTransport implements HttpClientAdapter {
+  final requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancel,
+  ) async {
+    requests.add(options);
+    if (requests.length == 1) {
+      return ResponseBody.fromString(
+        '',
+        302,
+        headers: {
+          'location': ['https://safebooru.donmai.us/data'],
         },
       );
     }

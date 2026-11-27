@@ -78,6 +78,44 @@ class CrossProfileLookupSession {
   final _methods = <String, PostLookupMatchKind>{};
   final _matched = <String>{};
 
+  Future<PostLookupResult> findMethod(
+    BooruConfig target,
+    PostLookupMatchKind method, {
+    required int page,
+    required PostLookupCancellation cancellation,
+  }) async {
+    if (cancellation.isCancelled) return const PostLookupCancelled();
+    try {
+      if (method != PostLookupMatchKind.exactFile) {
+        return (await sourceLookup!(target)).find(
+          source,
+          kind: method,
+          page: page,
+          cancellation: cancellation,
+        );
+      }
+      final resolved = ExactPostLookup.normalizeMd5(source.md5) != null
+          ? source
+          : await (_refresh ??= Future<Post?>.sync(refreshSource)
+                .timeout(const Duration(seconds: 15)));
+      if (cancellation.isCancelled) return const PostLookupCancelled();
+      if (resolved == null) {
+        return const PostLookupUnavailable(
+          PostLookupUnavailableReason.missingHash,
+        );
+      }
+      return (await lookup(target)).find(
+        resolved,
+        page: page,
+        cancellation: cancellation,
+      );
+    } catch (error) {
+      return cancellation.isCancelled
+          ? const PostLookupCancelled()
+          : PostLookupFailed(error);
+    }
+  }
+
   Future<PostLookupResult> find(
     BooruConfig target, {
     int page = 1,
@@ -219,8 +257,8 @@ class CrossProfileLookupQueue {
   var _running = 0;
   final _waiting = <Completer<void>>[];
 
-  Future<PostLookupResult> run(
-    Future<PostLookupResult> Function() action,
+  Future<T> run<T>(
+    Future<T> Function() action,
   ) async {
     if (_running >= concurrency) {
       final ready = Completer<void>();
@@ -268,3 +306,38 @@ final sharedPixivLookupSessionProvider = Provider.autoDispose
         },
       );
     });
+
+typedef LocalFileHashLookup = Future<PostLookupResult> Function(
+  BooruConfig target,
+  String md5, {
+  required int page,
+  required PostLookupCancellation cancellation,
+});
+
+/// Local files can only be looked up by their original byte hash.
+final localFileHashLookupProvider = Provider<LocalFileHashLookup>((ref) {
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
+  return (target, md5, {required page, required cancellation}) async {
+    bool isCurrent() =>
+        !disposed &&
+        !cancellation.isCancelled &&
+        ref.read(booruConfigProvider).contains(target);
+
+    if (!isCurrent()) return const PostLookupCancelled();
+    try {
+      final lookup = await ref.read(exactPostLookupProvider(target).future);
+      if (!isCurrent()) return const PostLookupCancelled();
+      final result = await lookup.findHash(
+        md5,
+        page: page,
+        cancellation: cancellation,
+      );
+      return isCurrent() ? result : const PostLookupCancelled();
+    } catch (error) {
+      return isCurrent()
+          ? PostLookupFailed(error)
+          : const PostLookupCancelled();
+    }
+  };
+});
