@@ -245,16 +245,16 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
             widget.entry.summary.cover ?? state.details?.summary.cover;
         final coverUrl = cover?.sample?.toString();
         final access = state.access;
-        final firstPost = index == null ? null : state.postAt(index);
+        final selectedPost = index == null ? null : state.postAt(index);
         // Only a new manifest, media identity or access generation can reopen
         // the handoff; unrelated provider rebuilds preserve decoded pixels.
         final coverKey = (
           access?.key,
           state.members?.generation,
           index == null ? null : members?[index].memberKey,
-          firstPost == null ? null : postViewerIdentity(firstPost),
-          firstPost?.sampleImageUrl,
-          firstPost?.originalImageUrl,
+          selectedPost == null ? null : postViewerIdentity(selectedPost),
+          selectedPost?.sampleImageUrl,
+          selectedPost?.originalImageUrl,
         );
         _currentCoverKey = coverKey;
         final showCover =
@@ -263,7 +263,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
             autoLoad &&
             _completedCoverKey != coverKey &&
             !unavailable &&
-            (index == null || state.details == null || firstPost != null) &&
+            (index == null || state.details == null || selectedPost != null) &&
             widget.checkpoint.memberKey == null &&
             access?.config != null &&
             coverUrl != null;
@@ -362,7 +362,9 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         };
         if (index >= members!.length - 2) _loadNext(state);
         final config = state.access!.config!;
-        if (outerIndex == widget.index && NavigationActivity.of(context)) {
+        final active =
+            outerIndex == widget.index && NavigationActivity.of(context);
+        if (active) {
           _preloader = ref.watch(
             contentOccurrencePreloadManagerProvider((
               source: (auth: config.auth, access: state.access!.key),
@@ -373,6 +375,12 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         } else {
           _preloader?.cancelAll();
         }
+        final selectedMember = members[index];
+        final position =
+            widget.entry.contentReference.sourceKey.startsWith('work:')
+            ? selectedMember.sourcePosition ?? index
+            : index;
+        final total = state.members?.sourceTotal ?? members.length;
         return withCover(
           Stack(
             fit: StackFit.expand,
@@ -441,15 +449,6 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
                         child: _MediaPage(
                           key: ValueKey((member.memberKey, state.access!.key)),
                           post: post,
-                          memberKey: member.memberKey,
-                          memberNumber:
-                              (widget.entry.contentReference.sourceKey
-                                      .startsWith('work:')
-                                  ? member.sourcePosition ?? pageIndex
-                                  : pageIndex) +
-                              1,
-                          memberCount:
-                              state.members?.sourceTotal ?? members.length,
                           controller: widget.controllerForPost(post),
                           onControllerReleased: widget.onControllerReleased,
                           onControllerAttached: widget.onControllerAttached,
@@ -462,16 +461,25 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
                           onImageUnavailable: pageIndex == index
                               ? () => _finishCoverHandoff(coverKey)
                               : null,
-                          active:
-                              outerIndex == widget.index &&
-                              pageIndex == index &&
-                              NavigationActivity.of(context),
+                          active: active && pageIndex == index,
                         ),
                       );
                     },
                   ),
                 ),
               ),
+              // The reading hint belongs to the media frame as pages slide.
+              if (active && selectedPost != null && total > 1)
+                Positioned.fill(
+                  child: MediaGroupPageIndicator(
+                    memberKey: selectedMember.memberKey,
+                    page: position + 1,
+                    total: total,
+                    disableAnimation: ref
+                        .watch(settingsProvider)
+                        .reduceAnimations,
+                  ),
+                ),
               if (state.members?.nextPageError != null &&
                   index == members.length - 1)
                 Align(
@@ -502,9 +510,6 @@ class _MediaPage extends ConsumerStatefulWidget {
     required this.config,
     required this.outerIndex,
     required this.active,
-    required this.memberKey,
-    required this.memberNumber,
-    required this.memberCount,
     this.onImageReady,
     this.onDisplayed,
     this.onImageUnavailable,
@@ -517,9 +522,6 @@ class _MediaPage extends ConsumerStatefulWidget {
   final BooruConfig config;
   final int outerIndex;
   final bool active;
-  final String memberKey;
-  final int memberNumber;
-  final int memberCount;
   final VoidCallback? onImageReady;
   final VoidCallback? onDisplayed;
   final VoidCallback? onImageUnavailable;
@@ -652,21 +654,7 @@ class _MediaPageState extends ConsumerState<_MediaPage> {
         ),
       ),
     );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ViewerMediaViewport.maybeOf(context)?.present(contentSize, media) ??
-            media,
-        if (widget.active && widget.memberCount > 1)
-          Positioned.fill(
-            child: MediaGroupPageIndicator(
-              memberKey: widget.memberKey,
-              page: widget.memberNumber,
-              total: widget.memberCount,
-              disableAnimation: ref.watch(settingsProvider).reduceAnimations,
-            ),
-          ),
-      ],
-    );
+    return ViewerMediaViewport.maybeOf(context)?.present(contentSize, media) ??
+        media;
   }
 }

@@ -2237,6 +2237,95 @@ void main() {
     },
   );
 
+  testWidgets('Gallery page counter stays in place throughout member swipes', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final access = galleries.galleryAccess();
+    final config = access.config!;
+    final gallery = NhentaiGalleryDetails.fromJson({
+      ...galleries.galleryJson(),
+      'num_pages': 2,
+      'pages': [
+        for (final number in [1, 2])
+          {
+            'number': number,
+            'path': 'galleries/7001/$number.webp',
+            'width': 100,
+            'height': 200,
+          },
+      ],
+    });
+    final policy = galleries.galleryPolicy();
+    final harness = _Harness(
+      configurations: [config],
+      entries: [
+        GroupViewerEntry(
+          summary: nhentaiGalleryDetails(gallery, access, policy).summary,
+          occurrenceId: 'gallery-counter',
+          source: ViewerSourceBinding(config),
+        ),
+      ],
+      loadMedia: false,
+      hideOverlay: true,
+      reduceAnimations: false,
+      overrides: [
+        nhentaiAvailableProvider.overrideWithValue(true),
+        bookmarkProvider.overrideWith(_ViewerBookmarks.new),
+      ],
+      mediaCapability: BooruGroupCapability(
+        engine: BooruType.nhentai,
+        keyCodec: const BooruContentKeyCodec(BooruType.nhentai),
+        presentation: const NhentaiGroupPresentation(),
+        createSource: (_, actor) => NhentaiGallerySource(
+          access: actor,
+          fetchGallery: (_) async => gallery,
+          mediaPolicy: () async => policy,
+        ),
+      ),
+    );
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    final group = find.byType(MediaGroupPage);
+    final inner = tester.widget<MediaGroupPage>(group).checkpoint.pages!;
+    final counter = find.byType(MediaGroupPageIndicator);
+    final bubble = find.descendant(
+      of: counter,
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(find.text('1 / 2'), findsOneWidget);
+    final anchor = tester.getBottomRight(bubble);
+
+    void expectStationaryCounter() {
+      expect(counter, findsOneWidget);
+      expect(tester.widget<AnimatedOpacity>(bubble).opacity, 1);
+      expect(tester.getBottomRight(bubble), anchor);
+    }
+
+    for (final (direction, target) in [(-1.0, 1), (1.0, 0)]) {
+      final swipe = await tester.startGesture(tester.getCenter(group));
+      await swipe.moveBy(Offset(direction * 30, 0));
+      await swipe.moveBy(Offset(direction * 100, 0));
+      await tester.pump();
+      expect(inner.page, inExclusiveRange(0, 1));
+      expectStationaryCounter();
+
+      await swipe.moveBy(Offset(direction * 145, 0));
+      await swipe.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(inner.page, inExclusiveRange(0, 1));
+      expectStationaryCounter();
+
+      await tester.pumpAndSettle();
+      expect(inner.page, target.toDouble());
+      expect(find.text('${target + 1} / 2'), findsOneWidget);
+      expectStationaryCounter();
+    }
+  });
+
   for (final advertised in [1, 3]) {
     testWidgets(
       'single-image Pixiv Work stays in Single during Timeline swipes (listed Pages: $advertised)',
