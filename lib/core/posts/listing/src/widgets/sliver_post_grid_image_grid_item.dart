@@ -43,6 +43,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
     this.blockOverlay,
     this.leadingIcons,
     this.selectionEnabled = true,
+    this.showRelatedBadge = true,
   });
 
   final T post;
@@ -55,6 +56,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
   final BlockOverlayItem? blockOverlay;
   final bool multiSelectEnabled;
   final bool selectionEnabled;
+  final bool showRelatedBadge;
   final List<Widget>? leadingIcons;
   final BooruConfigAuth config;
 
@@ -129,6 +131,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
             isTranslated: post.isTranslated,
             hasComments: post.hasComment,
             hasParentOrChildren:
+                showRelatedBadge &&
                 !ref.watch(
                   settingsProvider.select((s) => s.groupRelatedPosts),
                 ) &&

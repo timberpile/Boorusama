@@ -29,11 +29,13 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
     this.presentation,
     this.selectionIndex,
     this.selectionEnabled = true,
+    this.showRelatedBadge = true,
   });
 
   final int index;
   final int? selectionIndex;
   final bool selectionEnabled;
+  final bool showRelatedBadge;
   final AutoScrollController autoScrollController;
   final PostGridController<T> controller;
   final bool useHero;
@@ -63,6 +65,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
               useHero: useHero,
               multiSelectEnabled: multiSelect,
               selectionEnabled: selectionEnabled,
+              showRelatedBadge: showRelatedBadge,
               config: config,
               imageUrl: imageUrl,
               imageCacheManager: imageCacheManager,

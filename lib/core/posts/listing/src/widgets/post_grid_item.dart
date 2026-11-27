@@ -108,6 +108,7 @@ class PostGridItem extends ConsumerWidget {
     this.additions,
     this.disablePostInteraction,
     this.selectionEnabled = true,
+    this.showRelatedBadge = true,
   });
 
   final Post post;
@@ -115,6 +116,7 @@ class PostGridItem extends ConsumerWidget {
   final bool useHero;
   final bool multiSelectEnabled;
   final bool selectionEnabled;
+  final bool showRelatedBadge;
   final BooruConfigAuth config;
   final ValueChanged<GridThumbnailMedia>? onTap;
   final AutoScrollOptions? autoScrollOptions;
@@ -314,6 +316,7 @@ class PostGridItem extends ConsumerWidget {
       config: config,
       multiSelectEnabled: multiSelectEnabled,
       selectionEnabled: selectionEnabled,
+      showRelatedBadge: showRelatedBadge,
       onTap:
           (disablePostInteraction ?? resolvedAdditions.disablePostInteraction)
           ? null

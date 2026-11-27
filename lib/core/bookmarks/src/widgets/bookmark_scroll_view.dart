@@ -825,6 +825,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               autoScrollController: widget.scrollController,
               controller: controller,
               useHero: false,
+              showRelatedBadge: false,
               config: BooruConfig.empty.auth,
               leadingIcons: [
                 Icon(
@@ -873,6 +874,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               autoScrollController: widget.scrollController,
               controller: controller,
               useHero: false,
+              showRelatedBadge: false,
               config: effectiveAuth,
               imageConfig: config.auth,
               leadingIcons: [

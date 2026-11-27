@@ -99,6 +99,52 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets('bookmark group badges appear only on saved groups', (
+    tester,
+  ) async {
+    final setup = await _mount(
+      tester,
+      viewportSize: const Size(720, 1000),
+      seedReference: true,
+      seedRelated: true,
+      seedMixedSequence: true,
+      seedPosts: true,
+      seedPostCount: 2,
+      seedPostBuilder: (id) => id == 101
+          ? testRelatedPost(id, parent: 10)
+          : testRelatedPost(id, hasChildren: true),
+      settingsRepository: MemorySettingsRepository(
+        Settings.defaultSettings.copyWith(groupRelatedPosts: false),
+      ),
+    );
+    final harness = setup.harness;
+    await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+    await harness.pumpUntilFound(tester, postTile(101));
+    await harness.pumpUntilFound(tester, postTile(102));
+
+    final groupCards = find.byType(BookmarkPoolCard);
+    for (final kind in ['related', 'series', 'collection']) {
+      expect(
+        find.descendant(
+          of: groupCards,
+          matching: find.byKey(ValueKey('pool-kind-$kind')),
+        ),
+        findsOneWidget,
+      );
+    }
+
+    for (final id in [101, 102]) {
+      final tile = postTile(id);
+      final post = tester.widget<SliverPostGridImageGridItem>(tile).post;
+      expect(post.hasParentOrChildren, isTrue);
+      expect(
+        find.descendant(of: tile, matching: find.byIcon(Symbols.photo_library)),
+        findsNothing,
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'saved Related order survives reopening without changing global fallback',
     (tester) async {
@@ -2869,6 +2915,7 @@ _mount(
   bool holdIndex = false,
   bool holdSeries = false,
   int seedPostCount = 3,
+  Post Function(int)? seedPostBuilder,
   List<int>? seriesMembers,
   List<Map<String, Object?>>? seriesPools,
   SettingsRepository? settingsRepository,
@@ -3092,10 +3139,10 @@ _mount(
       for (var id = 101; id < 101 + seedPostCount; id++)
         (() {
           final old = testPoolPost(id);
-          final post = (seedMixedSequence ? TestPost(id: id) : old.post)
-              .copyWith(
-                origin: postOriginFromConfig(backend.config),
-              );
+          final post =
+              (seedPostBuilder?.call(id) ??
+                      (seedMixedSequence ? TestPost(id: id) : old.post))
+                  .copyWith(origin: postOriginFromConfig(backend.config));
           return old.copyWith(
             post: post,
             snapshot: const StoredPostCodec().encode(
