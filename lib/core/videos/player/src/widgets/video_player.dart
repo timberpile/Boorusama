@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../../../foundation/filesystem.dart';
@@ -21,6 +22,7 @@ import '../../../../images/booru_image.dart';
 import '../../../../content/content_media_failures.dart';
 import '../../../engines/providers.dart';
 import '../../../engines/types.dart';
+import '../types/local_mp4_playback_compatibility.dart';
 import '../types/video_player_state.dart';
 import 'video_player_error_container.dart';
 
@@ -33,10 +35,18 @@ typedef PreparedVideoSourceLoader =
 Future<void> defaultPlayerDisposer(BooruPlayer player) async {
   try {
     await player.setVolume(0);
+  } catch (_) {
+    // The native player may already be invalid.
+  }
+  try {
     await player.pause();
-    player.dispose();
-  } catch (e) {
-    // Ignore errors during disposal
+  } catch (_) {
+    // Still release the player if stopping it failed.
+  }
+  try {
+    await player.dispose();
+  } catch (_) {
+    // Ignore errors during disposal.
   }
 }
 
@@ -98,13 +108,16 @@ class BooruVideo extends ConsumerStatefulWidget {
 
 class _BooruVideoState extends ConsumerState<BooruVideo> {
   BooruPlayer? _player;
+  VideoPlayerEngine? _playerEngine;
   String? _error;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<void>? _sourceFailureSubscription;
   var _isBuffering = false;
   var _isDisposing = false;
   var _isPreparingSource = false;
+  var _isPreparingLocalSource = false;
   var _sourceNeedsInitialization = true;
   Timer? _cacheDelayTimer;
   String? _cachingUrl;
@@ -112,6 +125,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   CancelToken? _sourceCancellation;
   var _sourceGeneration = 0;
   int? _reportedFrameGeneration;
+  Future<void>? _playerTransition;
 
   VideoPlayerEngine get _resolvedEngine => VideoPlayerState.resolveVideoEngine(
     engine: widget.videoPlayerEngine,
@@ -174,7 +188,12 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         _sourceGeneration++;
         _sourceCancellation?.cancel('Inactive video source replaced');
         _isPreparingSource = false;
+        _isPreparingLocalSource = false;
       }
+    } else if (!widget.shouldInitialize && _isPreparingLocalSource) {
+      _sourceCancellation?.cancel('Local video page became inactive');
+      _isPreparingLocalSource = false;
+      _isPreparingSource = false;
     } else if (widget.shouldInitialize != oldWidget.shouldInitialize &&
         widget.shouldInitialize &&
         (_sourceNeedsInitialization || _player == null) &&
@@ -222,23 +241,67 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         !cancellation.isCancelled &&
         generation == _sourceGeneration;
 
-    setState(() => _isPreparingSource = true);
+    setState(() {
+      _isPreparingSource = true;
+      _isPreparingLocalSource = false;
+      _error = null;
+    });
     Future<void> Function()? releasePrepared;
+    BooruPlayer? pendingPlayer;
+    Completer<void>? transition;
 
     try {
-      _log(
-        widget.logger?.debug,
-        'Initializing $_resolvedEngine player for ${widget.url}',
-      );
-
       final prepared = widget.sourceLoader == null
           ? await _createVideoSource()
           : await widget.sourceLoader!(cancellation);
-      final source = prepared.source;
+      var source = prepared.source;
       releasePrepared = prepared.release;
       if (!current()) {
         return;
       }
+      _isPreparingLocalSource = source is LocalFileVideoSource;
+      if (_isPreparingLocalSource && !widget.shouldInitialize) {
+        _isPreparingSource = false;
+        return;
+      }
+      var engine = _resolvedEngine;
+      var useLocalFallback = false;
+      if (source case LocalFileVideoSource(:final file)
+          when (widget.videoPlayerEngine ?? VideoPlayerEngine.auto) ==
+                  VideoPlayerEngine.auto &&
+              ref.read(appPlatformProvider).isAndroid &&
+              p.extension(file.path).toLowerCase() == '.mp4') {
+        final restartedTimeline = await ref.read(
+          localMp4RestartedTimelineProvider,
+        )(file);
+        if (!current()) return;
+        if (restartedTimeline != null) {
+          useLocalFallback = true;
+          engine = VideoPlayerEngine.mpv;
+          _log(widget.logger?.debug, 'Using MPV for a restarted MP4 timeline');
+          if (restartedTimeline.firstStreamLength case final length?) {
+            source = LocalFileVideoSource(file, firstStreamLength: length);
+          }
+        }
+      }
+      if (_playerTransition case final previous?) {
+        await previous;
+        if (!current()) return;
+      }
+      final replacePlayer =
+          _player != null && (_playerEngine != engine || useLocalFallback);
+      if (source is LocalFileVideoSource || replacePlayer) {
+        transition = Completer<void>();
+        _playerTransition = transition.future;
+      }
+      final config = VideoConfig(
+        headers: source is GuardedStreamingVideoSource
+            ? const {}
+            : widget.headers,
+        localFallbackCancelled: useLocalFallback
+            ? cancellation.whenCancel.then((_) {})
+            : null,
+      );
       if (source case GuardedStreamingVideoSource(:final failures)) {
         _sourceFailureSubscription = failures.listen((_) {
           if (!current()) return;
@@ -253,6 +316,18 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             _isPreparingSource = false;
           });
         });
+      }
+      if (_player case final previous? when replacePlayer) {
+        final release = _releaseVideoSource;
+        _player = null;
+        _releaseVideoSource = null;
+        setState(() => _isBuffering = false);
+        await Future.wait<void>([
+          _cancelPlayerSubscriptions(),
+          _disposePlayerSafely(previous),
+        ]);
+        await release?.call();
+        if (!current()) return;
       }
       final releasePrevious = _releaseVideoSource;
 
@@ -269,11 +344,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
             await player.switchUrl(
               source,
-              config: VideoConfig(
-                headers: source is GuardedStreamingVideoSource
-                    ? const {}
-                    : widget.headers,
-              ),
+              config: config,
             );
             if (!current()) return;
 
@@ -309,6 +380,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           );
           return;
         } catch (error) {
+          if (!current()) return;
           _log(
             widget.logger?.warn,
             'Fast URL switching failed for ${widget.url}, falling back to full initialization. Error: $error',
@@ -320,16 +392,16 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       // First initialization or no existing player, create new one
       final oldPlayer = _player;
       final player =
-          widget.playerFactory?.call(_resolvedEngine) ??
+          widget.playerFactory?.call(engine) ??
           createBooruPlayer(
-            engine: _resolvedEngine,
+            engine: engine,
             platform: ref.read(appPlatformProvider),
             fileSystem: ref.read(appFileSystemProvider),
             userAgent: widget.userAgent,
           );
+      pendingPlayer = player;
 
       if (!player.isPlatformSupported()) {
-        player.dispose();
         return;
       }
 
@@ -340,16 +412,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
       await player.initialize(
         source,
-        config: VideoConfig(
-          headers: source is GuardedStreamingVideoSource
-              ? const {}
-              : widget.headers,
-        ),
+        config: config,
       );
-      if (!current()) {
-        player.dispose();
-        return;
-      }
+      if (!current()) return;
 
       _log(
         widget.logger?.debug,
@@ -358,23 +423,26 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       await player.setVolume(widget.sound ? 1.0 : 0.0);
       await player.setPlaybackSpeed(widget.speed);
       await player.setLooping(true);
-      if (!current()) {
-        player.dispose();
-        return;
-      }
+      if (!current()) return;
 
       _log(
         widget.logger?.debug,
         'Setting up position stream listener',
       );
-      _positionSubscription?.cancel().ignore();
-      _positionSubscription = player.positionStream.listen((position) {
-        if (widget.onCurrentPositionChanged != null) {
-          final current = position.inMilliseconds / 1000.0;
+      void reportProgress(Duration position) {
+        if (mounted && identical(_player, player)) {
+          final seconds = position.inMilliseconds / 1000.0;
           final total = player.duration.inMilliseconds / 1000.0;
-          widget.onCurrentPositionChanged!(current, total);
+          widget.onCurrentPositionChanged?.call(seconds, total);
         }
-      });
+      }
+
+      _positionSubscription?.cancel().ignore();
+      _durationSubscription?.cancel().ignore();
+      _positionSubscription = player.positionStream.listen(reportProgress);
+      _durationSubscription = useLocalFallback
+          ? player.durationStream.listen((_) => reportProgress(player.position))
+          : null;
 
       _log(
         widget.logger?.debug,
@@ -382,7 +450,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       );
       _bufferingSubscription?.cancel().ignore();
       _bufferingSubscription = player.bufferingStream.listen((buffering) {
-        if (mounted) {
+        if (mounted && identical(_player, player)) {
           setState(() {
             _isBuffering = buffering;
           });
@@ -396,26 +464,22 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         );
 
         _player = player;
+        _playerEngine = engine;
+        pendingPlayer = null;
         _releaseVideoSource = releasePrepared;
         releasePrepared = null;
         _isPreparingSource = false;
         _sourceNeedsInitialization = false;
         setState(() {});
         widget.onVideoPlayerCreated?.call(player);
+        if (useLocalFallback) reportProgress(player.position);
 
         if (oldPlayer != null) {
           await _disposePlayerSafely(oldPlayer);
         }
         await releasePrevious?.call();
 
-        _scheduleDelayedCaching();
-      } else {
-        // Widget is disposing, clean up the newly created player
-        _log(
-          widget.logger?.debug,
-          'Player initialized but widget is disposing, cleaning up',
-        );
-        player.dispose();
+        if (current()) _scheduleDelayedCaching();
       }
     } catch (error) {
       _log(
@@ -429,8 +493,29 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         });
       }
     } finally {
-      await releasePrepared?.call();
+      try {
+        if (pendingPlayer case final player?) {
+          await _disposePlayerSafely(player);
+        }
+        await releasePrepared?.call();
+      } finally {
+        if (current()) _isPreparingLocalSource = false;
+        if (transition != null) {
+          _playerTransition = null;
+          transition.complete();
+        }
+      }
     }
+  }
+
+  Future<void> _cancelPlayerSubscriptions() {
+    final position = _positionSubscription?.cancel();
+    final duration = _durationSubscription?.cancel();
+    final buffering = _bufferingSubscription?.cancel();
+    _positionSubscription = null;
+    _durationSubscription = null;
+    _bufferingSubscription = null;
+    return Future.wait<void>([?position, ?duration, ?buffering]);
   }
 
   Future<void> _disposePlayer() async {
@@ -447,12 +532,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
     // Capture ownership before yielding. Stream cancellation must not postpone
     // muting the native player or releasing its local-file lease.
-    final positionCancellation = _positionSubscription?.cancel();
-    final bufferingCancellation = _bufferingSubscription?.cancel();
+    final playerSubscriptions = _cancelPlayerSubscriptions();
     final failureCancellation = _sourceFailureSubscription?.cancel();
     _sourceFailureSubscription = null;
-    _positionSubscription = null;
-    _bufferingSubscription = null;
     final player = _player;
     final release = _releaseVideoSource;
     _player = null;
@@ -460,19 +542,11 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
     // Immediately mute and stop the player before disposal
     if (player != null) {
-      try {
-        await player.setVolume(0);
-        await player.pause();
-      } catch (e) {
-        _log(widget.logger?.warn, 'Error stopping player before disposal: $e');
-      }
-
-      player.dispose();
+      await defaultPlayerDisposer(player);
     }
 
     await release?.call();
-    await positionCancellation;
-    await bufferingCancellation;
+    await playerSubscriptions;
     await failureCancellation;
     _error = null;
     _isBuffering = false;

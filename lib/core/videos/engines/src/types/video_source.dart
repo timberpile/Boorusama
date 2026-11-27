@@ -66,9 +66,19 @@ class CachedVideoSource extends VideoSource {
 
 /// App-managed original bytes, independent of cache and HTTP transport.
 final class LocalFileVideoSource extends VideoSource {
-  LocalFileVideoSource(this.file) : super(originalUrl: file.uri.toString());
+  LocalFileVideoSource(this.file, {this.firstStreamLength})
+    : super(originalUrl: file.uri.toString());
 
   final File file;
+
+  /// Set only when both complete fragmented MP4 streams match byte for byte.
+  final int? firstStreamLength;
+
+  /// MPV can seek and loop within a byte range of the managed file itself.
+  String get mpvUrl => switch (firstStreamLength) {
+    final length? => 'slice://0-$length@${file.absolute.path}',
+    null => url,
+  };
 
   @override
   String get url => originalUrl;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
@@ -8,6 +9,8 @@ import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/videos/engines/types.dart';
+import 'package:boorusama/core/videos/player/src/types/local_mp4_playback_compatibility.dart';
+import 'package:boorusama/core/videos/player/src/types/video_playback_manager.dart';
 import 'package:boorusama/core/videos/player/src/widgets/video_player.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/platform.dart';
@@ -36,11 +39,31 @@ class _Lease implements VideoCacheLease {
 }
 
 class _Player extends Fake implements BooruPlayer {
-  _Player({this.initializeGate, this.aspectRatio = 1, this.width, this.height});
+  _Player({
+    this.initializeGate,
+    this.disposeGate,
+    this.aspectRatio = 1,
+    this.width,
+    this.height,
+    this.duration = const Duration(seconds: 1),
+  });
   final Future<void>? initializeGate;
+  final Future<void>? disposeGate;
   final initializeEntered = Completer<void>();
+  final disposeEntered = Completer<void>();
+  final _positions = StreamController<Duration>(
+    onCancel: () => Future<void>.value(),
+  );
+  final _buffering = StreamController<bool>(
+    onCancel: () => Future<void>.value(),
+  );
+  final _durations = StreamController<Duration>(
+    onCancel: () => Future<void>.value(),
+  );
   VideoSource? source;
   VideoConfig? config;
+  var volume = 1.0;
+  var speed = 1.0;
   var disposed = false;
   var initializes = 0;
   var switches = 0;
@@ -59,9 +82,9 @@ class _Player extends Fake implements BooruPlayer {
   }
 
   @override
-  Future<void> setVolume(double volume) async {}
+  Future<void> setVolume(double volume) async => this.volume = volume;
   @override
-  Future<void> setPlaybackSpeed(double speed) async {}
+  Future<void> setPlaybackSpeed(double speed) async => this.speed = speed;
   @override
   Future<void> setLooping(bool loop) async {
     looping = loop;
@@ -76,10 +99,20 @@ class _Player extends Fake implements BooruPlayer {
   }
 
   @override
-  bool get isPlaying => false;
+  var isPlaying = false;
 
   @override
-  Future<void> pause() async {}
+  Future<void> play() async => isPlaying = true;
+  @override
+  Future<void> pause() async => isPlaying = false;
+  @override
+  var position = Duration.zero;
+  @override
+  Future<void> seek(Duration position) async {
+    this.position = position;
+    _positions.add(position);
+  }
+
   @override
   final double aspectRatio;
   @override
@@ -87,25 +120,399 @@ class _Player extends Fake implements BooruPlayer {
   @override
   final int? height;
   @override
-  Duration get duration => const Duration(seconds: 1);
+  final Duration duration;
   @override
-  Stream<Duration> get positionStream => const Stream.empty();
+  Stream<Duration> get positionStream => _positions.stream;
   @override
-  Stream<bool> get bufferingStream => const Stream.empty();
+  Stream<Duration> get durationStream => _durations.stream;
+  @override
+  Stream<bool> get bufferingStream => _buffering.stream;
   @override
   Widget buildPlayerWidget(BuildContext context) => const Text('local-player');
   @override
-  void dispose() {
+  Future<void> dispose() async {
+    if (!disposeEntered.isCompleted) disposeEntered.complete();
+    await disposeGate;
     disposed = true;
+    _durations.close().ignore();
+    _positions.close().ignore();
+    _buffering.close().ignore();
   }
 }
 
-Widget _app(Widget child) => ProviderScope(
-  overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+Widget _app(
+  Widget child, {
+  AppPlatform platform = AppPlatform.android,
+  Future<RestartedLocalMp4Timeline?> Function(File)? mp4Probe,
+}) => ProviderScope(
+  overrides: [
+    appPlatformProvider.overrideWithValue(platform),
+    if (mp4Probe != null)
+      localMp4RestartedTimelineProvider.overrideWithValue(mp4Probe),
+  ],
   child: testApp(child),
 );
 
 void main() {
+  final compatibilityCases = [
+    (
+      name: 'healthy local MP4 in Auto',
+      source: LocalFileVideoSource(File('/test/healthy.mp4')),
+      preference: VideoPlayerEngine.auto,
+      platform: AppPlatform.android,
+      detected: false,
+      probes: 1,
+      expected: VideoPlayerEngine.videoPlayerPlugin,
+    ),
+    (
+      name: 'explicit ExoPlayer',
+      source: LocalFileVideoSource(File('/test/faulty.mp4')),
+      preference: VideoPlayerEngine.videoPlayerPlugin,
+      platform: AppPlatform.android,
+      detected: true,
+      probes: 0,
+      expected: VideoPlayerEngine.videoPlayerPlugin,
+    ),
+    (
+      name: 'explicit MPV',
+      source: LocalFileVideoSource(File('/test/faulty.mp4')),
+      preference: VideoPlayerEngine.mpv,
+      platform: AppPlatform.android,
+      detected: true,
+      probes: 0,
+      expected: VideoPlayerEngine.mpv,
+    ),
+    (
+      name: 'remote MP4 cached locally',
+      source: const CachedVideoSource(
+        filePath: '/test/cached.mp4',
+        originalUrl: 'https://example.test/video.mp4',
+      ),
+      preference: VideoPlayerEngine.auto,
+      platform: AppPlatform.android,
+      detected: true,
+      probes: 0,
+      expected: VideoPlayerEngine.videoPlayerPlugin,
+    ),
+    (
+      name: 'local WebM in Auto',
+      source: LocalFileVideoSource(File('/test/healthy.webm')),
+      preference: VideoPlayerEngine.auto,
+      platform: AppPlatform.android,
+      detected: true,
+      probes: 0,
+      expected: VideoPlayerEngine.webview,
+    ),
+    (
+      name: 'local MP4 in Auto on iOS',
+      source: LocalFileVideoSource(File('/test/faulty.mp4')),
+      preference: VideoPlayerEngine.auto,
+      platform: AppPlatform.ios,
+      detected: true,
+      probes: 0,
+      expected: VideoPlayerEngine.videoPlayerPlugin,
+    ),
+  ];
+  for (final c in compatibilityCases) {
+    testWidgets('preserves engine selection for ${c.name}', (tester) async {
+      final player = _Player();
+      final engines = <VideoPlayerEngine>[];
+      var probes = 0;
+      await tester.pumpWidget(
+        _app(
+          BooruVideo(
+            url: c.source.originalUrl,
+            aspectRatio: 1,
+            sourceLoader: (_) async => (source: c.source, release: null),
+            videoPlayerEngine: c.preference,
+            playerFactory: (engine) {
+              engines.add(engine);
+              return player;
+            },
+          ),
+          platform: c.platform,
+          mp4Probe: (_) async {
+            probes++;
+            return c.detected ? const RestartedLocalMp4Timeline() : null;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(engines, [c.expected]);
+      expect(probes, c.probes);
+      expect(player.looping, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(player.disposed, isTrue);
+    });
+  }
+
+  testWidgets('MPV plays the verified byte range from the original file', (
+    tester,
+  ) async {
+    final file = File('/managed/media/test.mp4');
+    final source = LocalFileVideoSource(file);
+    final player = _Player();
+    await tester.pumpWidget(
+      _app(
+        BooruVideo(
+          url: source.url,
+          aspectRatio: 1,
+          sourceLoader: (_) async => (source: source, release: null),
+          playerFactory: (engine) {
+            expect(engine, VideoPlayerEngine.mpv);
+            return player;
+          },
+        ),
+        mp4Probe: (_) async =>
+            const RestartedLocalMp4Timeline(firstStreamLength: 108997),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final playback = player.source! as LocalFileVideoSource;
+    expect(playback.file, same(file));
+    expect(playback.mpvUrl, 'slice://0-108997@/managed/media/test.mp4');
+    expect(player.looping, isTrue);
+  });
+
+  testWidgets('MPV owns the timeline, seek, looping and current play intent', (
+    tester,
+  ) async {
+    final source = LocalFileVideoSource(File('/test/faulty.MP4'));
+    final gate = Completer<void>();
+    final player = _Player(
+      initializeGate: gate.future,
+      duration: const Duration(seconds: 6),
+    );
+    final manager = VideoPlaybackManager();
+    addTearDown(manager.dispose);
+    final engines = <VideoPlayerEngine>[];
+    await manager.playVideo('video');
+    await tester.pumpWidget(
+      _app(
+        BooruVideo(
+          url: source.url,
+          aspectRatio: 1,
+          sourceLoader: (_) async => (source: source, release: null),
+          videoPlayerEngine: VideoPlayerEngine.auto,
+          sound: false,
+          speed: 1.5,
+          playerFactory: (engine) {
+            engines.add(engine);
+            return player;
+          },
+          onVideoPlayerCreated: (player) =>
+              manager.registerPlayer(player, 'video'),
+          onVideoPlayerDisposed: () => manager.unregisterPlayer('video'),
+          onCurrentPositionChanged: (position, total) =>
+              manager.updateProgress(position, total, 'video'),
+        ),
+        mp4Probe: (_) async => const RestartedLocalMp4Timeline(),
+      ),
+    );
+    await tester.pump();
+    expect(engines, [VideoPlayerEngine.mpv]);
+    expect(player.source, same(source));
+    await manager.pauseVideo('video');
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(player.isPlaying, isFalse);
+    expect(player.looping, isTrue);
+    expect(player.volume, 0);
+    expect(player.speed, 1.5);
+    expect(manager.videoProgress.value.duration, const Duration(seconds: 6));
+    const position = Duration(seconds: 4);
+    await manager.playVideo('video');
+    manager.seekVideo(position, 'video');
+    await tester.pump();
+    expect(player.isPlaying, isTrue);
+    expect(player.position, position);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(player.disposed, isTrue);
+    expect(engines, [VideoPlayerEngine.mpv]);
+    expect(manager.getPlayer('video'), isNull);
+  });
+
+  testWidgets(
+    'closing during the probe discards the old compatibility result',
+    (
+      tester,
+    ) async {
+      final source = LocalFileVideoSource(File('/test/faulty.mp4'));
+      final probe = Completer<RestartedLocalMp4Timeline?>();
+      final entered = Completer<void>();
+      var releases = 0;
+      await tester.pumpWidget(
+        _app(
+          BooruVideo(
+            url: source.url,
+            aspectRatio: 1,
+            sourceLoader: (_) async => (
+              source: source,
+              release: () => Future.sync(() {
+                releases++;
+              }),
+            ),
+            playerFactory: (_) => throw StateError('Created after navigation'),
+          ),
+          mp4Probe: (_) {
+            entered.complete();
+            return probe.future;
+          },
+        ),
+      );
+      await tester.pump();
+      expect(entered.isCompleted, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      probe.complete(const RestartedLocalMp4Timeline());
+      await tester.pumpAndSettle();
+      expect(releases, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a remote MP4 following a local fallback uses its own engine', (
+    tester,
+  ) async {
+    final mpv = _Player();
+    final exo = _Player();
+    final engines = <VideoPlayerEngine>[];
+    Widget video(VideoSource source) => _app(
+      BooruVideo(
+        url: source.url,
+        aspectRatio: 1,
+        sourceLoader: (_) async => (source: source, release: null),
+        playerFactory: (engine) {
+          engines.add(engine);
+          return engine == VideoPlayerEngine.mpv ? mpv : exo;
+        },
+      ),
+      mp4Probe: (_) async => const RestartedLocalMp4Timeline(),
+    );
+    await tester.pumpWidget(video(LocalFileVideoSource(File('/test/a.mp4'))));
+    await tester.pumpAndSettle();
+    const remote = StreamingVideoSource('https://example.test/b.mp4');
+    await tester.pumpWidget(video(remote));
+    await tester.pumpAndSettle();
+    expect(engines, [
+      VideoPlayerEngine.mpv,
+      VideoPlayerEngine.videoPlayerPlugin,
+    ]);
+    expect(mpv.disposed, isTrue);
+    expect(exo.source, same(remote));
+  });
+
+  testWidgets('an MPV startup error disposes the player and stops fallback', (
+    tester,
+  ) async {
+    final source = LocalFileVideoSource(File('/test/faulty.mp4'));
+    final error = Completer<void>();
+    final player = _Player(initializeGate: error.future);
+    final engines = <VideoPlayerEngine>[];
+    final registered = <BooruPlayer>[];
+    await tester.pumpWidget(
+      _app(
+        BooruVideo(
+          url: source.url,
+          aspectRatio: 1,
+          sourceLoader: (_) async => (source: source, release: null),
+          playerFactory: (engine) {
+            engines.add(engine);
+            return player;
+          },
+          onVideoPlayerCreated: registered.add,
+        ),
+        mp4Probe: (_) async => const RestartedLocalMp4Timeline(),
+      ),
+    );
+    await tester.pump();
+    expect(player.initializeEntered.isCompleted, isTrue);
+    error.completeError(StateError('MPV could not open the video'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('MPV could not open the video'), findsOneWidget);
+    expect(engines, [VideoPlayerEngine.mpv]);
+    expect(registered, isEmpty);
+    expect(player.disposed, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an engine change awaits teardown and discards stale startups', (
+    tester,
+  ) async {
+    final source = LocalFileVideoSource(File('/test/faulty.mp4'));
+    final disposal = Completer<void>();
+    final first = _Player(disposeGate: disposal.future);
+    final startup = Completer<void>();
+    final mpv = _Player(initializeGate: startup.future);
+    final replacement = _Player();
+    final players = [first, mpv, replacement].iterator;
+    final engines = <VideoPlayerEngine>[];
+    final registered = <BooruPlayer>[];
+    late StateSetter update;
+    var preference = VideoPlayerEngine.videoPlayerPlugin;
+    var probes = 0;
+    final video = _app(
+      StatefulBuilder(
+        builder: (_, setState) {
+          update = setState;
+          return BooruVideo(
+            url: source.url,
+            aspectRatio: 1,
+            videoPlayerEngine: preference,
+            sourceLoader: (_) async => (source: source, release: null),
+            playerFactory: (engine) {
+              engines.add(engine);
+              expect(players.moveNext(), isTrue);
+              return players.current;
+            },
+            onVideoPlayerCreated: registered.add,
+          );
+        },
+      ),
+      mp4Probe: (_) async {
+        probes++;
+        return const RestartedLocalMp4Timeline();
+      },
+    );
+
+    await tester.pumpWidget(video);
+    await tester.pumpAndSettle();
+    update(() => preference = VideoPlayerEngine.auto);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(probes, 1);
+    expect(first.disposeEntered.isCompleted, isTrue);
+    expect(engines, [VideoPlayerEngine.videoPlayerPlugin]);
+    disposal.complete();
+    await tester.pump();
+    expect(first.disposed, isTrue);
+    expect(mpv.initializeEntered.isCompleted, isTrue);
+    var cancelled = false;
+    unawaited(
+      mpv.config!.localFallbackCancelled!.then((_) => cancelled = true),
+    );
+
+    update(() => preference = VideoPlayerEngine.videoPlayerPlugin);
+    await tester.pump();
+    expect(cancelled, isTrue);
+    expect(replacement.initializeEntered.isCompleted, isFalse);
+    startup.complete();
+    await tester.pumpAndSettle();
+    expect(mpv.disposed, isTrue);
+    expect(registered, [first, replacement]);
+    expect(engines, [
+      VideoPlayerEngine.videoPlayerPlugin,
+      VideoPlayerEngine.mpv,
+      VideoPlayerEngine.videoPlayerPlugin,
+    ]);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(replacement.disposed, isTrue);
+  });
+
   const wideRatio = 16 / 9;
   for (final (viewport, metadata, nativeDimensions) in [
     (const Size(390, 800), null, false),

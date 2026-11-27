@@ -27,7 +27,7 @@ class _Player implements BooruPlayer {
   }
 
   @override
-  void dispose() {}
+  Future<void> dispose() async {}
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

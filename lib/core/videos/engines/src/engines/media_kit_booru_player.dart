@@ -38,6 +38,7 @@ class MediaKitBooruPlayer implements BooruPlayer {
 
   var _isDisposed = false;
   var _isInitialized = false;
+  var _hasNativePlayer = false;
   var _hasPlayedOnce = false;
   var _sourceGeneration = 0;
 
@@ -81,15 +82,44 @@ class MediaKitBooruPlayer implements BooruPlayer {
 
   Future<void> _openMedia(VideoSource source, VideoConfig? config) async {
     final media = Media(
-      source.url,
+      source is LocalFileVideoSource ? source.mpvUrl : source.url,
       httpHeaders: config?.headers ?? {},
     );
 
     await _player.open(media, play: false);
+    if (_isDisposed) return;
     await _player.setPlaylistMode(PlaylistMode.single);
 
-    if (_player.state.duration != Duration.zero) {
+    if (!_isDisposed && _player.state.duration != Duration.zero) {
       _durationController.add(_player.state.duration);
+    }
+  }
+
+  Future<void> _openLocalFallback(
+    VideoSource source,
+    VideoConfig config,
+    Future<void> cancelled,
+  ) async {
+    final loaded = Completer<void>();
+    final width = _player.stream.width.listen((width) {
+      if (width != null && width > 0 && !loaded.isCompleted) loaded.complete();
+    });
+    final errors = _player.stream.error.listen((error) {
+      if (!loaded.isCompleted) loaded.completeError(StateError(error));
+    });
+    try {
+      final opening = Future.wait<void>([
+        loaded.future,
+        _openMedia(source, config),
+      ], eagerError: true).timeout(const Duration(seconds: 15));
+      await Future.any<void>([
+        opening,
+        cancelled.then<void>((_) => throw StateError('Video source changed')),
+      ]);
+    } finally {
+      await width.cancel();
+      await errors.cancel();
+      if (!loaded.isCompleted) loaded.complete();
     }
   }
 
@@ -103,6 +133,7 @@ class MediaKitBooruPlayer implements BooruPlayer {
     MediaKitManager().ensureInitialized();
 
     _player = Player();
+    _hasNativePlayer = true;
     _videoController = VideoController(
       _player,
       configuration: VideoControllerConfiguration(
@@ -120,9 +151,13 @@ class MediaKitBooruPlayer implements BooruPlayer {
         }
       }),
     );
-    await _openMedia(source, config);
+    if (config?.localFallbackCancelled case final cancelled?) {
+      await _openLocalFallback(source, config!, cancelled);
+    } else {
+      await _openMedia(source, config);
+    }
 
-    _isInitialized = true;
+    _isInitialized = !_isDisposed;
   }
 
   @override
@@ -147,6 +182,7 @@ class MediaKitBooruPlayer implements BooruPlayer {
     await _bufferingSubscription?.cancel();
     await _durationSubscription?.cancel();
     await _player.dispose();
+    _hasNativePlayer = false;
     await initialize(source, config: config);
   }
 
@@ -280,7 +316,7 @@ class MediaKitBooruPlayer implements BooruPlayer {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
     firstFrameRendered.dispose();
@@ -288,16 +324,19 @@ class MediaKitBooruPlayer implements BooruPlayer {
     wakelock.disable();
 
     _bufferingDelayTimer?.cancel();
-    _positionSubscription?.cancel();
-    _playingSubscription?.cancel();
-    _bufferingSubscription?.cancel();
-    _durationSubscription?.cancel();
+    final subscriptions = Future.wait<void>([
+      ?_positionSubscription?.cancel(),
+      ?_playingSubscription?.cancel(),
+      ?_bufferingSubscription?.cancel(),
+      ?_durationSubscription?.cancel(),
+    ]);
 
-    _positionController.close();
-    _playingController.close();
-    _bufferingController.close();
-    _durationController.close();
+    unawaited(_positionController.close());
+    unawaited(_playingController.close());
+    unawaited(_bufferingController.close());
+    unawaited(_durationController.close());
 
-    _player.dispose();
+    if (_hasNativePlayer) await _player.dispose();
+    await subscriptions;
   }
 }

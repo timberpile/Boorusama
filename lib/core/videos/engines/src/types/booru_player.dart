@@ -43,7 +43,7 @@ abstract class BooruPlayer {
   Stream<bool> get playingStream;
   Stream<bool> get bufferingStream;
   Stream<Duration> get durationStream;
-  void dispose();
+  Future<void> dispose();
   bool isPlatformSupported();
   Widget buildPlayerWidget(BuildContext context);
 }
@@ -52,10 +52,15 @@ class VideoConfig {
   const VideoConfig({
     this.headers,
     this.autoplay = false,
+    this.localFallbackCancelled,
   });
 
   final Map<String, String>? headers;
   final bool autoplay;
+
+  /// A playback-only MPV fallback must confirm its video loaded before
+  /// publishing the player. This signal interrupts that wait on navigation.
+  final Future<void>? localFallbackCancelled;
 }
 
 typedef PositionCallback = void Function(double current, double total);

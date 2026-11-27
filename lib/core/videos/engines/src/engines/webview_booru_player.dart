@@ -525,7 +525,7 @@ class WebViewBooruPlayer implements BooruPlayer {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
     firstFrameRendered.dispose();
@@ -537,15 +537,15 @@ class WebViewBooruPlayer implements BooruPlayer {
     // https://github.com/flutter/flutter/issues/119616
     // Workaround to stop video from continuing to play in background on Apple devices
     if (isApple()) {
-      _webViewController?.loadRequest(Uri.parse('about:blank'));
+      unawaited(_webViewController?.loadRequest(Uri.parse('about:blank')));
     }
 
-    _positionController.close();
-    _playingController.close();
-    _bufferingController.close();
-    _durationController.close();
+    unawaited(_positionController.close());
+    unawaited(_playingController.close());
+    unawaited(_bufferingController.close());
+    unawaited(_durationController.close());
 
-    unawaited(_deletePage());
+    await _deletePage();
   }
 }
 

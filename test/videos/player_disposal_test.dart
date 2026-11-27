@@ -24,7 +24,7 @@ void main() {
       when(() => player.pause()).thenAnswer((_) async {
         await Future.delayed(const Duration(milliseconds: 50));
       });
-      when(() => player.dispose()).thenAnswer((_) {
+      when(() => player.dispose()).thenAnswer((_) async {
         disposalCompleter.complete();
       });
     });
@@ -53,7 +53,7 @@ void main() {
         when(() => p.pause()).thenAnswer((_) async {
           await Future.delayed(Duration(milliseconds: 30 + i * 10));
         });
-        when(() => p.dispose()).thenAnswer((_) {
+        when(() => p.dispose()).thenAnswer((_) async {
           c.complete();
         });
       }
@@ -88,7 +88,7 @@ void main() {
           await Future.delayed(const Duration(milliseconds: 30));
           activeDisposals--;
         });
-        when(() => p.dispose()).thenReturn(null);
+        when(() => p.dispose()).thenAnswer((_) async {});
       }
 
       for (final p in players) {

@@ -388,7 +388,7 @@ final class _PlaybackProbe implements BooruPlayer {
   Future<void> pause() async => isPlaying = false;
 
   @override
-  void dispose() {}
+  Future<void> dispose() async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

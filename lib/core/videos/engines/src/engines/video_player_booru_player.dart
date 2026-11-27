@@ -300,7 +300,7 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
     firstFrameRendered.dispose();
@@ -310,11 +310,12 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
     _positionTimer?.cancel();
     _bufferingDelayTimer?.cancel();
     _controller?.removeListener(_onVideoPlayerChanged);
-    _controller?.dispose();
+    final disposeController = _controller?.dispose();
 
-    _positionController.close();
-    _playingController.close();
-    _bufferingController.close();
-    _durationController.close();
+    unawaited(_positionController.close());
+    unawaited(_playingController.close());
+    unawaited(_bufferingController.close());
+    unawaited(_durationController.close());
+    await disposeController;
   }
 }

@@ -164,7 +164,7 @@ class VideoPlaybackManager extends ChangeNotifier {
   @override
   void dispose() {
     for (final player in _players.values) {
-      player.dispose();
+      player.dispose().ignore();
     }
     _players.clear();
     _pendingPlayback.clear();
