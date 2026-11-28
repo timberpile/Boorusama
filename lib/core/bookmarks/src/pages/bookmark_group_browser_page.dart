@@ -564,23 +564,39 @@ class _BookmarkGroupBrowserPageState
         itemCount: cards.length,
         itemBuilder: (context, index) {
           final (title, view, group) = cards[index];
+          final subgroups = group == null
+              ? const <BookmarkGroup>[]
+              : state.groupTree.childrenOf(group.id);
           final previewView =
-              group != null &&
-                  group.bookmarkIds.isEmpty &&
-                  state.groupTree.childrenOf(group.id).isNotEmpty
+              group != null && group.bookmarkIds.isEmpty && subgroups.isNotEmpty
               ? BookmarkView.subtree(group.id)
               : view;
           final availability = _previewInputs!.$2;
-          final previews = _previews.putIfAbsent(
-            previewView,
+          List<BookmarkGridEntry> previews(
+            BookmarkView scope,
+          ) => _previews.putIfAbsent(
+            scope,
             () => selectBookmarkMosaicEntries(
               state: state,
-              view: previewView,
+              view: scope,
               availablePostIds: availability?.postIds ?? const {},
               availableCollectionIds: availability?.collectionIds ?? const {},
               availableNativeGroupIds: availability?.nativeGroupIds ?? const {},
             ),
           );
+          Iterable<BookmarkGridEntry> subgroupCovers(
+            BookmarkGroup child,
+          ) sync* {
+            final direct = previews(BookmarkView.group(child.id));
+            yield* direct;
+            if (state.groupTree.childrenOf(child.id).isNotEmpty) {
+              final keys = direct.map((entry) => entry.key).toSet();
+              yield* previews(BookmarkView.subtree(child.id)).where(
+                (entry) => !keys.contains(entry.key),
+              );
+            }
+          }
+
           final editable =
               group != null &&
               !group.isDefault &&
@@ -604,7 +620,10 @@ class _BookmarkGroupBrowserPageState
             unseenCount: group == null
                 ? 0
                 : syncBookmarkUnseenMembers(state, group.id).length,
-            mosaicCandidates: previews,
+            mosaicCandidates: previews(previewView),
+            subgroupMosaicCandidates: group == null || group.bookmarkIds.isEmpty
+                ? const []
+                : subgroups.map(subgroupCovers),
             selected: group != null && selected.contains(group.id),
             onTap: !editable && _selection.isActive
                 ? null

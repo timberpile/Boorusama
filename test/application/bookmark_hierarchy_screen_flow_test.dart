@@ -38,6 +38,70 @@ const _grandchildId = '10000000-0000-4000-8000-000000000003';
 const _emptyChildId = '10000000-0000-4000-8000-000000000004';
 
 void main() {
+  testWidgets(
+    'parent mosaic fills only spare cells with distinct subgroup covers',
+    (
+      tester,
+    ) async {
+      const extraChildId = '10000000-0000-4000-8000-000000000005';
+      final scenario = await _mount(
+        tester,
+        stateBuilder: (config) {
+          final base = _libraryState(config);
+          final records = [
+            for (final record in [
+              ...base.items,
+              _record(config, 104, const {'extra'}),
+            ])
+              record.copyWith(
+                thumbnailUrl: '${config.url}/thumbnail/${record.id}.jpg',
+                sampleUrl: '${config.url}/sample/${record.id}.jpg',
+              ),
+            _record(config, 105, const {'missing_cover'}),
+          ];
+          return BookmarkLibraryState(
+            bookmarks: records,
+            records: records,
+            groups: [
+              for (final group in base.groups)
+                switch (group.id) {
+                  _childId => group.copyWith(
+                    bookmarkIds: const {101, 102, 105},
+                    addedAt: {105: DateTime.utc(2026, 11, 28)},
+                  ),
+                  _emptyChildId => group.copyWith(
+                    bookmarkIds: const {102, 103},
+                  ),
+                  _ => group,
+                },
+              BookmarkGroup(
+                id: extraChildId,
+                name: 'Third child',
+                parentGroupId: _rootId,
+                position: 2,
+                bookmarkIds: const {104},
+              ),
+            ],
+          );
+        },
+      );
+      await _openGroup(tester, scenario.harness, null);
+      final mosaic = find.descendant(
+        of: find.byKey(const ValueKey(('bookmark-card', _rootId))),
+        matching: find.byType(BookmarkGroupPreviewGrid),
+      );
+      expect(
+        tester
+            .widget<BookmarkGroupPreviewGrid>(mosaic)
+            .cells
+            .map((cell) => cell.key),
+        [
+          for (final id in [101, 102, 103, 104]) ValueKey<Object>(('post', id)),
+        ],
+      );
+    },
+  );
+
   testWidgets('changing the Bookmark grid sort keeps the folder mosaic order', (
     tester,
   ) async {
@@ -917,7 +981,7 @@ Future<_Scenario> _mount(
 Future<void> _openGroup(
   WidgetTester tester,
   HeadlessAppHarness harness,
-  String groupId,
+  String? groupId,
 ) async {
   await harness.pumpUntilFound(tester, postTile(101));
   final context = tester.element(postTile(101));

@@ -39,6 +39,7 @@ final class BookmarkLocalGroupCard extends ConsumerStatefulWidget {
     required this.onRename,
     required this.onDuplicate,
     required this.onDelete,
+    this.subgroupMosaicCandidates = const [],
     this.selected = false,
     this.onSelect,
     this.onMove,
@@ -58,6 +59,7 @@ final class BookmarkLocalGroupCard extends ConsumerStatefulWidget {
   final VoidCallback? onMove;
   final String title;
   final List<BookmarkGridEntry> mosaicCandidates;
+  final Iterable<Iterable<BookmarkGridEntry>> subgroupMosaicCandidates;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
   final VoidCallback? onDuplicate;
@@ -222,12 +224,13 @@ class _BookmarkLocalGroupCardState
 
   List<Widget> _mosaicCells({required bool canRepair}) {
     final cells = <Widget>[];
+    final displayed = <Object>{};
     // Check missing covers only while they could outrank a displayed cover.
     // A pending or failed lookup consumes its type's repair slot for this card.
     var canRepairPool = canRepair;
     var canRepairWork = canRepair;
-    for (final entry in widget.mosaicCandidates) {
-      if (cells.length == 4) break;
+    bool addCover(BookmarkGridEntry entry, {required bool repair}) {
+      if (displayed.contains(entry.key)) return false;
       Widget? cover;
       switch (entry) {
         case BookmarkPostEntry(:final bookmark):
@@ -235,6 +238,7 @@ class _BookmarkLocalGroupCardState
         case BookmarkPoolEntry(:final pool):
           cover = _poolCover(pool);
           if (cover == null &&
+              repair &&
               canRepairPool &&
               pool.needsCoverFacts &&
               pool.groupIds.isNotEmpty &&
@@ -258,6 +262,7 @@ class _BookmarkLocalGroupCardState
           final saved = ref.watch(nativeWorkSavedCoverProvider(bookmark));
           cover = _nativeCover(bookmark, saved, access?.config);
           if (cover == null &&
+              repair &&
               canRepairWork &&
               access != null &&
               needsNativeWorkCover(bookmark) &&
@@ -270,9 +275,21 @@ class _BookmarkLocalGroupCardState
             cover = _nativeCover(bookmark, repaired, access.config);
           }
       }
-      if (cover != null) {
-        cells.add(KeyedSubtree(key: ValueKey(entry.key), child: cover));
+      if (cover == null) return false;
+      displayed.add(entry.key);
+      cells.add(KeyedSubtree(key: ValueKey(entry.key), child: cover));
+      return true;
+    }
+
+    for (final entry in widget.mosaicCandidates) {
+      addCover(entry, repair: true);
+      if (cells.length == 4) return cells;
+    }
+    for (final subgroup in widget.subgroupMosaicCandidates) {
+      for (final entry in subgroup) {
+        if (addCover(entry, repair: false)) break;
       }
+      if (cells.length == 4) break;
     }
     return cells;
   }
