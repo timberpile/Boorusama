@@ -17,6 +17,7 @@ import '../../../../../core/http/client/coordination.dart';
 import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/settings/providers.dart';
+import '../../../../../core/settings/src/types/utils.dart';
 import '../../../client_provider.dart';
 import '../../../constants.dart';
 import '../../../tags/_shared/tag_list_notifier.dart';
@@ -53,11 +54,14 @@ final danbooruPostRepoProvider =
           return post != null ? postDtoToPost(post, null) : null;
         },
         fetch: (tags, page, {limit, options}) async {
+          final pageSize = limit == null
+              ? null
+              : effectivePostsPerPage(config.auth.booruType, limit);
           final posts = await client
               .getPosts(
                 page: page,
                 tags: tags,
-                limit: limit,
+                limit: pageSize,
               )
               .then(
                 (value) => value
@@ -67,7 +71,7 @@ final danbooruPostRepoProvider =
                         PostMetadata(
                           page: page,
                           search: tags.join(' '),
-                          limit: limit,
+                          limit: pageSize,
                         ),
                       ),
                     )
@@ -100,6 +104,7 @@ final danbooruPostRepoProvider =
           }
           final result = posts.toResult(
             total: total,
+            pageSize: pageSize,
             hasMore: hasMore,
             rawPostCount: rawPostCount ?? posts.length,
             rawUniquePostCount: posts.map((p) => p.id).toSet().length,

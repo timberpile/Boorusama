@@ -117,8 +117,35 @@ void main() {
         );
 
         expect(result, const PageLocation(page: 6, index: 0));
-        expect(repo.requestLog.first.page, 20);
+        expect(repo.requestLog.first.page, 5);
       });
+
+      test(
+        'starts from the search stride before mapping to the viewer stride',
+        () async {
+          final repo = MockPageFinderRepository(
+            totalItems: 200,
+            itemsPerPage: 100,
+          );
+          final finder = _createFinder(
+            repo,
+            searchChunkSize: 100,
+            userChunkSize: 200,
+          );
+
+          final result = await finder.findPage(
+            PaginationSnapshot(
+              targetId: 10,
+              tags: '',
+              historicalPage: 4,
+              historicalChunkSize: 60,
+            ),
+          );
+
+          expect(repo.requestLog.single.page, 2);
+          expect(result, const PageLocation(page: 1, index: 190));
+        },
+      );
     });
 
     group('interpolation efficiency', () {

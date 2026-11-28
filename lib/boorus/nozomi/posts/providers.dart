@@ -79,6 +79,7 @@ PostRepository<Post> _createNozomiPostRepository({
           .toList()
           .toResult(
             total: total,
+            pageSize: pageLimit,
             hasMore: total != null && total >= 0
                 ? page * pageLimit < total
                 : null,

@@ -2,19 +2,21 @@
 import 'dart:async';
 
 // Flutter imports:
-import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:background_downloader/background_downloader.dart' as bg;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:foundation/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 // Project imports:
 import 'package:boorusama/boorus/gelbooru/client_provider.dart';
 import 'package:boorusama/boorus/gelbooru/gelbooru.dart';
+import 'package:boorusama/boorus/gelbooru/restoration/widgets.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
@@ -31,7 +33,10 @@ import 'package:boorusama/core/debug/types.dart';
 import 'package:boorusama/core/developer_options/types.dart';
 import 'package:boorusama/core/download_manager/src/pages/download_manager_page.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/position/types.dart';
+import 'package:boorusama/core/posts/position/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/search/search/routes.dart';
@@ -48,6 +53,76 @@ import 'support/download_event_driver.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets('a 1000 preference uses the Gelbooru stride in the pager', (
+    tester,
+  ) async {
+    final server = GelbooruPaginationBackend(postCount: 150);
+    final flow = await _GelbooruFlow.mount(
+      tester,
+      server,
+      postsPerPage: 1000,
+      pageMode: PageMode.paginated,
+    );
+    await flow.waitForPosts(100, firstId: 150);
+
+    final selector = find.byType(PageSelector);
+    await flow.harness.pumpUntilFound(tester, selector);
+    final next = find.descendant(
+      of: selector,
+      matching: find.widgetWithIcon(IconButton, Icons.chevron_right),
+    );
+    await tester.ensureVisible(next);
+    expect(tester.widget<PageSelector>(selector).itemPerPage, 100);
+    expect(tester.widget<IconButton>(next).onPressed, isNotNull);
+
+    await tester.tap(next);
+    await flow.waitForPosts(50, firstId: 50);
+    expect(flow.controller.page, 2);
+    expect(tester.widget<IconButton>(next).onPressed, isNull);
+    expect(server.requests.last['pid'], 1);
+    expect(server.requests.last['limit'], 100);
+  });
+
+  testWidgets('Gelbooru position restore uses the same capped stride', (
+    tester,
+  ) async {
+    final server = GelbooruPaginationBackend(postCount: 150);
+    final flow = await _GelbooruFlow.mount(
+      tester,
+      server,
+      postsPerPage: 1000,
+    );
+    await flow.waitForPosts(100, firstId: 150);
+
+    final context = tester.element(flow.grid.first);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final heldRequest = server.requests.length + 1;
+    server.holdOnRequest = heldRequest;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (_) => UncontrolledProviderScope(
+          container: container,
+          child: GelbooruSessionRestorePage(
+            snapshot: PaginationSnapshot(
+              targetId: 50,
+              tags: 'test_tags',
+              historicalPage: 2,
+              historicalChunkSize: 60,
+              timestamp: DateTime.utc(2026, 11, 28),
+            ),
+          ),
+        ),
+      ),
+    );
+    final dialog = find.byType(PageFindingDialog);
+    await flow.harness.pumpUntilFound(tester, dialog);
+    expect(tester.widget<PageFindingDialog>(dialog).config.userChunkSize, 100);
+    server.releaseRequest.complete();
+    await flow.waitForPosts(50, firstId: 50);
+    expect(flow.controller.page, 2);
+  });
+
   testWidgets(
     'Gelbooru scrolling continues past the depth limit without gaps',
     (tester) async {
@@ -447,8 +522,10 @@ class _GelbooruFlow {
 
   static Future<_GelbooruFlow> mount(
     WidgetTester tester,
-    GelbooruPaginationBackend server,
-  ) async {
+    GelbooruPaginationBackend server, {
+    int postsPerPage = 60,
+    PageMode pageMode = PageMode.infinite,
+  }) async {
     const yaml = BooruYamlConfig(
       name: 'gelbooru',
       type: BooruType.gelbooru,
@@ -482,7 +559,11 @@ class _GelbooruFlow {
         configs: [config],
         settings: Settings.defaultSettings.copyWith(
           currentBooruConfigId: config.id,
-          listing: Settings.defaultSettings.listing.copyWith(postsPerPage: 60),
+          listing: Settings.defaultSettings.listing.copyWith(
+            postsPerPage: postsPerPage,
+            pageMode: pageMode,
+            pageIndicatorPosition: PageIndicatorPosition.top,
+          ),
         ),
         developerOptions: DeveloperOptions.defaults,
         logOptions: LogOptions.defaults,

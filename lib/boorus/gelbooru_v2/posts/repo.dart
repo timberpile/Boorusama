@@ -26,6 +26,7 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
     required GelbooruV2PostFetcher fetcher,
     required GelbooruV2PostSingleFetcher fetchSingle,
     required GelbooruV2ImageUrlResolver imageUrlResolver,
+    int? fixedPageSize,
     bool listedFavorites = false,
   }) : super(
          fetch: (tags, page, {limit, options}) => _getPostResults(
@@ -34,7 +35,7 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
            getPosts: fetcher,
            imageUrlResolver: imageUrlResolver,
            listedFavorites: listedFavorites,
-           limit: limit,
+           limit: fixedPageSize ?? limit,
            options: options,
          ),
          fetchSingle: (id, {options}) async {
@@ -80,6 +81,6 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
                 ),
         )
         .toList()
-        .toResult(total: posts.count);
+        .toResult(total: posts.count, pageSize: limit);
   }
 }

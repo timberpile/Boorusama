@@ -11,7 +11,6 @@ import '../../../../../../core/posts/listing/providers.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/posts/listing/src/widgets/grouped_post_grid.dart';
 import '../../../../../../core/posts/post/types.dart';
-import '../../../../../../core/settings/src/types/utils.dart';
 
 bool _matchesSource(BooruConfig config, Post post) =>
     post.origin.sourceHost == postOriginFromConfig(config).sourceHost &&
@@ -33,7 +32,7 @@ class SearchSeriesIndex extends ChangeNotifier {
     List<Post> posts,
     PoolBookmarkCapability capability,
   ) async {
-    final page = posts.take(maxPostsPerPage).toList();
+    final page = posts.take(PoolBookmarkCapability.membershipBudget).toList();
     await Future.wait([
       for (
         var start = 0;

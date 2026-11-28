@@ -27,6 +27,7 @@ import '../../content/types.dart';
 import '../../errors/types.dart';
 import '../../navigation/destination_activity.dart';
 import '../../settings/providers.dart';
+import '../../settings/src/types/utils.dart';
 import '../listing/types.dart';
 import '../listing/widgets.dart';
 import '../listing/src/widgets/post_grid_controller.dart';
@@ -162,12 +163,13 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
       imageListingSettingsProvider.select((s) => s.pageMode),
     );
     final shared = group?.onOpenMember != null && pageMode == PageMode.infinite;
+    final perPage = effectiveGroupPostsPerPage(widget.perPage);
     final identity = (
       source,
       key,
       widget.reference,
       widget.orderKey,
-      widget.perPage,
+      perPage,
       pageMode,
       _projectionRevision,
     );
@@ -182,7 +184,7 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
               reference: widget.reference,
               access: key,
               orderKey: order,
-              requestedLimit: widget.perPage,
+              requestedLimit: perPage,
             );
       bool accessIsCurrent() {
         if (!mounted || source == null || key == null) return false;
@@ -209,7 +211,7 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
         config: config,
         reference: widget.reference,
         order: order,
-        perPage: widget.perPage,
+        perPage: perPage,
         pageMode: pageMode,
         sharedKey: sharedKey,
         nextInitialPage: preparing ? null : _peerInitialPage,
@@ -273,7 +275,7 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
               key,
               widget.reference,
               order,
-              widget.perPage,
+              perPage,
               pageMode,
               _projectionRevision,
             );

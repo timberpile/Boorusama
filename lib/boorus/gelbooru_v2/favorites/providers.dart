@@ -36,6 +36,7 @@ final gelbooruV2FavoritesPostRepoProvider =
         );
 
         return GelbooruV2PostRepository(
+          fixedPageSize: favCapabilities?.fixedLimit ?? client.fixedLimit,
           fetcher: (tags, page, {limit, options}) => client.getFavorites(
             page: page,
             uid: uuid,
@@ -60,6 +61,7 @@ final realbooruFavoritesListingRepoProvider =
       final client = ref.watch(gelbooruV2ClientProvider(config.auth));
       return GelbooruV2PostRepository(
         listedFavorites: true,
+        fixedPageSize: 50,
         fetcher: (tags, page, {limit, options}) => client.getFavorites(
           uid: userId,
           page: page,

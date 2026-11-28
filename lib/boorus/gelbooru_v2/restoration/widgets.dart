@@ -10,6 +10,7 @@ import '../../../core/posts/position/widgets.dart';
 import '../../../core/search/search/routes.dart';
 import '../../../core/search/selected_tags/types.dart';
 import '../../../core/settings/providers.dart';
+import '../client_provider.dart';
 import 'utils.dart';
 
 class GelbooruV2SessionRestorePage extends ConsumerWidget {
@@ -23,13 +24,19 @@ class GelbooruV2SessionRestorePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final search = ref.watchConfigSearch;
+    final fixedLimit = ref
+        .read(gelbooruV2ClientProvider(search.auth))
+        .fixedLimit;
 
     return PageFindingDialog(
       config: PageFinderConfig(
         repository: ref.read(
           defaultPostPageFinderRepoProvider(search),
         ),
-        userChunkSize: ref.read(imageListingSettingsProvider).postsPerPage,
+        searchChunkSize: fixedLimit ?? 100,
+        userChunkSize:
+            fixedLimit ??
+            ref.read(listingSettingsForAuthProvider(search.auth)).postsPerPage,
       ),
       snapshot: snapshot,
       onSuccess: (location) {

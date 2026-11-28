@@ -11,18 +11,19 @@ import 'package:kurumi/material.dart';
 void main() {
   setUpAll(() => ensureI18nInitialized('en-US'));
 
-  test('custom page counts accept only integers within 10–200', () {
+  test('custom page counts accept only integers within 10–1000', () {
     expect(getPostsPerPagePossibleValue(), [20, 40, 60, 100, 200]);
     expect(parseCustomPostsPerPage('10'), 10);
     expect(parseCustomPostsPerPage('75'), 75);
     expect(parseCustomPostsPerPage('200'), 200);
+    expect(parseCustomPostsPerPage('1000'), 1000);
 
     final settings = Settings.defaultSettings.copyWith(
-      listing: Settings.defaultSettings.listing.copyWith(postsPerPage: 75),
+      listing: Settings.defaultSettings.listing.copyWith(postsPerPage: 1000),
     );
-    expect(Settings.fromJson(settings.toJson()).listing.postsPerPage, 75);
+    expect(Settings.fromJson(settings.toJson()).listing.postsPerPage, 1000);
 
-    for (final input in ['', 'abc', '1.5', '-1', '9', '201']) {
+    for (final input in ['', 'abc', '1.5', '-1', '9', '1001']) {
       expect(parseCustomPostsPerPage(input), isNull, reason: input);
     }
   });
@@ -80,24 +81,24 @@ void main() {
       expect(find.byType(PostsPerPageDialog), findsOneWidget);
 
       final field = find.byType(KurumiTextField);
-      await tester.enterText(field, '201');
+      await tester.enterText(field, '1001');
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       expect(
-        find.text('Enter a whole number between 10 and 200.'),
+        find.text('Enter a whole number between 10 and 1000.'),
         findsOneWidget,
       );
       expect(updated, isNull);
 
-      await tester.enterText(field, '90');
+      await tester.enterText(field, '1000');
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       expect(find.byType(PostsPerPageDialog), findsNothing);
-      expect(updated?.postsPerPage, 90);
+      expect(updated?.postsPerPage, 1000);
 
       await tester.pumpWidget(section(updated!));
       expect(picker().value, 0);
-      expect((picker().selectedItemBuilder!(0) as Text).data, '90');
+      expect((picker().selectedItemBuilder!(0) as Text).data, '1000');
 
       picker().onChanged(100);
       expect(updated?.postsPerPage, 100);
@@ -162,12 +163,12 @@ void main() {
         await tester.pumpAndSettle();
         final field = find.byType(KurumiTextField);
         final submit = find.widgetWithText(FilledButton, 'OK');
-        await tester.enterText(field, '201');
+        await tester.enterText(field, '1001');
         await tester.ensureVisible(submit);
         await tester.tap(submit);
         await tester.pumpAndSettle();
         expect(
-          find.text('Enter a whole number between 10 and 200.'),
+          find.text('Enter a whole number between 10 and 1000.'),
           findsOneWidget,
         );
         expect(result, isNull);

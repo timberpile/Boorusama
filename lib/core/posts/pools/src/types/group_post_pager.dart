@@ -182,6 +182,7 @@ final class GroupPostPager {
     return PostResult(
       posts: visible,
       total: batch.page.total,
+      pageSize: perPage,
       maxPage: (batch.page.sourceTotal ?? batch.page.total) == null
           ? null
           : ((batch.page.sourceTotal ?? batch.page.total)! + perPage - 1) ~/

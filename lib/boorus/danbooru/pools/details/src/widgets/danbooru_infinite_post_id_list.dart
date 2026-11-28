@@ -20,6 +20,7 @@ import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/pools/widgets.dart';
 import '../../../../../../core/settings/providers.dart';
+import '../../../../../../core/settings/src/types/utils.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../../posts/listing/widgets.dart';
 import '../../../../posts/post/types.dart';
@@ -49,7 +50,9 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final perPage = ref.watch(
-      imageListingSettingsProvider.select((value) => value.postsPerPage),
+      imageListingSettingsProvider.select(
+        (s) => effectiveGroupPostsPerPage(s.postsPerPage),
+      ),
     );
     final config = ref.watchConfig;
     final selectedOrder = order ?? ref.watch(poolFilterProvider).order;

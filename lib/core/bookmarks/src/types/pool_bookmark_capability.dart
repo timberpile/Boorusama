@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../configs/config/types.dart';
 import '../../../content/types.dart';
 import '../../../posts/post/types.dart';
-import '../../../settings/src/types/utils.dart' show maxPostsPerPage;
 import 'pool_bookmark.dart';
 
 /// Engine-owned collection metadata and navigation. Core bookmarks never
@@ -22,7 +21,7 @@ abstract interface class PoolBookmarkCapability {
 
   // Membership lookup is independent of the configured post request size.
   // Admit a whole supported search page, including the 200-post setting.
-  static const membershipBudget = maxPostsPerPage;
+  static const membershipBudget = 200;
 }
 
 final class RemoteBookmarkPool {

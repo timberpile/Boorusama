@@ -9,6 +9,7 @@ import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/search/queries/providers.dart';
 import '../../../core/settings/providers.dart';
+import '../../../core/settings/src/types/utils.dart';
 import '../../../foundation/loggers.dart';
 import '../client_provider.dart';
 import '../configs/providers.dart';
@@ -32,6 +33,9 @@ final e621PostRepoProvider =
           return post != null ? postDtoToPost(post, null) : null;
         },
         fetch: (tags, page, {limit, options}) async {
+          final pageSize = limit == null
+              ? null
+              : effectivePostsPerPage(config.auth.booruType, limit);
           final favorites =
               (options?.cascadeRequest ?? true) &&
                   ref.read(e621LoginDetailsProvider(config.auth)).hasLogin()
@@ -41,7 +45,7 @@ final e621PostRepoProvider =
           final posts = await client.getPosts(
             page: page,
             tags: tags,
-            limit: limit,
+            limit: pageSize,
           );
           if (read != null) {
             favorites!.observeFavorites({
@@ -55,7 +59,7 @@ final e621PostRepoProvider =
                   PostMetadata(
                     page: page,
                     search: tags.join(' '),
-                    limit: limit,
+                    limit: pageSize,
                   ),
                 ),
               )

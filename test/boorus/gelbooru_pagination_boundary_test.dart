@@ -22,14 +22,15 @@ void main() {
         );
       }
 
-      final stale = read(2);
+      final stale = read(11);
       await started.future;
       await read(1);
-      await read(2);
+      await read(11);
       release.complete();
       await stale;
-      await read(3);
+      await read(12);
       expect(client.lastTags, ['cat', 'id:<1200']);
+      expect(client.lastLimit, 100);
     },
   );
 
@@ -77,6 +78,7 @@ class _GatedClient extends gel.GelbooruClient {
   final Completer<void> started;
   final Completer<void> release;
   List<String>? lastTags;
+  int? lastLimit;
   final ids = [1100, 2200, 1200, 1000].iterator;
 
   @override
@@ -86,6 +88,7 @@ class _GatedClient extends gel.GelbooruClient {
     List<String>? tags,
   }) async {
     lastTags = tags;
+    lastLimit = limit;
     expect(ids.moveNext(), isTrue);
     final id = ids.current;
     if (!started.isCompleted) {

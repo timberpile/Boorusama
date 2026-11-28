@@ -139,6 +139,8 @@ class PostGridController<T extends Post> extends ChangeNotifier
 
   final ValueNotifier<int?> count = ValueNotifier(null);
   final ValueNotifier<int?> maxPage = ValueNotifier(null);
+  int? _pageSize;
+  int? get pageSize => _pageSize;
   final ValueNotifier<bool> refreshingNotifier = ValueNotifier(false);
   final ValueNotifier<List<T>> itemsNotifier = ValueNotifier(const []);
   final ValueNotifier<int> pageNotifier = ValueNotifier(_kFirstPage);
@@ -452,6 +454,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
       });
       count.value = null;
       maxPage.value = null;
+      _pageSize = null;
       notifyListeners();
       if (invalidateSource) onRefresh?.call();
       final newItems = await _fetchPosts(_page, generation);
@@ -463,6 +466,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
       _hasMore = _canLoadMore(newItems);
       count.value = newItems.total;
       maxPage.value = newItems.maxPage;
+      _pageSize = newItems.pageSize;
       _eventController.add(const PostControllerRefreshCompleted());
       notifyListeners();
     } finally {
@@ -544,6 +548,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
         if (!_hasMore && newItems.posts.isEmpty) onNoMoreData?.call();
         count.value = newItems.total;
         maxPage.value = newItems.maxPage;
+        _pageSize = newItems.pageSize;
       } catch (error) {
         if (_isCurrentRequest(generation)) {
           if (_pageMode == PageMode.infinite) _setPage(previousPage);

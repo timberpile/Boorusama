@@ -1,16 +1,65 @@
+import 'package:booru_clients/hybooru.dart' as hybooru;
 import 'package:booru_clients/nozomi.dart' as nozomi;
 import 'package:booru_clients/szurubooru.dart' as szuru;
+import 'package:boorusama/boorus/hybooru/client_provider.dart';
+import 'package:boorusama/boorus/hybooru/posts/providers.dart';
 import 'package:boorusama/boorus/nozomi/client_provider.dart';
 import 'package:boorusama/boorus/nozomi/posts/providers.dart';
 import 'package:boorusama/boorus/szurubooru/client_provider.dart';
 import 'package:boorusama/boorus/szurubooru/posts/providers.dart';
 import 'package:boorusama/boorus/szurubooru/tags/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final pageSize in [700, 1000]) {
+    test(
+      'Hybooru requests 1000 and reports its actual size $pageSize',
+      () async {
+        final profile = BooruConfig.defaultConfig(
+          booruType: BooruType.hybooru,
+          customDownloadFileNameFormat: '',
+          url: 'https://example.invalid/',
+        );
+        final client = _Hybooru(pageSize);
+        const settings = Settings.defaultSettings;
+        final container = ProviderContainer(
+          overrides: [
+            booruConfigProvider.overrideWith(
+              () => BooruConfigNotifier(initialConfigs: [profile]),
+            ),
+            hybooruClientProvider(profile.auth).overrideWithValue(client),
+            settingsProvider.overrideWithValue(
+              settings.copyWith(
+                listing: settings.listing.copyWith(postsPerPage: 1000),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          hybooruPostRepoProvider(profile.search),
+        );
+        final result = await repository.getPosts('', 2).run();
+        result.fold((error) => fail('Unexpected source error: $error'), (
+          value,
+        ) {
+          expect(value.total, 1500);
+          expect(value.pageSize, pageSize);
+          expect(value.hasMore, 2 * pageSize < 1500);
+        });
+        expect(client.requestedPage, 1);
+        expect(client.requestedSize, 1000);
+      },
+    );
+  }
+
   for (final isNozomi in [true, false]) {
     for (final data in [
       (total: 25, page: 1, limit: 10, more: true),
@@ -61,6 +110,31 @@ void main() {
         },
       );
     }
+  }
+}
+
+class _Hybooru extends hybooru.HybooruClient {
+  _Hybooru(this.effectiveSize) : super(baseUrl: 'https://example.invalid/');
+
+  final int effectiveSize;
+  int? requestedPage;
+  int? requestedSize;
+
+  @override
+  Future<hybooru.HybooruPosts> getPosts({
+    String? query,
+    int? page,
+    int? pageSize,
+    bool? hashes,
+    bool? blurhash,
+  }) async {
+    requestedPage = page;
+    requestedSize = pageSize;
+    return (
+      posts: <hybooru.PostSummaryDto>[],
+      total: 1500,
+      pageSize: effectiveSize,
+    );
   }
 }
 

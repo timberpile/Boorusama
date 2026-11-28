@@ -3,11 +3,13 @@ import 'package:booru_clients/gelbooru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/settings/providers.dart';
+import '../../../core/settings/src/types/utils.dart';
 import '../client_provider.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
@@ -57,6 +59,10 @@ extension GelbooruClientX on GelbooruClient {
     if (page <= 0 || (limit != null && limit <= 0)) {
       throw ArgumentError('Page and limit must be positive');
     }
+    final pageSize = effectivePostsPerPage(
+      BooruType.gelbooru,
+      limit ?? _kGelbooruDefaultLimit,
+    );
     final useCursor = options?.useCursor ?? false;
     if ((useCursor, cursors, GelbooruIdPagination.fromTags(tags)) case (
       false,
@@ -66,7 +72,7 @@ extension GelbooruClientX on GelbooruClient {
       return _getDeepPostResults(
         tags,
         page,
-        limit: limit ?? _kGelbooruDefaultLimit,
+        limit: pageSize,
         cursors: cursors,
         pagination: pagination,
       );
@@ -88,7 +94,7 @@ extension GelbooruClientX on GelbooruClient {
     final value = await getPosts(
       tags: requestTags,
       page: pagination != null ? 1 : page,
-      limit: limit,
+      limit: pageSize,
     );
 
     final nextCursor = pagination != null ? value.lastId : null;
@@ -108,21 +114,21 @@ extension GelbooruClientX on GelbooruClient {
             PostMetadata(
               page: page,
               search: tags.join(' '),
-              limit: limit,
+              limit: pageSize,
             ),
           ),
         )
         .toList()
         .toResult(
           total: value.count,
+          pageSize: pageSize,
           nextCursor: nextCursor,
           rawPostCount: value.rawIds.length,
           rawUniquePostCount: value.rawIds.toSet().length,
           hasMore: switch (value.count) {
             null => null,
             final count when pagination != null => value.rawIds.length < count,
-            final count when limit != null => page * limit < count,
-            _ => null,
+            final count => page * pageSize < count,
           },
         );
   }
@@ -177,6 +183,7 @@ extension GelbooruClientX on GelbooruClient {
         )
         .toList()
         .toResult(
+          pageSize: limit,
           rawPostCount: value.rawIds.length,
           rawUniquePostCount: value.rawIds.toSet().length,
           hasMore: value.count == null

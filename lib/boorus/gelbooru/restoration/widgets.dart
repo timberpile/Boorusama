@@ -29,7 +29,9 @@ class GelbooruSessionRestorePage extends ConsumerWidget {
         repository: ref.read(
           defaultPostPageFinderRepoProvider(search),
         ),
-        userChunkSize: ref.read(imageListingSettingsProvider).postsPerPage,
+        userChunkSize: ref
+            .read(listingSettingsForAuthProvider(search.auth))
+            .postsPerPage,
       ),
       snapshot: snapshot,
       onSuccess: (location) {

@@ -27,6 +27,7 @@ final gelbooruV2PostRepoProvider =
         );
 
         return GelbooruV2PostRepository(
+          fixedPageSize: client.fixedLimit,
           fetcher: (tags, page, {limit, options}) => client.getPosts(
             page: page,
             tags: tags,

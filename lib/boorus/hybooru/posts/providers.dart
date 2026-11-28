@@ -35,6 +35,10 @@ final hybooruPostRepoProvider =
               page: page - 1,
               pageSize: limit,
             );
+            final pageSize = switch (posts.pageSize) {
+              final int size when size > 0 => size,
+              _ => null,
+            };
             return posts.posts
                 .map(
                   (e) => postSummaryToPost(
@@ -42,7 +46,7 @@ final hybooruPostRepoProvider =
                     PostMetadata(
                       page: page,
                       search: tags.join(' '),
-                      limit: limit,
+                      limit: pageSize ?? limit,
                     ),
                     config.auth.url,
                   ),
@@ -50,11 +54,11 @@ final hybooruPostRepoProvider =
                 .toList()
                 .toResult(
                   total: posts.total,
-                  hasMore: switch ((posts.total, posts.pageSize)) {
-                    (final int total, final int pageSize) when pageSize > 0 =>
-                      page * pageSize < total,
-                    (_, final int pageSize) when pageSize > 0 =>
-                      posts.posts.length >= pageSize,
+                  pageSize: pageSize,
+                  hasMore: switch ((posts.total, pageSize)) {
+                    (final int total, final int stride) =>
+                      page * stride < total,
+                    (_, final int stride) => posts.posts.length >= stride,
                     _ => null,
                   },
                 );

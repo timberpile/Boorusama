@@ -23,6 +23,7 @@ import '../../../../../core/posts/pools/group_post_scope.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/posts/related/related_family.dart';
 import '../../../../../core/settings/providers.dart';
+import '../../../../../core/settings/src/types/utils.dart';
 import '../../../../../core/posts/related/related_posts_order.dart';
 import '../../../../../core/posts/listing/src/widgets/timeline_option_selector.dart';
 import '../../../../../core/widgets/widgets.dart';
@@ -142,7 +143,9 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
     }
     _scrollOrder = order;
     final perPage = ref.watch(
-      imageListingSettingsProvider.select((s) => s.postsPerPage),
+      imageListingSettingsProvider.select(
+        (s) => effectiveGroupPostsPerPage(s.postsPerPage),
+      ),
     );
     return SafeArea(
       top: false,

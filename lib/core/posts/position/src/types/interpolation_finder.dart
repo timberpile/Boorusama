@@ -79,9 +79,15 @@ class InterpolationPageFinder extends BasePageFinder {
       visitedPages: {},
     );
 
-    if (snapshot.historicalPage != null &&
-        snapshot.historicalChunkSize != null) {
-      final startingPage = _calculateStartingPage(snapshot);
+    if ((snapshot.historicalPage, snapshot.historicalChunkSize)
+        case (
+          final page?,
+          final chunkSize?,
+        )
+        when page > 0 && chunkSize > 0) {
+      final offset = (page - 1) * chunkSize;
+      final startingPage = offset ~/ searchChunkSize + 1;
+      log('  [adjust] Historical: p.$page → p.$startingPage');
       _state = _state.updateExpectedPage(startingPage);
     }
 
@@ -113,16 +119,6 @@ class InterpolationPageFinder extends BasePageFinder {
       onProgress?.call(PageFinderFailedProgress(e));
       return null;
     }
-  }
-
-  int _calculateStartingPage(PaginationSnapshot snapshot) {
-    final chunkSizeRatio = userChunkSize / snapshot.historicalChunkSize!;
-    final estimatedPage = (snapshot.historicalPage! * chunkSizeRatio).round();
-
-    log(
-      '  [adjust] Historical: p.${snapshot.historicalPage} → p.$estimatedPage (ratio: ${chunkSizeRatio.toStringAsFixed(2)})',
-    );
-    return estimatedPage.clamp(1, double.infinity).toInt();
   }
 
   Future<PageLocation> _findRecursive(

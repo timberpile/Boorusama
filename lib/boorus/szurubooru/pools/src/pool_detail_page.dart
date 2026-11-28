@@ -29,6 +29,7 @@ import '../../../../core/posts/pools/widgets.dart';
 import '../../../../core/posts/post/types.dart';
 import '../../../../core/search/search/routes.dart';
 import '../../../../core/settings/providers.dart';
+import '../../../../core/settings/src/types/utils.dart';
 import '../bookmarks.dart';
 import '../content_group_source.dart';
 import '../types.dart';
@@ -203,7 +204,9 @@ class _SzurubooruPoolDetailContentState
       sourceKey: 'pool:${pool.id}',
     );
     final perPage = ref.watch(
-      imageListingSettingsProvider.select((s) => s.postsPerPage),
+      imageListingSettingsProvider.select(
+        (s) => effectiveGroupPostsPerPage(s.postsPerPage),
+      ),
     );
     final actions = <Widget>[
       const GroupLinkShareButton(),

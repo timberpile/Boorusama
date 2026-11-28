@@ -9,6 +9,7 @@ import '../../../images/types.dart';
 import '../../../content/content_access_provider.dart';
 import '../../../content/content_access.dart';
 import '../types/settings.dart';
+import '../types/utils.dart';
 import 'settings_provider.dart';
 
 final imageListingSettingsProvider = Provider<ImageListingSettings>((ref) {
@@ -45,7 +46,13 @@ final listingSettingsForAuthProvider =
           .where((c) => c.auth == auth)
           .toList();
       final custom = profiles.length == 1 ? profiles.single.listing : null;
-      return custom != null && custom.enable ? custom.settings : global;
+      final listing = _effectiveListing(global, custom);
+      return listing.copyWith(
+        postsPerPage: effectivePostsPerPage(
+          auth.booruType,
+          listing.postsPerPage,
+        ),
+      );
     });
 
 /// Group reads use the exact bound profile, including when accounts share auth.
@@ -56,9 +63,12 @@ final listingSettingsForAccessProvider = Provider.autoDispose
           settingsProvider.select((value) => value.listing),
         );
         final profile = ref.watch(contentAccessContextProvider(key))?.config;
-        return _effectiveListing(
+        final listing = _effectiveListing(
           global,
           profile?.anonymousReadScope == null ? profile?.listing : null,
+        );
+        return listing.copyWith(
+          postsPerPage: effectiveGroupPostsPerPage(listing.postsPerPage),
         );
       },
       dependencies: [settingsProvider, contentAccessContextProvider],

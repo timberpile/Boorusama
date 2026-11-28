@@ -64,6 +64,7 @@ class PostResult<T extends Post> extends Equatable {
     this.hasMore,
     this.rawPostCount,
     this.rawUniquePostCount,
+    this.pageSize,
   });
 
   PostResult.empty()
@@ -73,7 +74,8 @@ class PostResult<T extends Post> extends Equatable {
       nextCursor = null,
       hasMore = null,
       rawPostCount = null,
-      rawUniquePostCount = null;
+      rawUniquePostCount = null,
+      pageSize = null;
 
   PostResult<T> copyWith({
     List<T>? posts,
@@ -83,6 +85,7 @@ class PostResult<T extends Post> extends Equatable {
     bool? Function()? hasMore,
     int? Function()? rawPostCount,
     int? Function()? rawUniquePostCount,
+    int? Function()? pageSize,
   }) => PostResult(
     posts: posts ?? this.posts,
     total: total != null ? total() : this.total,
@@ -93,6 +96,7 @@ class PostResult<T extends Post> extends Equatable {
     rawUniquePostCount: rawUniquePostCount != null
         ? rawUniquePostCount()
         : this.rawUniquePostCount,
+    pageSize: pageSize != null ? pageSize() : this.pageSize,
   );
 
   final List<T> posts;
@@ -106,6 +110,9 @@ class PostResult<T extends Post> extends Equatable {
   final int? rawPostCount;
   final int? rawUniquePostCount;
 
+  /// Source page stride, which may differ from the saved listing preference.
+  final int? pageSize;
+
   @override
   List<Object?> get props => [
     posts,
@@ -115,6 +122,7 @@ class PostResult<T extends Post> extends Equatable {
     hasMore,
     rawPostCount,
     rawUniquePostCount,
+    pageSize,
   ];
 }
 
@@ -126,6 +134,7 @@ extension PostResultX<T extends Post> on List<T> {
     bool? hasMore,
     int? rawPostCount,
     int? rawUniquePostCount,
+    int? pageSize,
   }) => PostResult(
     posts: this,
     total: total,
@@ -134,6 +143,7 @@ extension PostResultX<T extends Post> on List<T> {
     hasMore: hasMore,
     rawPostCount: rawPostCount,
     rawUniquePostCount: rawUniquePostCount,
+    pageSize: pageSize,
   );
 }
 

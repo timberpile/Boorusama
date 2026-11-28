@@ -40,9 +40,7 @@ class PostRepositoryBuilder<T extends Post>
     int? limit,
     PostFetchOptions? options,
   }) => TaskEither.Do(($) async {
-    var lim = limit;
-
-    lim ??= await getSettings().then((value) => value.postsPerPage);
+    final lim = limit ?? (await getSettings()).postsPerPage;
 
     final newTags = tags.isEmpty ? <String>[] : tags.split(' ');
 
@@ -50,11 +48,9 @@ class PostRepositoryBuilder<T extends Post>
 
     return $(
       tryFetchRemoteData(
-        fetcher: () => fetch(
-          tags2,
-          page,
-          limit: lim,
-          options: options,
+        fetcher: () => _withPageSize(
+          fetch(tags2, page, limit: lim, options: options),
+          lim,
         ),
       ),
     );
@@ -68,40 +64,47 @@ class PostRepositoryBuilder<T extends Post>
     PostFetchOptions? options,
   }) => fetchFromController != null
       ? TaskEither.Do(($) async {
-          var lim = limit;
-
-          lim ??= await getSettings().then((value) => value.postsPerPage);
+          final lim = limit ?? (await getSettings()).postsPerPage;
 
           return $(
             tryFetchRemoteData(
-              fetcher: () => fetchFromController!(
-                controller,
-                page,
-                limit: lim,
-                options: options,
+              fetcher: () => _withPageSize(
+                fetchFromController!(
+                  controller,
+                  page,
+                  limit: lim,
+                  options: options,
+                ),
+                lim,
               ),
             ),
           );
         })
       : TaskEither.Do(($) async {
-          var lim = limit;
-
-          lim ??= await getSettings().then((value) => value.postsPerPage);
+          final lim = limit ?? (await getSettings()).postsPerPage;
 
           final tags = controller.rawTags;
           final composedTags = tagComposer.compose(tags);
 
           return $(
             tryFetchRemoteData(
-              fetcher: () => fetch(
-                composedTags,
-                page,
-                limit: lim,
-                options: options,
+              fetcher: () => _withPageSize(
+                fetch(composedTags, page, limit: lim, options: options),
+                lim,
               ),
             ),
           );
         });
+
+  Future<PostResult<T>> _withPageSize(
+    Future<PostResult<T>> fetch,
+    int requested,
+  ) async {
+    final result = await fetch;
+    return result.total == null || result.pageSize != null
+        ? result
+        : result.copyWith(pageSize: () => requested);
+  }
 
   @override
   PostOrError<T> getPost(

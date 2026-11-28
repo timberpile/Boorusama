@@ -82,7 +82,11 @@ class _PostsPerPageDialogState extends State<PostsPerPageDialog> {
                   decoration: InputDecoration(
                     helperText: '$minPostsPerPage–$maxPostsPerPage',
                     errorText: _hasError
-                        ? context.t.settings.performance.posts_per_page_invalid
+                        ? context.t.settings.performance
+                              .posts_per_page_out_of_range(
+                                min: minPostsPerPage,
+                                max: maxPostsPerPage,
+                              )
                         : null,
                   ),
                   onChanged: (_) {
