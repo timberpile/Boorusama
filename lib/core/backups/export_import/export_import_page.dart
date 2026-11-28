@@ -1,5 +1,3 @@
-import '../mitemite/mitemite_icon.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -8,7 +6,6 @@ import 'package:kurumi/material.dart';
 import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
 import '../auto/widgets.dart';
-import '../mitemite/page.dart';
 import '../transfer/route_utils.dart';
 import '../transfer/sync_data_page.dart';
 import '../utils/backup_file_picker.dart';
@@ -158,18 +155,6 @@ class ExportImportPage extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ManualBackupPage()),
-                ),
-              ),
-            ),
-            Card(
-              child: ListTile(
-                leading: const MiteMiteIcon(),
-                title: Text(context.t.mitemite.title),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const MiteMitePage(),
-                  ),
                 ),
               ),
             ),

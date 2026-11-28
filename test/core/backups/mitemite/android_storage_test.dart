@@ -100,6 +100,11 @@ void main() {
       await expectLater(storage.list('devices'), throwsFormatException);
       response = ['nested/path'];
       await expectLater(storage.list('devices'), throwsFormatException);
+      failure = PlatformException(code: 'sync_invalid_payload');
+      await expectLater(
+        storage.read('devices/$owner/catalog/1.json', maxBytes: 2),
+        throwsFormatException,
+      );
       failure = PlatformException(code: 'sync_folder_access_required');
       await expectLater(
         storage.read('devices/$owner/identity.json'),
@@ -111,6 +116,49 @@ void main() {
       );
     },
   );
+  test(
+    'large Bookmark transfers send file paths and verification data',
+    () async {
+      const collection = '22222222-1111-4111-8111-111111111111';
+      const path =
+          'devices/$owner/collections/bookmarks/$collection/1.bsexport';
+      const source = '/data/user/0/app/cache/staged';
+      const digest =
+          '0000000000000000000000000000000000000000000000000000000000000000';
+      const length = miteMiteMaxBytes + 1;
+      await storage.writePayload(
+        path,
+        sourcePath: source,
+        length: length,
+        sha256: digest,
+      );
+      expect(calls.single.method, 'writePayload');
+      expect(calls.single.arguments, {
+        'location': tree,
+        'path': path,
+        'sourcePath': source,
+        'length': length,
+        'sha256': digest,
+      });
+      response = false;
+      expect(
+        await storage.copyPayload(path, length: length, sha256: digest),
+        isFalse,
+      );
+      expect(calls.last.method, 'copyPayload');
+      failure = PlatformException(code: 'sync_invalid_payload');
+      await expectLater(
+        storage.copyPayload(
+          path,
+          destination: source,
+          length: length,
+          sha256: digest,
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
   test('immutable-write failures and owned retention are explicit', () async {
     response = false;
     await expectLater(

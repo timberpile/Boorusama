@@ -12,7 +12,13 @@ bool hasLocalSyncChanges(
   BookmarkLibraryState before,
   BookmarkLibraryState after,
 ) {
-  if (identical(before, after)) return false;
+  if (identical(before, after) ||
+      (identical(before.groups, after.groups) &&
+          identical(before.records, after.records) &&
+          before.mirrors.owners.length == after.mirrors.owners.length &&
+          before.mirrors.owners.keys.every(after.mirrors.owners.containsKey))) {
+    return false;
+  }
   if (!const SetEquality<String>().equals(
     before.localGroupIds,
     after.localGroupIds,

@@ -12,6 +12,7 @@ import '../package/export_package_limits.dart';
 import '../package/export_package_reader.dart';
 import '../package/export_package_writer.dart';
 import '../package/staged_export_package.dart';
+import 'import_progress.dart';
 
 final class LegacyImportSourceDescriptor {
   const LegacyImportSourceDescriptor({
@@ -27,7 +28,7 @@ final class LegacyImportStager {
   const LegacyImportStager({
     required this.fs,
     required this.sources,
-    this.limits = const ExportPackageLimits(),
+    this.limits = const ExportPackageLimits(separateBookmarkBudget: true),
   });
 
   final AppFileSystem fs;
@@ -40,9 +41,14 @@ final class LegacyImportStager {
       return await reader.stage(path);
     } on ExportPackageException {
       final extension = p.extension(path).toLowerCase();
-      if (extension == '.bsexport') rethrow;
+      if (extension == '.bsexport' ||
+          (ImportProgress.current?.cancelled ?? false)) {
+        rethrow;
+      }
       final converted = switch (extension) {
-        '.zip' => await _convertZip(path),
+        '.zip' => await runImportWorker(
+          _ConvertLegacyZip(path, sources, limits).run,
+        ),
         _ => null,
       };
       if (converted == null) rethrow;
@@ -97,6 +103,15 @@ final class LegacyImportStager {
       final descriptors = {for (final source in sources) source.id: source};
       extractionPath = await fs.createTempDirectory('boorusama_legacy_');
       final payloads = <({LegacyImportSourceDescriptor source, String path})>[];
+      final total = manifest.sourceFiles.entries
+          .where((entry) => descriptors.containsKey(entry.key))
+          .fold<int>(
+            0,
+            (sum, entry) => sum + (archive!.find(entry.value)?.size ?? 0),
+          );
+      var extracted = 0;
+      final progress = ImportProgress.current;
+      progress?.show(ImportProgressPhase.extracting, total: total);
       for (final entry in manifest.sourceFiles.entries) {
         final source = descriptors[entry.key];
         if (source == null) continue;
@@ -117,6 +132,12 @@ final class LegacyImportStager {
         } finally {
           await output.close();
         }
+        extracted += archiveFile.size;
+        progress?.show(
+          ImportProgressPhase.extracting,
+          completed: extracted,
+          total: total,
+        );
         payloads.add((source: source, path: outputPath));
       }
       if (payloads.isEmpty) {
@@ -124,6 +145,7 @@ final class LegacyImportStager {
           'Legacy backup has no supported sources',
         );
       }
+      progress?.show(ImportProgressPhase.preparing);
       final converted = await _writeConverted(
         createdAt: manifest.exportDate.toUtc(),
         appVersion: manifest.appVersion ?? 'legacy',
@@ -251,4 +273,18 @@ final class _ConvertedLegacyPackage {
       await fs.deleteDirectory(directoryPath, recursive: true);
     }
   }
+}
+
+final class _ConvertLegacyZip {
+  const _ConvertLegacyZip(this.path, this.sources, this.limits);
+
+  final String path;
+  final List<LegacyImportSourceDescriptor> sources;
+  final ExportPackageLimits limits;
+
+  Future<_ConvertedLegacyPackage?> run() => LegacyImportStager(
+    fs: const IoFileSystem(),
+    sources: sources,
+    limits: limits,
+  )._convertZip(path);
 }

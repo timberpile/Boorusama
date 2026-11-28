@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:boorusama/core/backups/mitemite/bookmark_package.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';

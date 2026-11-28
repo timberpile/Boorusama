@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 // Package imports:
 import 'package:hive_ce/hive.dart';
 
@@ -12,6 +14,18 @@ class BookmarkGroupHiveObject extends HiveObject {
     Map<dynamic, dynamic>? addedAt,
   }) : bookmarkIds = List.unmodifiable(bookmarkIds),
        addedAt = addedAt == null ? null : Map.unmodifiable(addedAt);
+
+  /// The caller hands ownership of both containers to this row.
+  BookmarkGroupHiveObject.fromTransfer({
+    required this.id,
+    required this.name,
+    required List<int> bookmarkIds,
+    required Map<int, String> addedAt,
+    required this.parentGroupId,
+    required this.position,
+  }) : folderId = null,
+       bookmarkIds = UnmodifiableListView(bookmarkIds),
+       addedAt = UnmodifiableMapView(addedAt);
 
   final String id;
   final String name;

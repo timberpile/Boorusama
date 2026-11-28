@@ -7,6 +7,7 @@ import 'package:equatable/equatable.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 // Project imports:
+import '../../../../foundation/cooperative_work.dart';
 import '../../../posts/post/types.dart';
 import 'bookmark.dart';
 import 'bookmark_mirror_state.dart';
@@ -119,6 +120,83 @@ class BookmarkLibraryState extends Equatable {
   }) : _recordIndex = recordIndex,
        _canonical = canonical;
 
+  /// Builds the canonical snapshot without a blocking pass over the library.
+  static Future<BookmarkLibraryState> buildCooperatively({
+    required List<Bookmark> records,
+    required List<BookmarkGroup> groups,
+    required List<CollectionFolder> folders,
+    required Map<String, String> legacyFolderGroupIds,
+    required BookmarkMirrorState mirrors,
+    required int revision,
+    void Function(int completed, int total)? onProgress,
+  }) async {
+    final indexUnits =
+        records.length * 2 +
+        groups.fold<int>(0, (sum, group) => sum + group.bookmarkIds.length);
+    final total = indexUnits + records.length;
+    onProgress?.call(0, total);
+    final index = await BookmarkRecordIndex.buildCooperatively(
+      records: records,
+      groups: groups,
+      revision: revision,
+      onProgress: (done) => onProgress?.call(done, total),
+    );
+
+    final work = CooperativeWork();
+    final groupById = {for (final group in groups) group.id: group};
+    final media = <PostBookmark>[];
+    final byId = <int, PostBookmark>{};
+    final byUniqueId = <BookmarkUniqueId, PostBookmark>{};
+    final memberships = <BookmarkUniqueId, Set<String>>{};
+    final pools = <CollectionBookmark>[];
+    for (final (offset, record) in index.records.indexed) {
+      if (record is PostBookmark) {
+        media.add(record);
+        byId[record.id] = record;
+        if (record.uniqueId is BookmarkIdentity &&
+            bookmarkContentIdentity(record) != null) {
+          byUniqueId[record.uniqueId] = record;
+          memberships[record.uniqueId] =
+              index.membershipsByBookmarkId[record.id]!;
+        }
+      } else {
+        final dates = <String, DateTime>{};
+        for (final groupId in index.membershipsByBookmarkId[record.id]!) {
+          dates[groupId] =
+              groupById[groupId]!.addedAt[record.id] ??
+              bookmarkCreatedAt(record).toUtc();
+          if (work.checkpoint() case final pause?) await pause;
+        }
+        if (bookmarkCollectionProjection(record, memberships: dates)
+            case final pool?) {
+          pools.add(pool);
+        }
+      }
+      if (work.checkpoint() case final pause?) {
+        onProgress?.call(indexUnits + offset + 1, total);
+        await pause;
+      }
+    }
+    final identities = byUniqueId.keys.toISet();
+    onProgress?.call(total, total);
+    return BookmarkLibraryState._derived(
+      mirrors: mirrors,
+      folders: List.unmodifiable(folders),
+      legacyFolderGroupIds: Map.unmodifiable(legacyFolderGroupIds),
+      pools: UnmodifiableListView(pools),
+      items: UnmodifiableListView(media),
+      bookmarks: identities,
+      groups: List.unmodifiable(groups),
+      bookmarksById: UnmodifiableMapView(byId),
+      bookmarksByUniqueId: UnmodifiableMapView(byUniqueId),
+      groupsById: UnmodifiableMapView(groupById),
+      membershipsByBookmark: UnmodifiableMapView(memberships),
+      recordIndex: index,
+      canonical: true,
+      revision: revision,
+    );
+  }
+
   final BookmarkMirrorState mirrors;
   late final Set<String> localGroupIds = Set.unmodifiable(
     groupsById.keys.where((id) => !mirrors.isReceived(id)),
@@ -147,8 +225,12 @@ class BookmarkLibraryState extends Equatable {
           records.where((item) => localBookmarkIds.contains(item.id)),
         );
 
-  BookmarkLibraryState withMirrors(BookmarkMirrorState value) =>
-      value == mirrors
+  BookmarkLibraryState withMirrors(
+    BookmarkMirrorState value, {
+    int? revision,
+  }) =>
+      identical(value, mirrors) &&
+          (revision == null || revision == this.revision)
       ? this
       : BookmarkLibraryState._derived(
           mirrors: value,
@@ -164,7 +246,7 @@ class BookmarkLibraryState extends Equatable {
           membershipsByBookmark: membershipsByBookmark,
           recordIndex: _recordIndex,
           canonical: _canonical,
-          revision: revision,
+          revision: revision ?? this.revision,
         );
 
   final BookmarkRecordIndex _recordIndex;
@@ -723,7 +805,10 @@ List<CollectionBookmark> _projectAllPools(
   return _projectPoolDelta(
     index: index,
     groups: groups,
-    changedIds: index.byId.keys.toSet(),
+    changedIds: {
+      for (final record in index.records)
+        if (record is! PostBookmark) record.id,
+    },
     previous: const [],
   );
 }

@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../../foundation/cooperative_work.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_record_fields.dart';
@@ -58,14 +59,24 @@ final class UnifiedBookmarkGroupRepository
   }
 
   Future<BookmarkGroup> _require(String id) async =>
-      await _reader.getGroup(_id(id)) ??
+      await _effectiveGroup(_id(id)) ??
       (throw StateError('Bookmark Group unavailable'));
 
+  Future<List<BookmarkGroup>> _effectiveGroups() async => [
+    for (final group in await _reader.getGroups())
+      bookmarks.groupWithMirroredBuckets(group),
+  ];
+
+  Future<BookmarkGroup?> _effectiveGroup(String id) async {
+    final raw = await _reader.getGroup(id);
+    return raw == null ? null : bookmarks.groupWithMirroredBuckets(raw);
+  }
+
   @override
-  Future<List<BookmarkGroup>> getGroups() => _run(_reader.getGroups);
+  Future<List<BookmarkGroup>> getGroups() => _run(_effectiveGroups);
   @override
   Future<BookmarkGroup?> getGroup(String id) =>
-      _run(() => _reader.getGroup(_id(id)));
+      _run(() => _effectiveGroup(_id(id)));
   @override
   Future<BookmarkGroup> createGroup(String name, {String? id}) =>
       _run(() async {
@@ -73,7 +84,7 @@ final class UnifiedBookmarkGroupRepository
         if (await _reader.getGroup(localId) != null) {
           throw StateError('Group already exists');
         }
-        final groups = await _reader.getGroups();
+        final groups = await _effectiveGroups();
         final group = BookmarkGroup(
           id: localId,
           name: localId == defaultBookmarkGroupId ? 'Default' : _name(name),
@@ -90,7 +101,7 @@ final class UnifiedBookmarkGroupRepository
   Future<BookmarkGroup> duplicateGroup(String id, {String? name}) =>
       _run(() async {
         final source = await _require(id);
-        final groups = await _reader.getGroups();
+        final groups = await _effectiveGroups();
         final copies = BookmarkGroupTree(groups).duplicateSubtrees(
           {source.id: _name(name ?? source.name)},
           createId: () => _uuid.v4().toLowerCase(),
@@ -148,7 +159,7 @@ final class UnifiedBookmarkGroupRepository
   Future<void> removeBookmarkFromAllGroups(int bookmarkId) => _run(() async {
     await bookmarks.commitOrganization(
       groups: [
-        for (final group in await _reader.getGroups())
+        for (final group in await _effectiveGroups())
           if (group.bookmarkIds.contains(bookmarkId))
             group.copyWith(
               bookmarkIds: group.bookmarkIds.difference({bookmarkId}),
@@ -160,7 +171,7 @@ final class UnifiedBookmarkGroupRepository
   Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) => _run(
     () async {
       final group = await _require(id);
-      final groups = await _reader.getGroups();
+      final groups = await _effectiveGroups();
       final tree = BookmarkGroupTree(groups);
       final subtree = tree.subtreeIds(id);
       final otherIds = {
@@ -195,10 +206,17 @@ final class UnifiedBookmarkGroupRepository
   @override
   Future<bool> repair({required Set<int> validBookmarkIds}) => _run(() async {
     final changed = <BookmarkGroup>[];
-    for (final group in await _reader.getGroups()) {
-      final ids = group.bookmarkIds.intersection(validBookmarkIds);
-      if (ids.length != group.bookmarkIds.length) {
-        changed.add(group.copyWith(bookmarkIds: ids));
+    final work = CooperativeWork();
+    for (final group in await _effectiveGroups()) {
+      final invalid = <int>{};
+      for (final id in group.bookmarkIds) {
+        if (!validBookmarkIds.contains(id)) invalid.add(id);
+        if (work.checkpoint() case final pause?) await pause;
+      }
+      if (invalid.isNotEmpty) {
+        changed.add(
+          group.copyWith(bookmarkIds: group.bookmarkIds.difference(invalid)),
+        );
       }
     }
     if (changed.isNotEmpty) await bookmarks.commitOrganization(groups: changed);
@@ -223,7 +241,7 @@ final class UnifiedBookmarkGroupRepository
       _run(() => _reader.recordManualGroupInteraction(_id(groupId)));
 
   Future<List<CollectionBookmark>> _projections(List<Bookmark> records) async {
-    final groups = await _reader.getGroups();
+    final groups = await _effectiveGroups();
     return [
       for (final record in records)
         ?bookmarkCollectionProjection(
@@ -251,7 +269,7 @@ final class UnifiedBookmarkGroupRepository
   Future<void> writePoolBookmarks(
     List<CollectionBookmark> values,
   ) => _run(() async {
-    final groups = await _reader.getGroups();
+    final groups = await _effectiveGroups();
     final byGroup = {for (final group in groups) group.id: group};
     final existingRecords = await bookmarks.readGroupBookmarks();
     final existingViews = await _projections(existingRecords);

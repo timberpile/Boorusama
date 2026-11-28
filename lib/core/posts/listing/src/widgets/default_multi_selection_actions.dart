@@ -45,28 +45,25 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([controller, postController]),
       builder: (context, _) {
-        final selectedPosts = List<T>.unmodifiable(
-          PostActionSnapshot.uniquePosts(
-            postController.refreshing
-                ? <T>[]
-                : selectedPostsBuilder?.call(controller) ??
-                      controller
-                          .selectedFrom(postController.items.toList())
-                          .toList(),
-          ),
-        );
-        if (selectedPosts.isEmpty) {
+        final selected = postController.refreshing
+            ? <T>[]
+            : selectedPostsBuilder?.call(controller) ??
+                  controller
+                      .selectedFrom(postController.itemsNotifier.value)
+                      .toList();
+        if (selected.isEmpty) {
           if (selectedPostsBuilder == null ||
               controller.selection.isEmpty ||
               postController.refreshing) {
             return const SizedBox.shrink();
           }
-          final extras = extraActions?.call(selectedPosts) ?? const <Widget>[];
+          final extras = extraActions?.call(selected) ?? const <Widget>[];
           return extras.isEmpty
               ? const SizedBox.shrink()
               : MultiSelectionActionBar(children: extras);
         }
-        final snapshot = PostActionSnapshot.watch(ref, selectedPosts);
+        final snapshot = PostActionSnapshot.watch(ref, selected);
+        final selectedPosts = snapshot.posts.cast<T>();
         final actions = _PostActionsBar(
           snapshot: snapshot,
           bookmark: bookmark,

@@ -91,7 +91,7 @@ void main() {
   test('unknown root schema, duplicate and missing roots fail closed', () {
     final original = catalog({id(parent)}).toJson();
     expect(
-      () => SyncCatalog.fromJson({...original, 'publicationScopeVersion': 3}),
+      () => SyncCatalog.fromJson({...original, 'publicationScopeVersion': 4}),
       throwsA(isA<SyncUpdateRequired>()),
     );
     expect(

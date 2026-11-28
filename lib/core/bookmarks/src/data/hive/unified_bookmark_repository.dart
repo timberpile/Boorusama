@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
@@ -11,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../local_media/local_media_reference.dart';
 
+import '../../../../../foundation/cooperative_work.dart';
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
 import '../../../../../foundation/loggers/logger.dart';
@@ -39,6 +41,8 @@ import 'bookmark_id_store.dart';
 import 'bookmark_group_hive_object.dart';
 
 part 'unified_bookmark_organization.dart';
+part 'unified_bookmark_buckets.dart';
+part 'unified_bookmark_reading_buckets.dart';
 
 /// One payload/kind/ID authority. The old Post box is retained unchanged; Group
 /// payloads are private and no numeric range is used to determine record kind.
@@ -79,6 +83,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   final StoredBookmarkCodec _codec;
   final Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? _syncOverride;
   var _initialized = false;
+  final _organizationGroupSnapshots = Expando<BookmarkGroup>();
+  final _receivedGroupDigests = Expando<String>();
+  final _mirrorSnapshots = Expando<BookmarkMirrorState>();
+  final _bucketGroupSnapshots = <String, (BookmarkGroup, BookmarkGroup)>{};
   // Hive replaces raw maps on writes. Weak keys reuse immutable Group decoding
   // without retaining another library cache or keeping deleted payloads alive.
   final _decodedGroups = Expando<Bookmark>();
@@ -114,6 +122,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         if (!_initialized) {
           await _initialize();
           await _recover();
+          if (_metadata.path != null) {
+            await _discardSpooledRows();
+          }
           _audit();
           _initialized = true;
         } else {
@@ -207,7 +218,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   int _highestPayloadId() {
     var highest = -1;
-    for (final key in [..._posts.keys, ..._groups.keys]) {
+    for (final key in _posts.keys.followedBy(_groups.keys)) {
       final id = _localId(key);
       if (id > highest) highest = id;
     }
@@ -576,7 +587,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     if (raw == null) {
       throw const FormatException('Received Bookmark ownership is missing');
     }
-    return BookmarkMirrorState.fromJson(raw);
+    if (raw is! Map) {
+      throw const FormatException('Invalid Bookmark mirror state');
+    }
+    return _mirrorSnapshots[raw] ??= _restoreMirrorReading(raw);
   }
 
   @override
@@ -593,9 +607,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     Set<String> removeGroupIds = const {},
     bool localCopy = false,
     Set<String> purgedSources = const {},
+    bool streamRecords = false,
+    Map<String, BookmarkMirrorMembershipPatch> membershipPatches = const {},
   }) => _ready(() async {
     final current = _mirrors();
-    if (!_same(current.toJson(), expected.toJson()) ||
+    if ((!identical(current, expected) &&
+            !_same(current.toJson(), expected.toJson())) ||
         next.epoch != expected.epoch + 1 ||
         purgedSources.any(
           (key) =>
@@ -609,13 +626,16 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       throw StateError('Bookmark mirror state changed before commit');
     }
     await _mutate(
-      records.toList(),
+      records,
       removeIds,
       organizationGroups: groups,
       removedOrganizationGroups: removeGroupIds,
       mirrorState: next,
       localCopy: localCopy,
       purgedSources: purgedSources,
+      spoolUpserts: streamRecords,
+      work: streamRecords ? CooperativeWork() : null,
+      membershipPatches: membershipPatches,
     );
   });
 
@@ -649,23 +669,119 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     );
   });
   @override
-  Future<List<Bookmark>> readAll() => _ready(() async {
-    final ids =
-        _metadata.keys
-            .whereType<String>()
-            .where((key) => key.startsWith('record:'))
-            .map((key) => _localId(int.tryParse(key.substring(7))))
-            .toList()
-          ..sort();
-    return performanceRecorder.measureSync(
+  Future<List<Bookmark>> readAll() => readLibraryRecords();
+
+  Future<List<Bookmark>> readLibraryRecords({
+    void Function(int completed, int total)? onProgress,
+  }) => _ready(() async {
+    final ids = <int>[];
+    final work = CooperativeWork();
+    for (final key in _metadata.keys.whereType<String>()) {
+      if (key.startsWith('record:')) {
+        ids.add(_localId(int.tryParse(key.substring(7))));
+      }
+      if (work.checkpoint() case final pause?) await pause;
+    }
+    ids.sort();
+    return performanceRecorder.measureAsync(
       PerfOperation.bookmarkDecodeAll,
-      () => List<Bookmark>.unmodifiable([
-        for (final id in ids) ?_read(id),
-      ]),
+      () async {
+        final records = <Bookmark>[];
+        final total = _posts.length + _groups.length;
+        onProgress?.call(0, total);
+        for (final id in ids) {
+          if (_read(id) case final record?) {
+            records.add(record);
+            onProgress?.call(records.length, total);
+          }
+          if (work.checkpoint() case final pause?) await pause;
+        }
+        return List<Bookmark>.unmodifiable(records);
+      },
     );
   });
+
+  Future<int> countTransferRows() => _ready(() async {
+    final (groups, _) = await _organizationBoxes();
+    return _posts.length +
+        _groups.length +
+        groups.length +
+        groups.values.fold<int>(
+          0,
+          (n, group) => n + _logicalOrganizationRow(group).bookmarkIds.length,
+        );
+  });
+
+  Future<void> upsertTransferRecords(
+    List<Bookmark> records,
+    CooperativeWork work,
+  ) => _ready(() => _mutate(records, const {}, work: work));
+
   @override
   Future<Bookmark?> read(int id) => _ready(() async => _read(_localId(id)));
+
+  /// Visit live payloads under the same pin as the organization rows. Decode
+  /// one record at a time so backups can make bounded passes over the store.
+  Future<void> visitTransferRecords(
+    Future<void> Function(Bookmark record) visit,
+  ) => _ready(() async {
+    for (final key in _posts.keys) {
+      await visit(_read(_localId(key))!);
+    }
+    for (final key in _groups.keys) {
+      await visit(_read(_localId(key))!);
+    }
+  });
+
+  Future<void> visitTransferGroups(
+    Future<void> Function(BookmarkGroupHiveObject group) visit,
+  ) => _ready(() async {
+    final (groups, _) = await _organizationBoxes();
+    for (final group in groups.values) {
+      await visit(_logicalOrganizationRow(group));
+    }
+  });
+
+  Future<void> validateActiveMemberships(Iterable<BookmarkGroup> groups) =>
+      _ready(() async {
+        // Decode/check every payload as on a normal reopen without keeping a
+        // second, full decoded library alive while validating memberships.
+        await visitTransferRecords((_) async {});
+        for (final group in groups) {
+          if (group.bookmarkIds.length != group.addedAt.length ||
+              (group.isDefault && group.name != 'Default') ||
+              group.bookmarkIds.any((id) {
+                final header = _storedHeader(id);
+                return header == null || header['kind'] == 'deleted';
+              })) {
+            throw const FormatException(
+              'Invalid hierarchy membership authority',
+            );
+          }
+        }
+      });
+
+  /// Only called while the package transaction owns a durable preimage.
+  /// Its organization plan has already removed all references to these IDs.
+  Future<void> deleteTransferRecords(Set<int> ids) => _ready(
+    () => _mutate(
+      const [],
+      ids,
+      detachDeletedMemberships: false,
+      work: CooperativeWork(),
+    ),
+  );
+
+  /// The package recovery gate supplies verified local IDs, including IDs
+  /// tombstoned by an interrupted package import.
+  Future<void> restoreTransferRecords(List<Bookmark> records) => _ready(
+    () => _mutate(
+      records,
+      const {},
+      restoreLocalPreimage: true,
+      work: CooperativeWork(),
+    ),
+  );
 
   /// Legacy Pool/Related presentation reads only Group payloads. The loaded
   /// library remains the common index; no Post snapshots are decoded here.
@@ -708,7 +824,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   });
 
   Future<void> _mutate(
-    List<Bookmark> records,
+    Iterable<Bookmark> records,
     Set<int> removeIds, {
     List<BookmarkGroup> organizationGroups = const [],
     Set<String> removedOrganizationGroups = const {},
@@ -717,126 +833,259 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     BookmarkMirrorState? mirrorState,
     bool localCopy = false,
     Set<String> purgedSources = const {},
+    bool detachDeletedMemberships = true,
+    CooperativeWork? work,
+    bool spoolUpserts = false,
+    Map<String, BookmarkMirrorMembershipPatch> membershipPatches = const {},
   }) async {
-    final deletes = <Map<String, Object?>>[];
-    final previous = <String, Object?>{};
-    for (final id in removeIds) {
-      final header = _storedHeader(id);
-      if (header == null || header['kind'] == 'deleted') continue;
-      _read(id);
-      previous['$id'] = header;
-      deletes.add({'id': id, 'kind': header['kind']});
-    }
-    final deleting = deletes.map((entry) => entry['id']! as int).toSet();
-    final upserts = <Map<String, Object?>>[];
-    final normalized = <Bookmark>[];
-    final headers = <String, Object?>{};
-    final identities = <ContentIdentity, int>{};
-    final restoredIds = <int>{};
-    final bound = (await _ids.readNextId())!;
-    final floor = _metadata.get(_floor) as int;
-    for (final original in records) {
-      final id = _localId(original.id);
-      if (headers.containsKey('$id') || removeIds.contains(id)) {
-        throw const FormatException('Duplicate Bookmark mutation ID');
+    final spool = spoolUpserts ? _spooledRows : null;
+    var admitted = false;
+    var rowCount = 0;
+    var pendingBytes = 0;
+    IOSink? rows;
+    try {
+      rows = spool?.openWrite();
+      final deletes = <Map<String, Object?>>[];
+      final previous = <String, Object?>{};
+      for (final id in removeIds) {
+        final header = _storedHeader(id);
+        if (header == null || header['kind'] == 'deleted') continue;
+        _read(id);
+        previous['$id'] = header;
+        deletes.add({'id': id, 'kind': header['kind']});
+        if (work?.checkpoint() case final pause?) await pause;
       }
-      final wire = _codec.encode(original);
-      final record = _codec.decode(wire);
-      final header = _header(record);
-      final before = _storedHeader(id);
-      if (before == null) {
-        if (restoreLocalPreimage || id < floor || id >= bound) {
-          throw const FormatException('Bookmark ID was not reserved');
+      final deleting = deletes.map((entry) => entry['id']! as int).toSet();
+      final upserts = <Map<String, Object?>>[];
+      final normalized = <Bookmark>[];
+      final headers = <String, Object?>{};
+      final identities = <ContentIdentity, int>{};
+      final restoredIds = <int>{};
+      final bound = (await _ids.readNextId())!;
+      final floor = _metadata.get(_floor) as int;
+      for (final original in records) {
+        final id = _localId(original.id);
+        if (headers.containsKey('$id') || removeIds.contains(id)) {
+          throw const FormatException('Duplicate Bookmark mutation ID');
         }
-      } else {
-        if (before['kind'] == 'deleted') {
-          if (!restoreLocalPreimage || id >= bound) {
+        final wire = _codec.encode(original);
+        final record = _codec.decode(wire);
+        final header = _header(record);
+        final before = _storedHeader(id);
+        if (before == null) {
+          if (restoreLocalPreimage || id < floor || id >= bound) {
+            throw const FormatException('Bookmark ID was not reserved');
+          }
+        } else {
+          if (before['kind'] == 'deleted') {
+            if (!restoreLocalPreimage || id >= bound) {
+              throw const FormatException(
+                'Deleted Bookmark IDs cannot be reused',
+              );
+            }
+            restoredIds.add(id);
+          } else {
+            _read(id);
+            _compatible(before, header, record);
+          }
+        }
+        final identity = _identity(header);
+        if (identity != null) {
+          final owner = _content(identity);
+          if ((identities[identity] != null && identities[identity] != id) ||
+              (owner != null &&
+                  owner['id'] != id &&
+                  !deleting.contains(owner['id']))) {
             throw const FormatException(
-              'Deleted Bookmark IDs cannot be reused',
+              'Content identity already has another Bookmark',
             );
           }
-          restoredIds.add(id);
+          if (owner != null && owner['engine'] != header['engine']) {
+            throw const FormatException('Incompatible content engines');
+          }
+          identities[identity] = id;
+        }
+        previous['$id'] = before;
+        headers['$id'] = header;
+        if (rows == null) {
+          upserts.add(wire);
         } else {
-          _read(id);
-          _compatible(before, header, record);
+          final line = utf8.encode('${jsonEncode(wire)}\n');
+          rows.add(line);
+          rowCount++;
+          pendingBytes += line.length;
+          if (pendingBytes >= 4 * 1024 * 1024) {
+            await rows.flush();
+            pendingBytes = 0;
+          }
         }
+        if (!spoolUpserts || hasBookmarkWriteObserver) normalized.add(record);
+        if (work?.checkpoint() case final pause?) await pause;
       }
-      final identity = _identity(header);
-      if (identity != null) {
-        final owner = _content(identity);
-        if ((identities[identity] != null && identities[identity] != id) ||
-            (owner != null &&
-                owner['id'] != id &&
-                !deleting.contains(owner['id']))) {
-          throw const FormatException(
-            'Content identity already has another Bookmark',
-          );
-        }
-        if (owner != null && owner['engine'] != header['engine']) {
-          throw const FormatException('Incompatible content engines');
-        }
-        identities[identity] = id;
+      await rows?.flush();
+      await rows?.close();
+      rows = null;
+      Map<String, Object?>? spooled;
+      if (spool != null && rowCount != 0) {
+        await fs.syncFile(spool.path);
+        await fs.syncDirectory(spool.parent.path);
+        spooled = {
+          'count': rowCount,
+          'length': await spool.length(),
+          'sha256': (await sha256.bind(spool.openRead()).first).toString(),
+        };
       }
-      previous['$id'] = before;
-      headers['$id'] = header;
-      upserts.add(wire);
-      normalized.add(record);
+      final bucketEdits = _serializeBucketEdits(membershipPatches);
+      if (bucketEdits.isNotEmpty &&
+          (mirrorState == null ||
+              localCopy ||
+              organizationGroups.any(
+                (group) => bucketEdits.containsKey(group.id),
+              ) ||
+              removedOrganizationGroups.any(bucketEdits.containsKey))) {
+        throw const FormatException('Invalid received Bookmark row mutation');
+      }
+      final organization = await _prepareOrganization(
+        groups: organizationGroups,
+        removeGroups: removedOrganizationGroups,
+        folders: organizationFolders,
+        recordIds: headers.keys.map(int.parse).toSet(),
+        removedRecordIds: detachDeletedMemberships ? deleting : const {},
+        bucketEdits: bucketEdits,
+      );
+      if (upserts.isEmpty &&
+          spooled == null &&
+          deletes.isEmpty &&
+          organization == null &&
+          mirrorState == null) {
+        return;
+      }
+      final revision = _metadata.get(_revision) as int;
+      final previousMirrors = mirrorState == null ? null : _mirrors();
+      final compactMirrors =
+          mirrorState != null &&
+          [
+            ...mirrorState.checkpoints.values,
+            ...previousMirrors!.checkpoints.values,
+          ].any((owner) => owner.bookmarkBucketManifest != null);
+      final reading = compactMirrors
+          ? _partitionMirrorReading(previousMirrors, mirrorState)
+          : null;
+      final plan = <String, Object?>{
+        'upserts': upserts,
+        'spooledUpserts': ?spooled,
+        'deletes': deletes,
+        'previous': previous,
+        'headers': headers,
+        'expectedRevision': revision,
+        'targetRevision': revision + 1,
+        'organization': ?organization,
+        if (bucketEdits.isNotEmpty) 'membershipPatches': bucketEdits,
+        if (mirrorState != null)
+          'mirrors': {
+            if (compactMirrors)
+              'previousHash': _hash(_metadata.get(_mirrorStateKey) as Object)
+            else
+              'previous': previousMirrors!.toJson(),
+            'next': reading?.wire ?? mirrorState.toJson(),
+          },
+        if (reading != null) 'mirrorReadingRows': reading.rows,
+        if (reading != null) 'retiredMirrorReadingRows': reading.retired,
+        if (restoreLocalPreimage) 'restoredIds': restoredIds.toList()..sort(),
+      };
+      await _guardMirrorMutation(
+        organization,
+        deleting,
+        mirrorState,
+        spooled == null
+            ? Stream.fromIterable(normalized)
+            : _journalRecords(plan).map((row) => row.record),
+        hasUpserts: headers.isNotEmpty,
+        localCopy: localCopy,
+        purgedSources: purgedSources,
+        work: work,
+        bucketEdits: bucketEdits,
+      );
+      final operation = _journalOperation(plan);
+      final journal = {
+        'version': 1,
+        'operation': operation,
+        'hash': _hash([operation, plan]),
+        'plan': plan,
+      };
+      validateBookmarkCommitGuard();
+      admitted = spooled != null;
+      await _metadata.put(_journal, journal);
+      await _sync([_metadata]);
+      await _apply(plan, work: work, preparedMirrors: mirrorState);
+      if (!spoolUpserts || hasBookmarkWriteObserver) {
+        publishBookmarkWrite(
+          BookmarkCommittedChange(
+            records: normalized,
+            removedIds: deleting,
+            revision: revision + 1,
+          ),
+        );
+      }
+    } finally {
+      await rows?.close();
+      if (!admitted && spool != null) {
+        await _discardSpooledRows();
+      }
     }
-    final organization = await _prepareOrganization(
-      groups: organizationGroups,
-      removeGroups: removedOrganizationGroups,
-      folders: organizationFolders,
-      recordIds: records.map((record) => record.id).toSet(),
-      removedRecordIds: deleting,
-    );
-    await _guardMirrorMutation(
-      organization,
-      deleting,
-      mirrorState,
-      normalized,
-      localCopy: localCopy,
-      purgedSources: purgedSources,
-    );
-    if (upserts.isEmpty &&
-        deletes.isEmpty &&
-        organization == null &&
-        mirrorState == null) {
+  }
+
+  File get _spooledRows => File('${_metadata.path!}.mirror-rows');
+
+  Future<void> _discardSpooledRows() async {
+    try {
+      await fs.deleteFileIfExists(_spooledRows.path);
+    } on Exception catch (error) {
+      logger?.warn(
+        'Bookmark recovery',
+        'Unable to remove the finished Bookmark journal payload',
+        sensitiveMessage: error.toString(),
+      );
+    }
+  }
+
+  Stream<({Bookmark record, int estimatedBytes})> _journalRecords(
+    Map<String, Object?> plan,
+  ) async* {
+    final spool = plan['spooledUpserts'];
+    if (spool == null) {
+      for (final value in plan['upserts']! as List) {
+        yield (record: _codec.decode(value), estimatedBytes: 0);
+      }
       return;
     }
-    final revision = _metadata.get(_revision) as int;
-    final plan = <String, Object?>{
-      'upserts': upserts,
-      'deletes': deletes,
-      'previous': previous,
-      'headers': headers,
-      'expectedRevision': revision,
-      'targetRevision': revision + 1,
-      'organization': ?organization,
-      if (mirrorState != null)
-        'mirrors': {
-          'previous': _mirrors().toJson(),
-          'next': mirrorState.toJson(),
-        },
-      if (restoreLocalPreimage) 'restoredIds': restoredIds.toList()..sort(),
-    };
-    final operation = _journalOperation(plan);
-    final journal = {
-      'version': 1,
-      'operation': operation,
-      'hash': _hash([operation, plan]),
-      'plan': plan,
-    };
-    validateBookmarkCommitGuard();
-    await _metadata.put(_journal, journal);
-    await _sync([_metadata]);
-    await _apply(plan);
-    publishBookmarkWrite(
-      BookmarkCommittedChange(
-        records: normalized,
-        removedIds: deleting,
-        revision: revision + 1,
-      ),
-    );
+    final info = contentMap(spool);
+    final file = _spooledRows;
+    final count = info['count'];
+    if (count is! int ||
+        count <= 0 ||
+        (plan['upserts']! as List).isNotEmpty ||
+        !await fs.fileExists(file.path) ||
+        await fs.fileSize(file.path) != info['length'] ||
+        (await sha256.bind(file.openRead()).first).toString() !=
+            info['sha256']) {
+      throw const FormatException('Invalid spooled Bookmark journal');
+    }
+    var read = 0;
+    await for (final line
+        in file
+            .openRead()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
+      read++;
+      yield (
+        record: _codec.decode(jsonDecode(line)),
+        estimatedBytes: line.length * 3,
+      );
+    }
+    if (read != count) {
+      throw const FormatException('Incomplete spooled Bookmark journal');
+    }
   }
 
   static String _hash(Object value) =>
@@ -845,13 +1094,33 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     final organization = plan.containsKey('organization');
     final restoration = plan.containsKey('restoredIds');
     final mirrors = plan.containsKey('mirrors');
-    if ((restoration && (!organization || mirrors)) ||
+    if ((restoration && mirrors) ||
         (restoration && plan['restoredIds'] is! List) ||
         (organization && plan['organization'] is! Map) ||
         (mirrors && plan['mirrors'] is! Map)) {
       throw const FormatException('Invalid Bookmark journal operation');
     }
-    if (mirrors) return 'mirrors';
+    final compact =
+        mirrors && contentMap(plan['mirrors']).containsKey('previousHash');
+    if (plan.containsKey('membershipPatches') &&
+        (!compact || plan['membershipPatches'] is! Map)) {
+      throw const FormatException('Invalid bucket membership journal');
+    }
+    if (plan.containsKey('mirrorReadingRows') &&
+        (!compact ||
+            plan['mirrorReadingRows'] is! Map ||
+            plan['retiredMirrorReadingRows'] is! List)) {
+      throw const FormatException('Invalid Bookmark reading journal');
+    }
+    if (plan.containsKey('spooledUpserts')) {
+      if (!mirrors || plan['spooledUpserts'] is! Map) {
+        throw const FormatException(
+          'Invalid staged Bookmark journal operation',
+        );
+      }
+      return compact ? 'stagedCompactMirrors' : 'stagedMirrors';
+    }
+    if (mirrors) return compact ? 'compactMirrors' : 'mirrors';
     if (restoration) return 'restore';
     return organization ? 'organization' : 'records';
   }
@@ -868,7 +1137,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           journal['hash'] != _hash([operation, plan])) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
-      await _apply(plan);
+      await _apply(
+        plan,
+        work: plan.containsKey('spooledUpserts') ? CooperativeWork() : null,
+      );
       // Local journal maps are also an untrusted structural boundary.
       // ignore: avoid_catching_errors
     } on TypeError {
@@ -879,20 +1151,24 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     }
   }
 
-  Future<void> _apply(Map<String, Object?> plan) async {
+  Future<void> _apply(
+    Map<String, Object?> plan, {
+    CooperativeWork? work,
+    BookmarkMirrorState? preparedMirrors,
+  }) async {
     final expected = plan['expectedRevision'];
     final target = plan['targetRevision'];
     final current = _metadata.get(_revision);
     if (expected is! int ||
+        target is! int ||
         target != expected + 1 ||
         (current != expected && current != target)) {
       throw const FormatException('Stale Bookmark mutation journal');
     }
     final previous = contentMap(plan['previous']);
     final headers = contentMap(plan['headers']);
-    final records = (plan['upserts']! as List)
-        .map((value) => _codec.decode(value))
-        .toList();
+    final spooled = plan.containsKey('spooledUpserts');
+    final recordIds = <int>{};
     final deletes = (plan['deletes']! as List).map(contentMap).toList();
     final restoredIds = <int>{};
     if (plan['restoredIds'] case final raw?) {
@@ -939,8 +1215,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       indexWrites[_recordKey(id)] = desired;
     }
 
-    for (final record in records) {
+    await for (final row in _journalRecords(plan)) {
+      final record = row.record;
       final id = _localId(record.id);
+      recordIds.add(id);
       if (!seen.add(id)) throw const FormatException('Duplicate journal ID');
       final header = _header(record);
       if (!_same(headers['$id'], header)) {
@@ -977,17 +1255,20 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         }
         desiredIdentities[identity] = id;
       }
-      if (record is PostBookmark) {
-        postWrites[id] = favoriteToHiveObject(
-          record,
-          requireStableIdentity: false,
-        );
-      } else {
-        groupWrites[id] = _codec.encode(record);
+      if (!spooled) {
+        if (record is PostBookmark) {
+          postWrites[id] = favoriteToHiveObject(
+            record,
+            requireStableIdentity: false,
+          );
+        } else {
+          groupWrites[id] = _codec.encode(record);
+        }
       }
       if (_identity(header) case final identity?) {
         indexWrites[_contentKey(identity)] = _contentEntry(id, header);
       }
+      if (work?.checkpoint() case final pause?) await pause;
     }
     for (final item in deletes) {
       final id = _localId(item['id']);
@@ -1007,9 +1288,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       } else {
         groupDeletes.add(id);
       }
+      if (work?.checkpoint() case final pause?) await pause;
     }
     if (previous.length != seen.length ||
-        headers.length != records.length ||
+        headers.length != recordIds.length ||
         !restoredIds.every(
           (id) =>
               headers.containsKey('$id') &&
@@ -1021,45 +1303,134 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     final organization = plan.containsKey('organization')
         ? contentMap(plan['organization'])
         : null;
+    final bucketEdits = (plan['membershipPatches'] == null)
+        ? const <String, Object?>{}
+        : contentMap(plan['membershipPatches']);
     if (organization != null) {
       await _validateOrganization(
         organization,
-        records.map((record) => record.id).toSet(),
+        recordIds,
         deletes.map((entry) => _localId(entry['id'])).toSet(),
+        bucketEdits: bucketEdits,
       );
     }
     BookmarkMirrorState? nextMirrors;
+    Map<String, Object?>? mirrorWire;
+    final readingRows = contentMap(plan['mirrorReadingRows'] ?? const {});
+    final retiredReading =
+        (plan['retiredMirrorReadingRows'] as List? ?? const []).cast<String>();
     if (plan['mirrors'] case final raw?) {
       final change = contentMap(raw);
-      final before = BookmarkMirrorState.fromJson(change['previous']);
-      nextMirrors = BookmarkMirrorState.fromJson(change['next']);
-      if (nextMirrors.epoch != before.epoch + 1 ||
-          (!_same(_mirrors().toJson(), before.toJson()) &&
-              !_same(_mirrors().toJson(), nextMirrors.toJson()))) {
-        throw const FormatException('Invalid mirror ownership journal');
+      mirrorWire = contentMap(change['next']);
+      nextMirrors =
+          preparedMirrors ??
+          _restoreMirrorReading(mirrorWire, stagedRows: readingRows);
+      if (readingRows.isNotEmpty || retiredReading.isNotEmpty) {
+        final retained = _mirrorReadingPaths(mirrorWire);
+        if (readingRows.keys.any((key) => !retained.contains(key)) ||
+            retiredReading.any(
+              (key) =>
+                  !_readingChunkKey.hasMatch(key) || retained.contains(key),
+            )) {
+          throw const FormatException(
+            'Invalid Bookmark reading journal references',
+          );
+        }
+      }
+      if (change['previousHash'] case final String hash) {
+        final installed = _metadata.get(_mirrorStateKey) as Object;
+        final installedEpoch = contentMap(installed)['epoch'];
+        if (!((installedEpoch == nextMirrors.epoch - 1 &&
+                _hash(installed) == hash) ||
+            (installedEpoch == nextMirrors.epoch &&
+                _same(installed, mirrorWire)))) {
+          throw const FormatException('Invalid mirror ownership journal');
+        }
+      } else {
+        final before = BookmarkMirrorState.fromJson(change['previous']);
+        if (nextMirrors.epoch != before.epoch + 1 ||
+            (!_same(_mirrors().toJson(), before.toJson()) &&
+                !_same(_mirrors().toJson(), nextMirrors.toJson()))) {
+          throw const FormatException('Invalid mirror ownership journal');
+        }
       }
     }
-    if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
-    if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
+    final bucketWrites = await _prepareBucketMetadataWrites(
+      patches: bucketEdits,
+      replacedGroups: {
+        if (organization != null) ...contentMap(organization['groups']).keys,
+        if (organization != null)
+          ...(organization['deletes']! as List).cast<String>(),
+      },
+      nextMirrors: nextMirrors,
+      upserts: recordIds,
+      deletedIds: deleting,
+    );
+    if (spooled) {
+      const batchBytes = 4 * 1024 * 1024;
+      var pendingBytes = 0;
+      Future<void> flushRows() async {
+        if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
+        if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
+        postWrites.clear();
+        groupWrites.clear();
+        pendingBytes = 0;
+      }
+
+      await for (final row in _journalRecords(plan)) {
+        if (pendingBytes + row.estimatedBytes > batchBytes) await flushRows();
+        final record = row.record;
+        if (record is PostBookmark) {
+          postWrites[record.id] = favoriteToHiveObject(
+            record,
+            requireStableIdentity: false,
+          );
+        } else {
+          groupWrites[record.id] = _codec.encode(record);
+        }
+        pendingBytes += row.estimatedBytes;
+        if (postWrites.length + groupWrites.length >= 128) await flushRows();
+        if (work?.checkpoint() case final pause?) await pause;
+      }
+      await flushRows();
+    } else {
+      if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
+      if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
+    }
     if (postDeletes.isNotEmpty) await _posts.deleteAll(postDeletes);
     if (groupDeletes.isNotEmpty) await _groups.deleteAll(groupDeletes);
     final organizationBoxes = organization == null
         ? <BoxBase<dynamic>>[]
         : await _applyOrganization(organization);
     await _sync([
-      if (postWrites.isNotEmpty || postDeletes.isNotEmpty) _posts,
-      if (groupWrites.isNotEmpty || groupDeletes.isNotEmpty) _groups,
+      if (spooled || postWrites.isNotEmpty || postDeletes.isNotEmpty) _posts,
+      if (spooled || groupWrites.isNotEmpty || groupDeletes.isNotEmpty) _groups,
       ...organizationBoxes,
     ]);
     await _metadata.deleteAll(oldContentKeys);
+    final receipt = _bookmarkPublicationReceipt(plan, nextMirrors);
     await _metadata.putAll({
       ...indexWrites,
+      ...bucketWrites,
+      ...readingRows,
       _revision: target,
-      if (nextMirrors != null) _mirrorStateKey: nextMirrors.toJson(),
+      _mirrorStateKey: ?mirrorWire,
+      'bookmarkPublicationChange.$target': ?receipt,
     });
+    if (receipt != null && target >= _bookmarkPublicationHistory) {
+      await _metadata.delete(
+        'bookmarkPublicationChange.${target - _bookmarkPublicationHistory}',
+      );
+    }
     await _sync([_metadata]);
+    if (retiredReading.isNotEmpty) await _metadata.deleteAll(retiredReading);
+    final installed = _metadata.get(_mirrorStateKey);
+    if (nextMirrors != null && installed is Map) {
+      _mirrorSnapshots[installed] = nextMirrors;
+    }
     await _metadata.delete(_journal);
     await _sync([_metadata]);
+    if (spooled) await _discardSpooledRows();
   }
 
   Future<List<PostBookmark>> _createPosts(List<PostBookmark> inputs) => _ready(

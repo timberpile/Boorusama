@@ -47,6 +47,31 @@ void main() {
     expect(snapshot.targets.every((target) => target.config == null), isTrue);
   });
 
+  test('bulk actions resolve and recheck the account once per origin', () {
+    final profile = _profile(
+      '00000000-0000-4000-8000-000000000001',
+      BooruType.danbooru,
+      'https://a.example',
+    );
+    var profileReads = 0;
+    Iterable<BooruConfig> profiles() sync* {
+      profileReads++;
+      yield profile;
+    }
+
+    final posts = [
+      for (var id = 1; id <= 200; id++)
+        _post(id, BooruType.danbooru, profile.url, hint: profile.id),
+    ];
+    final snapshot = PostActionSnapshot(posts, profiles());
+    expect(snapshot.posts, hasLength(200));
+    expect(snapshot.commonConfig, profile);
+    expect(profileReads, 1);
+    expect(snapshot.accountsMatch(profiles()), isTrue);
+    expect(profileReads, 2);
+    expect(snapshot.accountsMatch([]), isFalse);
+  });
+
   test('unknown content identities are retained individually', () {
     final a = TestPost(id: 0);
     final b = TestPost(id: 0);

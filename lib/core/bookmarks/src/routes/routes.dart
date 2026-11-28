@@ -14,7 +14,7 @@ import '../pages/bookmark_details_page.dart';
 import '../pages/bookmark_page.dart';
 import '../pages/bookmark_group_browser_page.dart';
 import '../types/bookmark_view.dart';
-import '../services/bookmark_read_projection.dart';
+import '../services/bookmark_seen_projection.dart';
 
 final bookmarkRoutes = GoRoute(
   path: 'bookmarks',
@@ -68,8 +68,8 @@ final bookmarkRoutes = GoRoute(
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
             controller: extra['controller'] as PostGridController<Post>,
             entries: extra['entries'] as List<ViewerEntry>?,
-            readingTargets:
-                extra['readingTargets'] as Map<Object, BookmarkReadTarget>?,
+            seenTargets:
+                extra['seenTargets'] as Map<Object, BookmarkSeenTarget>?,
             sourceView:
                 extra['sourceView'] as BookmarkView? ??
                 const BookmarkView.all(),

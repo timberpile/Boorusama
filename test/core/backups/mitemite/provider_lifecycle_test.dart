@@ -25,7 +25,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/mitemite/receive_units.dart';
 import 'package:boorusama/core/backups/mitemite/storage.dart';
 import 'package:boorusama/core/backups/mitemite/service.dart';
@@ -949,7 +949,7 @@ class _Library {
           revision: 1,
           payloadDigest: 'a' * 64,
           groupDigest: bookmarkMirrorGroupDigest(group),
-          reading: SyncGroupReadingState.empty(
+          reading: SyncGroupSeenState.empty(
             SyncCollectionId(
               publisher: identity.id,
               kind: 'bookmarks',

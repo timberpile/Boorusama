@@ -202,8 +202,8 @@ void main() {
               ],
             );
             final subscription = container.listen(
-              importFlowProvider,
-              (_, next) => published.add(next.status),
+              importFlowProvider.select((state) => state.status),
+              (_, next) => published.add(next),
             );
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
                 .setMockMethodCallHandler(

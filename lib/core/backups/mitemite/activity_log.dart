@@ -223,11 +223,7 @@ final class SyncActivityLog extends Equatable {
     bool notificationState = false,
   }) : entries = List.unmodifiable(entries),
        pendingPosts = List.unmodifiable(pendingPosts),
-       notificationKnown = Map.unmodifiable(
-         notificationKnown.map(
-           (key, value) => MapEntry(key, Set<String>.unmodifiable(value)),
-         ),
-       ),
+       notificationKnown = Map.unmodifiable(notificationKnown),
        _notificationState = notificationState;
 
   static const limit = 200;
@@ -252,10 +248,14 @@ final class SyncActivityLog extends Equatable {
         SyncActivityRecord(sequence + index + 1, event),
     ];
     final records = [...entries, ...added];
-    final known = {
-      for (final entry in notificationKnown.entries)
-        entry.key: Set<String>.of(entry.value),
-    };
+    final known = Map<String, Set<String>>.of(notificationKnown);
+    void remember(String key, Set<String> identities) {
+      final previous = known[key];
+      if (previous == null || !previous.containsAll(identities)) {
+        known[key] = Set.unmodifiable({...?previous, ...identities});
+      }
+    }
+
     for (final entry
         in observedMembers?.entries ??
             const Iterable<MapEntry<String, Set<String>>>.empty()) {
@@ -266,7 +266,7 @@ final class SyncActivityLog extends Equatable {
       syncUuid(parts.first);
       syncUuid(parts.last);
       _notificationKeys(entry.value.toList());
-      known.putIfAbsent(entry.key, () => {}).addAll(entry.value);
+      remember(entry.key, entry.value);
     }
     final pending = [...pendingPosts];
     for (final record in added) {
@@ -274,9 +274,7 @@ final class SyncActivityLog extends Equatable {
       _checkPostIntent(record.event);
       pending.add(record);
       final event = record.event;
-      known
-          .putIfAbsent('${event.publisher}/${event.source}', () => {})
-          .addAll(event.notificationMembers);
+      remember('${event.publisher}/${event.source}', event.notificationMembers);
     }
     final result = SyncActivityLog._(
       sequence + captured.length,
@@ -346,6 +344,7 @@ final class SyncActivityLog extends Equatable {
     }
     for (final entry in previous.notificationKnown.entries) {
       if (purgedSources.contains(entry.key)) continue;
+      if (identical(notificationKnown[entry.key], entry.value)) continue;
       if (!(notificationKnown[entry.key] ?? const <String>{}).containsAll(
         entry.value,
       )) {
@@ -365,7 +364,15 @@ final class SyncActivityLog extends Equatable {
     );
   }
 
-  Map<String, Object?> toJson() => {
+  static final _orderedKnown = Expando<List<String>>();
+  static final _knownBytes = Expando<int>();
+
+  static List<String> _ordered(Set<String> keys) =>
+      _orderedKnown[keys] ??= List.unmodifiable(keys.toList()..sort());
+
+  Map<String, Object?> toJson() => _toJson(includeKnown: true);
+
+  Map<String, Object?> _toJson({required bool includeKnown}) => {
     'version': 1,
     'sequence': sequence,
     'entries': [for (final entry in entries) entry.toJson()],
@@ -375,16 +382,31 @@ final class SyncActivityLog extends Equatable {
         'cursor': notificationCursor,
         'pending': [for (final entry in pendingPosts) entry.toJson()],
         'known': {
-          for (final entry in notificationKnown.entries)
-            entry.key: entry.value.toList()..sort(),
+          if (includeKnown)
+            for (final entry in notificationKnown.entries)
+              entry.key: _ordered(entry.value),
         },
       },
   };
 
   void _checkBounds() {
+    var bytes = utf8
+        .encode(canonicalSyncJson(_toJson(includeKnown: false)))
+        .length;
+    if (notificationKnown.isNotEmpty) {
+      // The empty known object already contributes its braces. Object order
+      // changes neither the escaped UTF-8 length nor the separator count.
+      bytes += notificationKnown.length - 1;
+      for (final entry in notificationKnown.entries) {
+        bytes += utf8.encode(jsonEncode(entry.key)).length + 1;
+        bytes += _knownBytes[entry.value] ??= utf8
+            .encode(jsonEncode(_ordered(entry.value)))
+            .length;
+      }
+    }
     if (pendingPosts.length > miteMiteMaxEntries * 256 ||
         notificationKnown.length > miteMiteMaxEntries * miteMiteMaxEntries ||
-        utf8.encode(canonicalSyncJson(toJson())).length > miteMiteMaxBytes) {
+        bytes > miteMiteMaxBytes) {
       throw const FormatException(
         'Journaled notification history exceeds bounds',
       );

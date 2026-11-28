@@ -6,7 +6,7 @@ import '../providers/bookmark_read_access.dart';
 import 'bookmark_group_viewer_entry.dart';
 import '../../../backups/mitemite/providers.dart';
 import '../../../backups/mitemite/page.dart';
-import '../services/bookmark_read_projection.dart';
+import '../services/bookmark_seen_projection.dart';
 import 'bookmark_seen_filter.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
@@ -103,7 +103,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   List<BookmarkGridEntry> _entries = const [];
   Map<Object, int> _rawPostIndices = const {};
   var _seenFilter = BookmarkSeenFilter.all;
-  BookmarkReadProjection? _reading;
+  BookmarkSeenProjection? _seenProjection;
+  (BookmarkLibraryState?, BookmarkView)? _seenInputs;
+  var _markingSeen = false;
   Object? _unavailableInputs;
   var _unavailableSummary = const BookmarkUnavailableSummary();
   Map<int, PostPresentationFallbackReason> _activeUnavailableFailures =
@@ -282,9 +284,14 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               !library.mirrors.isReceived(widget.view.groupId ?? '')) {
             _seenFilter = BookmarkSeenFilter.all;
           }
-          _reading = library == null
-              ? null
-              : BookmarkReadProjection(library, widget.view);
+          final seenInputs = (library, widget.view);
+          if (!identical(_seenInputs?.$1, library) ||
+              _seenInputs?.$2 != widget.view) {
+            _seenProjection = library == null
+                ? null
+                : BookmarkSeenProjection(library, widget.view);
+            _seenInputs = seenInputs;
+          }
           ref
             ..listen(bookmarkReadProfilesProvider, (_, _) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -364,65 +371,77 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             multiSelectActions: DefaultMultiSelectionActions(
               postController: controller,
               bookmark: false,
-              selectedPostsBuilder: (_) => [
-                for (final entry in _entries.whereType<BookmarkPostEntry>())
-                  if (_entryAvailable(
-                        entry,
-                        ref.read(bookmarkReadProfilesProvider),
-                      ) &&
-                      _selectionModeController.selectedKeys.contains(entry.key))
-                    controller.items.toList()[_rawPostIndices[entry.key]!],
-              ],
-              // Shared actions resolve each post's source profile and use the
-              // ordinary quality, filename, duplicate and sidecar policy.
-              extraActions: (selectedPosts) => [
-                if (_selectedUnreadTargets().isNotEmpty)
-                  MultiSelectButton(
-                    name: context.t.mitemite.mark_read,
-                    icon: const Icon(Icons.done_all),
-                    onPressed: () => runSyncAction(context, () async {
-                      final targets = _selectedUnreadTargets();
-                      final service = await ref.read(
-                        miteMiteServiceProvider.future,
-                      );
-                      if (!context.mounted ||
-                          !isCurrentSyncService(context, service)) {
-                        return;
+              selectedPostsBuilder: (_) {
+                final posts = controller.itemsNotifier.value;
+                return [
+                  for (final entry
+                      in _selectedAvailableEntries()
+                          .whereType<BookmarkPostEntry>())
+                    posts[_rawPostIndices[entry.key]!],
+                ];
+              },
+              // Shared post actions use the source profile. Bookmark actions
+              // on unified library entries retain their exact saved record.
+              extraActions: (selectedPosts) {
+                final selected = _selectedAvailableEntries();
+                final library = _fetchedLibrary;
+                final unified = library?.hasUnifiedRecords ?? false;
+                final records = <Bookmark>[];
+                final pools = <CollectionBookmark>[];
+                for (final entry in selected) {
+                  switch (entry) {
+                    case BookmarkPostEntry(:final bookmark):
+                      if (unified) records.add(bookmark);
+                    case BookmarkNativeGroupEntry(:final bookmark):
+                      records.add(bookmark);
+                    case BookmarkPoolEntry(:final pool):
+                      if (unified) {
+                        final record = library!.byId[pool.bookmarkId];
+                        if (record != null) records.add(record);
+                      } else {
+                        pools.add(pool);
                       }
-                      await service.markReadTargets(targets);
-                      if (mounted) _selectionModeController.disable();
-                    }),
-                  ),
-                MultiSelectPopupButton(
-                  enabled:
-                      !controller.refreshing &&
-                      (selectedPosts.isNotEmpty ||
-                          _selectedPools().isNotEmpty ||
-                          _selectedNativeGroups().isNotEmpty),
-                  icon: const Icon(Symbols.bookmarks),
-                  name: context.t.bookmark.bulk.title,
-                  items: [
-                    BookmarkMultiSelectionMenu(
-                      posts: selectedPosts,
-                      pools: _selectedPools(),
-                      records: _selectedNativeGroups(),
-                      config: auth,
-                      currentGroupId: widget.view.kind == BookmarkViewKind.group
-                          ? widget.view.groupId
-                          : null,
-                      sourceGroupIds:
-                          widget.view.kind == BookmarkViewKind.subtree
-                          ? (ref
-                                    .read(bookmarkProvider)
-                                    .valueOrNull
-                                    ?.groupIdsForView(widget.view) ??
-                                const <String>{})
-                          : null,
-                      onCompleted: () async {},
+                  }
+                }
+                return [
+                  if (_hasSelectedUnseen)
+                    MultiSelectButton(
+                      name: context.t.mitemite.mark_seen,
+                      icon: const Icon(Icons.done_all),
+                      onPressed: _markingSeen ? null : _markSelectionSeen,
                     ),
-                  ],
-                ),
-              ],
+                  MultiSelectPopupButton(
+                    enabled:
+                        !controller.refreshing &&
+                        (records.isNotEmpty ||
+                            pools.isNotEmpty ||
+                            (!unified && selectedPosts.isNotEmpty)),
+                    icon: const Icon(Symbols.bookmarks),
+                    name: context.t.bookmark.bulk.title,
+                    items: [
+                      BookmarkMultiSelectionMenu(
+                        posts: unified ? const [] : selectedPosts,
+                        pools: pools,
+                        records: records,
+                        config: auth,
+                        currentGroupId:
+                            widget.view.kind == BookmarkViewKind.group
+                            ? widget.view.groupId
+                            : null,
+                        sourceGroupIds:
+                            widget.view.kind == BookmarkViewKind.subtree
+                            ? (ref
+                                      .read(bookmarkProvider)
+                                      .valueOrNull
+                                      ?.groupIdsForView(widget.view) ??
+                                  const <String>{})
+                            : null,
+                        onCompleted: () async {},
+                      ),
+                    ],
+                  ),
+                ];
+              },
             ),
             header: const SizedBox.shrink(),
             itemBuilder: (context, index, autoScrollController, useHero) =>
@@ -464,7 +483,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       builder: (_, posts, _) => BookmarkListControls(
                         view: widget.view,
                         count: _entries.length,
-                        seenFilter: _reading?.showFilter(_seenFilter) ?? false
+                        seenFilter:
+                            _seenProjection?.showFilter(_seenFilter) ?? false
                             ? BookmarkSeenFilterButton(
                                 value: _seenFilter,
                                 onSelected: (value) {
@@ -499,7 +519,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     final visible = visibleBookmarkGridEntries(_fetchedEntries, posts);
     final filtered = [
       for (final entry in visible.entries)
-        if (_reading?.includes(entry, _seenFilter) ?? true) entry,
+        if (_seenProjection?.includes(entry, _seenFilter) ?? true) entry,
     ];
     if (!const ListEquality<BookmarkGridEntry>().equals(
       _entries,
@@ -582,56 +602,72 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     setState(() => _mediaRetryRevision++);
   }
 
-  List<CollectionBookmark> _selectedPools() => [
-    for (final entry in _entries.whereType<BookmarkPoolEntry>())
-      if (_entryAvailable(entry, ref.read(bookmarkReadProfilesProvider)) &&
-          _selectionModeController.selectedKeys.contains(entry.key))
-        entry.pool,
-  ];
-
-  List<BookmarkReadTarget> _selectedUnreadTargets() {
-    final selected = <BookmarkReadTarget>[];
-    for (final entry in _entries) {
-      if (!_selectionModeController.selectedKeys.contains(entry.key)) continue;
-      final target = _reading?.target(entry);
-      if (target == null || !(_reading?.isUnseen(entry) ?? false)) continue;
-      selected.add(target);
-    }
-    return selected;
+  Iterable<BookmarkGridEntry> get _selectedEntries {
+    final keys = _selectionModeController.selectedKeys;
+    return _entries.where((entry) => keys.contains(entry.key));
   }
 
-  List<ContentGroupBookmark> _selectedNativeGroups() => [
-    for (final entry in _entries.whereType<BookmarkNativeGroupEntry>())
-      if (_selectionModeController.selectedKeys.contains(entry.key))
-        entry.bookmark,
-  ];
+  Iterable<BookmarkGridEntry> _selectedAvailableEntries() {
+    final profiles = ref.read(bookmarkReadProfilesProvider);
+    final availability = ref.read(bookmarkProfileAvailabilityProvider);
+    return _selectedEntries.where(
+      (entry) => _entryAvailable(entry, profiles, availability),
+    );
+  }
 
-  bool _entryAvailable(BookmarkGridEntry entry, List<BooruConfig> profiles) =>
-      switch (entry) {
-        BookmarkPostEntry(:final bookmark) =>
-          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) !=
-                  null ||
-              (ref
-                      .read(bookmarkProfileAvailabilityProvider)
-                      ?.postIds
-                      .contains(bookmark.id) ??
-                  false),
-        BookmarkNativeGroupEntry(:final bookmark) =>
-          ref
-                  .read(bookmarkProfileAvailabilityProvider)
-                  ?.nativeGroupIds
-                  .contains(bookmark.id) ??
-              false,
-        BookmarkPoolEntry(:final pool) =>
-          ref
-                  .read(bookmarkProfileAvailabilityProvider)
-                  ?.collectionIds
-                  .contains(pool.localId) ??
-              false,
-      };
+  bool get _hasSelectedUnseen {
+    final seen = _seenProjection;
+    return seen != null &&
+        seen.unseenIds.isNotEmpty &&
+        _selectedEntries.any(seen.isUnseen);
+  }
 
-  bool _hasUnavailableEntries(List<BooruConfig> profiles) =>
-      _entries.any((entry) => !_entryAvailable(entry, profiles));
+  Future<void> _markSelectionSeen() async {
+    if (_markingSeen) return;
+    final targets = _selectedUnseenTargets();
+    if (targets.isEmpty) return;
+    setState(() => _markingSeen = true);
+    try {
+      await runSyncAction(context, () async {
+        final service = await ref.read(miteMiteServiceProvider.future);
+        if (!mounted || !isCurrentSyncService(context, service)) return;
+        await service.markSeenTargets(targets);
+        if (mounted) _selectionModeController.disable();
+      });
+    } finally {
+      if (mounted) setState(() => _markingSeen = false);
+    }
+  }
+
+  List<BookmarkSeenTarget> _selectedUnseenTargets() {
+    final reading = _seenProjection;
+    if (reading == null || reading.unseenIds.isEmpty) return const [];
+    return [
+      for (final entry in _selectedEntries)
+        if (reading.isUnseen(entry)) ?reading.target(entry),
+    ];
+  }
+
+  bool _entryAvailable(
+    BookmarkGridEntry entry,
+    List<BooruConfig> profiles,
+    BookmarkProfileAvailability? availability,
+  ) => switch (entry) {
+    BookmarkPostEntry(:final bookmark) =>
+      (availability?.postIds.contains(bookmark.id) ?? false) ||
+          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) != null,
+    BookmarkNativeGroupEntry(:final bookmark) =>
+      availability?.nativeGroupIds.contains(bookmark.id) ?? false,
+    BookmarkPoolEntry(:final pool) =>
+      availability?.collectionIds.contains(pool.localId) ?? false,
+  };
+
+  bool _hasUnavailableEntries(List<BooruConfig> profiles) {
+    final availability = ref.read(bookmarkProfileAvailabilityProvider);
+    return _entries.any(
+      (entry) => !_entryAvailable(entry, profiles, availability),
+    );
+  }
 
   void _reportRendered(PostGridController<Post> controller) {
     final rendered = _fetchedLibrary;
@@ -714,7 +750,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       controller: controller,
                       sourceView: widget.view,
                       entries: _viewerEntries(),
-                      readingTargets: _viewerReadingTargets(),
+                      seenTargets: _viewerSeenTargets(),
                     );
                   },
                 )
@@ -742,7 +778,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       controller: controller,
                       sourceView: widget.view,
                       entries: _viewerEntries(),
-                      readingTargets: _viewerReadingTargets(),
+                      seenTargets: _viewerSeenTargets(),
                     );
                   },
                   groupId: widget.view.kind == BookmarkViewKind.group
@@ -756,10 +792,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 );
           return KeyedSubtree(
             key: ValueKey((item.key, _mediaRetryRevision)),
-            child: _reading?.target(item) == null
+            child: _seenProjection?.target(item) == null
                 ? child
-                : BookmarkReadIndicator(
-                    unseen: _reading!.isUnseen(item),
+                : BookmarkSeenIndicator(
+                    unseen: _seenProjection!.isUnseen(item),
                     selecting: _selectionModeController.isActive,
                     child: child,
                   ),
@@ -801,8 +837,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     );
   }
 
-  Map<Object, BookmarkReadTarget> _viewerReadingTargets() => Map.unmodifiable({
-    for (final entry in _entries) entry.key: ?_reading?.target(entry),
+  Map<Object, BookmarkSeenTarget> _viewerSeenTargets() => Map.unmodifiable({
+    for (final entry in _entries) entry.key: ?_seenProjection?.target(entry),
   });
 
   Widget _buildItem(
@@ -839,7 +875,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   ref,
                   selectionIndex ?? index,
                   entries: _viewerEntries(),
-                  readingTargets: _viewerReadingTargets(),
+                  seenTargets: _viewerSeenTargets(),
                   sourceView: widget.view,
                   controller: controller,
                   initialThumbnailUrl: '',
@@ -898,7 +934,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   ref,
                   selectionIndex ?? index,
                   entries: _viewerEntries(),
-                  readingTargets: _viewerReadingTargets(),
+                  seenTargets: _viewerSeenTargets(),
                   sourceView: widget.view,
                   initialThumbnailUrl: ref
                       .read(

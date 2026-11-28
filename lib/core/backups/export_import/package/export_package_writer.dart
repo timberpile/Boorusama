@@ -15,8 +15,11 @@ import '../../../../foundation/filesystem.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import '../models/package_manifest.dart';
+import 'bookmark_transfer_format.dart';
+import 'export_package_limits.dart';
 
 typedef ExportPartWriter = Future<void> Function(String path);
+typedef ExportPartsPreparer = Future<List<String>> Function(String directory);
 
 final class ExportPackagePartBuild {
   const ExportPackagePartBuild({required this.path, required this.write});
@@ -33,6 +36,7 @@ final class ExportPackageSourceBuild {
     this.recommendedAction,
     this.itemRecommendedActions = const {},
     required this.parts,
+    this.prepareParts,
   });
 
   final String id;
@@ -41,6 +45,7 @@ final class ExportPackageSourceBuild {
   final ImportAction? recommendedAction;
   final Map<String, ImportAction> itemRecommendedActions;
   final List<ExportPackagePartBuild> parts;
+  final ExportPartsPreparer? prepareParts;
 }
 
 final class ExportPackageBuild {
@@ -96,22 +101,29 @@ class ExportPackageWriter {
             throw ArgumentError('Invalid or repeated export source');
           }
           final partManifests = <ExportPartManifest>[];
-          for (final part in source.parts) {
-            if (!isSafeExportPartPath(part.path) ||
-                part.path == 'manifest.json' ||
-                !seenPaths.add(part.path)) {
-              throw ArgumentError.value(part.path, 'path', 'Invalid part path');
+          final generated = await source.prepareParts?.call(stagingPath);
+          final paths = [
+            for (final part in source.parts) (part.path, part.write),
+            for (final path in generated ?? const <String>[]) (path, null),
+          ];
+          for (final (path, write) in paths) {
+            if (!isSafeExportPartPath(path) ||
+                path == 'manifest.json' ||
+                !seenPaths.add(path)) {
+              throw ArgumentError.value(path, 'path', 'Invalid part path');
             }
-            final filePath = p.joinAll([stagingPath, ...part.path.split('/')]);
-            await fs.createDirectory(p.dirname(filePath), recursive: true);
-            await part.write(filePath);
+            final filePath = p.joinAll([stagingPath, ...path.split('/')]);
+            if (write != null) {
+              await fs.createDirectory(p.dirname(filePath), recursive: true);
+              await write(filePath);
+            }
             if (!await fs.fileExists(filePath)) {
-              throw StateError('Export part was not written: ${part.path}');
+              throw StateError('Export part was not written: $path');
             }
             final digest = await sha256.bind(fs.openRead(filePath)).first;
             partManifests.add(
               ExportPartManifest(
-                path: part.path,
+                path: path,
                 sha256: digest.toString(),
                 byteLength: await fs.fileSize(filePath),
               ),
@@ -144,10 +156,24 @@ class ExportPackageWriter {
         try {
           for (final source in sourceManifests) {
             for (final part in source.parts) {
-              await encoder.addFile(
-                File(p.joinAll([stagingPath, ...part.path.split('/')])),
-                part.path,
+              final file = File(
+                p.joinAll([stagingPath, ...part.path.split('/')]),
               );
+              if (source.id == 'bookmarks' &&
+                  isBookmarkTransferPart(part.path) &&
+                  await _requiresStoredPart(file, part.byteLength)) {
+                final input = InputFileStream(file.path);
+                try {
+                  encoder.addArchiveFile(
+                    ArchiveFile.stream(part.path, input)
+                      ..compression = CompressionType.none,
+                  );
+                } finally {
+                  await input.close();
+                }
+              } else {
+                await encoder.addFile(file, part.path);
+              }
             }
           }
           await encoder.addFile(File(manifestPath), 'manifest.json');
@@ -174,5 +200,14 @@ class ExportPackageWriter {
     } finally {
       performanceSpan.finish(failed: performanceFailed);
     }
+  }
+
+  Future<bool> _requiresStoredPart(File file, int byteLength) async {
+    final ratio = const ExportPackageLimits().maxExpansionRatio;
+    final compressedBytes = await file
+        .openRead()
+        .transform(ZLibCodec(raw: true).encoder)
+        .fold<int>(0, (total, bytes) => total + bytes.length);
+    return byteLength > compressedBytes * ratio;
   }
 }

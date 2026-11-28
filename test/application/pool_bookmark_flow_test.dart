@@ -2845,12 +2845,18 @@ void main() {
       final menu = tester.widget<BookmarkMultiSelectionMenu>(
         find.byType(BookmarkMultiSelectionMenu),
       );
-      expect(menu.posts, hasLength(3));
-      expect(menu.pools, hasLength(1));
+      final saved = setup.container.read(bookmarkProvider).requireValue;
+      expect(
+        menu.records.map((record) => record.id),
+        unorderedEquals(saved.byId.keys),
+      );
+      expect(menu.posts, isEmpty);
+      expect(menu.pools, isEmpty);
       expect(setup.postRows.values, hasLength(3));
       await tester.tap(find.text('Remove From'));
       await harness.pumpUntilFound(tester, find.text('Pool target'));
       await harness.settle(tester);
+      expect(find.text('4 of 4 selected'), findsOneWidget);
       await tester.tap(find.text('Pool target'));
       await harness.pumpUntil(tester, () {
         final state = setup.container.read(bookmarkProvider).valueOrNull;

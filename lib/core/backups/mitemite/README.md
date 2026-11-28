@@ -40,7 +40,7 @@ file-replication acceptance are pending.
 
 ## Application and management flow
 
-- **Settings → Export & Import → MiteMite** opens the existing Kurumi-based
+- **Settings → MiteMite** opens the existing Kurumi-based
   management UI. Opening the page alone does not activate transport. Selecting a
   **Storage Location** enables startup/resume and foreground reconciliation,
   one-minute polling, and coalescing of local changes. A filesystem watcher is used
@@ -111,11 +111,22 @@ The repository and mutation boundaries enforce these rules beyond the UI.
   separate OBSERVED/APPLIED checkpoints, immutable content and bounded
   validation. The producer writes complete package data before the descriptor
   and signed catalog; no incomplete or absent file authorizes deletion.
-- `bookmark_package.dart` and `following_package.dart` build scoped,
-  credential-free `.bsexport` content. `receive_preparation.dart` and the mirror
-  engines validate hashes, schema versions, source identity, typed members,
-  resource bounds and ownership before journaled application. One
-  (publisher, kind, source) identity maps to one canonical receiver mirror.
+- Bookmark publications use complete manifests and reusable, immutable
+  credential-free chunks. A signed catalog authenticates each manifest, which
+  identifies the chunks needed for that revision. The private publication index
+  tracks affected buckets through the Bookmark journal. A receiver can jump
+  directly to the latest manifest and reuse locally verified buckets. Catalogs
+  with Bookmark manifests require an updated subscriber. Older signed JSON and
+  schema 7 `.bsexport` revisions remain readable. Following keeps its scoped
+  `.bsexport` payload. The 2 GiB compressed and 8 GiB expanded staging budgets
+  require available device storage.
+- Receive validates hashes, source scope, typed members and ownership before
+  applying. It stages incoming rows on disk and builds a deduplicated write
+  plan for the connected unit. Warm membership and reading changes update
+  indexed rows. Large commits keep payload rows beside the existing Bookmark
+  journal and replay them in bounded batches. The journal commits records,
+  membership dates, ownership and subscription state together.
+  One (publisher, kind, source) identity maps to one canonical receiver mirror.
 - `bookmark_mirror_engine.dart` and `following_mirror_engine.dart` preserve
   source hierarchy, memberships/definitions, subscriptions and independent
   receiver-local state. Repository write guards protect mirrors against ordinary
@@ -136,17 +147,17 @@ The repository and mutation boundaries enforce these rules beyond the UI.
   mounted-directory access and safe paths. `retention.dart` performs bounded,
   owned-history maintenance without deleting another publisher's content.
 
-## Bookmark reading and Timeline
+## Bookmark seen state and Timeline
 
 - A received Group card displays **`N` = number of still-Unseen saved members**,
   deduplicated by portable identity across its received subtree. It shows no
   `+N` arrival badge or removal dot. **Opening a Group does not mark any member
   Seen or clear the count.** Historic arrival fields may remain in receiver-local
   storage for compatibility but do not drive the visible badge.
-- Individual Group viewing and explicit Mark Read affect only that Group's
+- Individual Group viewing and explicit Mark Seen affect only that Group's
   receiver-local reading state. In a **combined/subtree** timeline a member is
   Unseen if **any** covered canonical Group considers it Unseen; actual full
-  Viewer display or explicit Mark Read from that combined view marks it Seen
+  Viewer display or explicit Mark Seen from that combined view marks it Seen
   in every corresponding covered Group in the same publisher subtree. Other
   publishers, source Groups outside the viewed subtree and local copies are
   unaffected. Captured ownership/source identities are revalidated before
@@ -169,7 +180,7 @@ The repository and mutation boundaries enforce these rules beyond the UI.
   Unsubscribe and other Group commands must never be added to Timeline
   options**. Standard Pixiv Work long-press selection saves selected Works,
   not arbitrary Pages. Following Post NEW and definition-change indicators
-  are separate from Bookmark read state.
+  are separate from Bookmark seen state.
 
 ## Notifications, activity and verification
 

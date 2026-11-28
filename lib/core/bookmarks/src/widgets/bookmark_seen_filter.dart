@@ -2,7 +2,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 
-import '../services/bookmark_read_projection.dart';
+import '../services/bookmark_seen_projection.dart';
 import 'bookmark_option_selector.dart';
 
 class BookmarkSeenFilterButton extends StatelessWidget {
@@ -17,7 +17,7 @@ class BookmarkSeenFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String label(BookmarkSeenFilter filter) => switch (filter) {
-      BookmarkSeenFilter.all => context.t.mitemite.read_filter_all,
+      BookmarkSeenFilter.all => context.t.mitemite.seen_filter_all,
       BookmarkSeenFilter.unseen => context.t.mitemite.unseen,
       BookmarkSeenFilter.seen => context.t.mitemite.seen,
     };
@@ -28,14 +28,14 @@ class BookmarkSeenFilterButton extends StatelessWidget {
       optionLabel: label,
       optionIcon: (_) => Icons.visibility_outlined,
       optionSemanticLabel: (filter) =>
-          context.t.mitemite.read_status(value: label(filter)),
+          context.t.mitemite.seen_status(value: label(filter)),
       onSelected: onSelected,
     );
   }
 }
 
-class BookmarkReadIndicator extends StatelessWidget {
-  const BookmarkReadIndicator({
+class BookmarkSeenIndicator extends StatelessWidget {
+  const BookmarkSeenIndicator({
     required this.unseen,
     required this.selecting,
     required this.child,

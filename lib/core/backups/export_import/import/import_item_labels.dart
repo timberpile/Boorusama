@@ -26,8 +26,9 @@ final class ImportItemPresentationResult {
 
 ImportItemPresentationResult importItemPresentation(
   String sourceId,
-  Object? data,
-) {
+  Object? data, {
+  bool? bookmarkHasUngrouped,
+}) {
   final items = <String, ExportItemPresentation>{};
   final children = switch (data) {
     final List<BooruConfig> profiles => [
@@ -35,7 +36,7 @@ ImportItemPresentationResult importItemPresentation(
         ExportSelectionNode(id: ExportSelectionIds.profile(profile.id)),
     ],
     final BookmarkBackupData bookmarks => [
-      ...bookmarkExportNodes(bookmarks),
+      ...bookmarkExportNodes(bookmarks, hasUngrouped: bookmarkHasUngrouped),
     ],
     final FollowingTopicBackupData searches => followingTopicExportNodes(
       searches,
@@ -159,7 +160,10 @@ bool _hasUngroupedBookmarks(BookmarkBackupData data) {
   return data.records.any((record) => !groupedIds.contains(record.id));
 }
 
-List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) {
+List<ExportSelectionNode> bookmarkExportNodes(
+  BookmarkBackupData data, {
+  bool? hasUngrouped,
+}) {
   if (_hasLegacyGroupIds(data)) return _legacyBookmarkExportNodes(data);
 
   final groups = normalizeBookmarkBackupGroups(data.groups, data.folders);
@@ -205,7 +209,7 @@ List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) {
     for (final group
         in childrenByParentId[null] ?? const <BookmarkGroupBackup>[])
       nodesById[group.id!]!,
-    if (_hasUngroupedBookmarks(data))
+    if (hasUngrouped ?? _hasUngroupedBookmarks(data))
       const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
   ];
 }

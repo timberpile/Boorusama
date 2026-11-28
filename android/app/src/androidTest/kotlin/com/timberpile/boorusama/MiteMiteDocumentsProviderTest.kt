@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.system.Os
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.flutter.plugin.common.BinaryMessenger
@@ -20,7 +21,10 @@ import io.flutter.plugin.common.StandardMethodCodec
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.nio.ByteBuffer
+import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
@@ -108,10 +112,52 @@ class MiteMiteDocumentsProviderTest {
             assertEquals(true, channel.write("$prefix/1.bsexport"))
             assertArrayEquals(bytes, channel.read("$prefix/1.bsexport"))
             assertEquals(true, channel.write("$prefix/1.bsexport"))
-            failure { channel.write("$prefix/1.bsexport", byteArrayOf(9, 8)) }
+            failure("sync_invalid_payload") { channel.write("$prefix/1.bsexport", byteArrayOf(9, 8)) }
             assertArrayEquals(bytes, channel.read("$prefix/1.bsexport"))
-            failure { channel.read("$prefix/1.bsexport", 4) }
+            failure("sync_invalid_payload") { channel.read("$prefix/1.bsexport", 4) }
             assertNull(channel.read("$prefix/99.bsexport"))
+        }
+    }
+
+    @Test fun bookmarkFileTransfersUseCacheRootsAndRejectEscapingLinks() = withChannel { channel ->
+        fun scratch(root: File) = File(root, "mitemite-test-${UUID.randomUUID()}").also {
+            check(it.mkdir())
+        }
+        val cache = scratch(context.cacheDir)
+        val codeCache = scratch(context.codeCacheDir)
+        val outside = File.createTempFile("mitemite-outside-", ".tmp", context.filesDir)
+        try {
+            val path = "$prefix/1.bsexport"
+            val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
+                (it.toInt() and 255).toString(16).padStart(2, '0')
+            }
+            val args = mapOf(
+                "location" to tree.toString(),
+                "path" to path,
+                "length" to bytes.size,
+                "sha256" to hash,
+            )
+            val source = File(codeCache, "send.bsexport").also { it.writeBytes(bytes) }
+            val cached = File(cache, "received.bsexport")
+            val compiled = File(codeCache, "received.bsexport")
+            assertEquals(true, channel.invoke("writePayload", args + ("sourcePath" to source.path)))
+            for (destination in listOf(cached, compiled)) {
+                assertEquals(true, channel.invoke("copyPayload", args + ("destination" to destination.path)))
+                assertArrayEquals(bytes, destination.readBytes())
+            }
+            outside.writeBytes(bytes)
+            val escaping = File(codeCache, "escaped.bsexport")
+            Os.symlink(outside.absolutePath, escaping.absolutePath)
+            for (invalid in listOf(outside, escaping)) {
+                failure { channel.invoke("writePayload", args + ("sourcePath" to invalid.path)) }
+                failure { channel.invoke("copyPayload", args + ("destination" to invalid.path)) }
+            }
+            assertArrayEquals(bytes, outside.readBytes())
+        } finally {
+            File(codeCache, "escaped.bsexport").delete()
+            codeCache.deleteRecursively()
+            cache.deleteRecursively()
+            outside.delete()
         }
     }
 
@@ -150,6 +196,23 @@ class MiteMiteDocumentsProviderTest {
         provider("behavior", "known")
         assertArrayEquals(bytes, channel.read("$prefix/1.bsexport"))
         assertNull(channel.read("$prefix/2.bsexport"))
+    }
+
+    @Test fun nestedBookmarkObjectsHaveOwnedRetentionPaths() = withChannel { channel ->
+        val chunk = "$prefix/chunks/5/0a-0-${"a".repeat(64)}.ndjson.gz"
+        val manifest = "$prefix/manifests/5.json"
+        assertEquals(true, channel.write(chunk))
+        assertEquals(true, channel.write(manifest))
+        assertArrayEquals(bytes, channel.read(chunk))
+        failure { channel.invoke("deleteOwnedRevision", arguments(chunk, publisher = foreign)) }
+        assertArrayEquals(bytes, channel.read(chunk))
+        failure { channel.invoke("deleteOwnedDirectory", arguments("$prefix/chunks/5")) }
+        assertEquals(true, channel.invoke("deleteOwnedRevision", arguments(chunk)))
+        assertEquals(true, channel.invoke("deleteOwnedDirectory", arguments("$prefix/chunks/5")))
+        assertNull(channel.read(chunk))
+        assertArrayEquals(bytes, channel.read(manifest))
+        assertEquals(true, channel.invoke("deleteOwnedRevision", arguments(manifest)))
+        assertNull(channel.read(manifest))
     }
 
     @Test fun partialIdentityCannotBeOverwrittenOrRemovedByRevisionRetention() = withChannel { channel ->
@@ -207,7 +270,7 @@ class MiteMiteDocumentsProviderTest {
             assertEquals(true, channel.decode(first)); assertEquals(true, second.decode(other))
             assertArrayEquals(bytes, channel.read("$prefix/2.json"))
             assertArrayEquals(byteArrayOf(4, 5, 6), channel.read("$prefix/3.json"))
-            failure { second.write("$prefix/1.bsexport", byteArrayOf(0)) }
+            failure("sync_invalid_payload") { second.write("$prefix/1.bsexport", byteArrayOf(0)) }
             assertArrayEquals(bytes, channel.read("$prefix/1.bsexport"))
         } finally { instrumentation.runOnMainSync { native.close() } }
     }
@@ -238,7 +301,7 @@ class MiteMiteDocumentsProviderTest {
 
     @Test fun opaqueProviderDisplayNameResolutionCreatesNoTransportOrBackupDirectory() = withChannel { channel ->
         assertEquals(emptyList<String>(), channel.invoke("list", arguments()))
-        val names = TestMessenger()
+        val names = TestMessenger("boorusama/auto_backup")
         lateinit var native: AutoBackupChannel
         instrumentation.runOnMainSync {
             val target = context
@@ -251,12 +314,12 @@ class MiteMiteDocumentsProviderTest {
         } finally { instrumentation.runOnMainSync { native.close() } }
     }
 
-    private class TestMessenger : BinaryMessenger {
+    private class TestMessenger(private val expectedChannel: String = "boorusama/mitemite") : BinaryMessenger {
         private var handler: BinaryMessenger.BinaryMessageHandler? = null
         override fun send(channel: String, message: ByteBuffer?) = Unit
         override fun send(channel: String, message: ByteBuffer?, callback: BinaryMessenger.BinaryReply?) = Unit
         override fun setMessageHandler(channel: String, handler: BinaryMessenger.BinaryMessageHandler?) {
-            assertEquals("boorusama/mitemite", channel)
+            assertEquals(expectedChannel, channel)
             this.handler = handler
         }
         fun invoke(method: String, arguments: Map<String, Any?>): Any? = decode(begin(method, arguments))

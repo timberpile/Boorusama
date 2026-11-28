@@ -152,6 +152,18 @@ enum RelatedOrderCommitResult { applied, alreadyApplied, stale }
 
 class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
+  final _libraryProgressListeners = <BookmarkLibraryProgress>{};
+
+  void _reportLibraryProgress(
+    BookmarkLibraryLoadPhase phase,
+    int completed,
+    int? total,
+  ) {
+    for (final listener in _libraryProgressListeners) {
+      listener(phase, completed, total);
+    }
+  }
+
   var _requiresRefresh = false;
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
   final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
@@ -356,7 +368,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final next = await _serviceFor(
       storage[0] as BookmarkRepository,
       storage[1] as BookmarkGroupRepository,
-    ).load();
+    ).load(onProgress: _reportLibraryProgress);
+    _reportLibraryProgress(BookmarkLibraryLoadPhase.publishing, 0, null);
     await _pruneGroupModes(next);
     return next;
   }
@@ -1298,13 +1311,59 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> refresh() => _serialize(_reload);
 
+  /// Use the initial load when it is already rebuilding the library.
+  Future<void> refreshWithProgress([BookmarkLibraryProgress? listener]) async {
+    if (listener != null) _libraryProgressListeners.add(listener);
+    try {
+      listener?.call(BookmarkLibraryLoadPhase.reading, 0, null);
+      if (state.isLoading) {
+        final loaded = await future;
+        final store = unifiedBookmarkStorage(await bookmarkRepository);
+        if (store == null || loaded.revision == await store.readRevision()) {
+          return;
+        }
+      }
+      // The transfer already committed. Reload directly under the coordinator
+      // so mutation admission does not also rebuild the stale snapshot.
+      await _withStorageSession(_reload);
+    } finally {
+      if (listener != null) _libraryProgressListeners.remove(listener);
+    }
+  }
+
+  Future<void> applyMirrorSeenState(
+    UnifiedBookmarkStore source,
+    int previousRevision,
+    int revision,
+    BookmarkMirrorState mirrors,
+  ) => _withStorageSession(() async {
+    final current = await _librarySnapshot;
+    final store = unifiedBookmarkStorage(await bookmarkRepository);
+    if (!identical(source, store)) return;
+    final persisted = await source.readRevision();
+    if (current.revision == revision &&
+        current.mirrors.epoch == mirrors.epoch) {
+      return;
+    }
+    if (current.revision != previousRevision || persisted != revision) {
+      await _reload();
+      return;
+    }
+    _publishLibrary(current.withMirrors(mirrors, revision: revision));
+  });
+
   Future<T> _serialize<T>(
     Future<T> Function() operation, {
     bool publishHydration = true,
-  }) async {
-    if (_storageSession != null) {
-      return operation();
-    }
+  }) {
+    if (_storageSession != null) return Future.sync(operation);
+    return _withStorageSession(
+      () => _serializeLocally(operation, publishHydration: publishHydration),
+    );
+  }
+
+  Future<T> _withStorageSession<T>(Future<T> Function() operation) async {
+    if (_storageSession != null) return operation();
     final coordinator = ref.read(dataMutationCoordinatorProvider);
     // Provider initialization reads the durable repository in its own zone.
     // Finish it before taking the same coordinator for a mutation, otherwise
@@ -1338,10 +1397,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             return runZoned(
               () async {
                 try {
-                  return await _serializeLocally(
-                    operation,
-                    publishHydration: publishHydration,
-                  );
+                  return await operation();
                 } finally {
                   session.active = false;
                 }
@@ -1413,7 +1469,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _reload() async {
     _mutation?.invalidate();
     try {
-      final next = await (await _service).load();
+      final next = await (await _service).load(
+        onProgress: _reportLibraryProgress,
+      );
+      _reportLibraryProgress(BookmarkLibraryLoadPhase.publishing, 0, null);
       await _pruneGroupModes(next);
       _discardRestoredRemovalUndo(next);
       _publishLibrary(next);

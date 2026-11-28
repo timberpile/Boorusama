@@ -1,4 +1,6 @@
 // Package imports:
+import '../../../../../foundation/cooperative_work.dart';
+
 import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 
@@ -120,12 +122,37 @@ class BookmarkGroupRepositoryHive
 
   @override
   Future<List<BookmarkGroup>> getGroups() async {
-    final groups = _box.values.map(_toGroup).toList()
-      ..sort((a, b) {
-        return a.position != b.position
-            ? a.position.compareTo(b.position)
-            : a.id.compareTo(b.id);
-      });
+    final work = CooperativeWork();
+    final groups = <BookmarkGroup>[];
+    for (final object in _box.values.toList()) {
+      final cached = _groupSnapshots[object];
+      if (cached != null) {
+        groups.add(cached);
+        continue;
+      }
+      final ids = <int>{};
+      for (final id in object.bookmarkIds) {
+        ids.add(id);
+        if (work.checkpoint() case final pause?) await pause;
+      }
+      final dates = <int, DateTime>{};
+      for (final entry in (object.addedAt ?? const {}).entries) {
+        if (entry.key case final int id) {
+          if (_readMembershipDate(entry.value) case final date?) {
+            dates[id] = date;
+          }
+        }
+        if (work.checkpoint() case final pause?) await pause;
+      }
+      groups.add(
+        _groupSnapshots[object] ??= _createGroupSnapshot(object, ids, dates),
+      );
+    }
+    groups.sort(
+      (a, b) => a.position != b.position
+          ? a.position.compareTo(b.position)
+          : a.id.compareTo(b.id),
+    );
     return groups;
   }
 
@@ -345,20 +372,30 @@ class BookmarkGroupRepositoryHive
   }
 
   BookmarkGroup _toGroup(BookmarkGroupHiveObject object) {
-    return _groupSnapshots[object] ??= BookmarkGroup(
-      id: _normalizeId(object.id),
-      name: _normalizeName(object.name),
-      bookmarkIds: object.bookmarkIds.toSet(),
-      folderId: object.folderId,
-      parentGroupId: object.parentGroupId,
-      position: object.position,
-      addedAt: {
+    return _groupSnapshots[object] ??= _createGroupSnapshot(
+      object,
+      object.bookmarkIds.toSet(),
+      {
         for (final entry in (object.addedAt ?? const {}).entries)
           if (entry.key is int)
             entry.key as int: ?_readMembershipDate(entry.value),
       },
     );
   }
+
+  BookmarkGroup _createGroupSnapshot(
+    BookmarkGroupHiveObject object,
+    Set<int> ids,
+    Map<int, DateTime> dates,
+  ) => BookmarkGroup(
+    id: _normalizeId(object.id),
+    name: _normalizeName(object.name),
+    bookmarkIds: ids,
+    folderId: object.folderId,
+    parentGroupId: object.parentGroupId,
+    position: object.position,
+    addedAt: dates,
+  );
 
   Future<void> initializeFolders() async {
     final storage = _organizationBox;

@@ -8,7 +8,11 @@ import android.provider.DocumentsContract
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -20,7 +24,9 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private val maxBytes = 32 * 1024 * 1024
+    private val maxBookmarkArchiveBytes = 2L * 1024 * 1024 * 1024
     private val maxEntries = 4096
+    private class InvalidPayload : IOException("Sync payload verification failed")
     private data class Child(val uri: Uri, val name: String, val directory: Boolean)
 
     private fun children(tree: Uri, parent: Uri): List<Child> {
@@ -56,12 +62,117 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
             while (true) {
                 val count = input.read(buffer)
                 if (count < 0) break
-                if (output.size().toLong() + count > limit) throw IOException("Document exceeds limit")
+                if (output.size().toLong() + count > limit) throw InvalidPayload()
                 output.write(buffer, 0, count)
             }
             output.toByteArray()
         }
     }
+    private fun privateTempFile(path: String): File {
+        val file = File(path).canonicalFile
+        // Dart may stage under Android's code cache. Resolve both roots and
+        // the file before testing containment so a symlink cannot escape them.
+        val cacheRoots = listOf(appContext.cacheDir, appContext.codeCacheDir)
+        require(file.parentFile?.isDirectory == true && cacheRoots.any {
+            file.path.startsWith(it.canonicalPath + File.separator)
+        })
+        return file
+    }
+
+    private fun verifyPayload(
+        input: InputStream,
+        length: Long,
+        sha256: String,
+        output: OutputStream? = null,
+    ) {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(65536)
+        var total = 0L
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            if (total > length) throw InvalidPayload()
+            digest.update(buffer, 0, count)
+            output?.write(buffer, 0, count)
+        }
+        val actual = digest.digest().joinToString("") {
+            (it.toInt() and 255).toString(16).padStart(2, '0')
+        }
+        if (total != length || actual != sha256) throw InvalidPayload()
+    }
+
+    private fun verifyDocument(uri: Uri, length: Long, sha256: String) {
+        (resolver.openInputStream(uri) ?: throw IOException("Read unavailable")).use {
+            verifyPayload(it, length, sha256)
+        }
+    }
+
+    private fun copyPayload(
+        source: Child?,
+        destinationPath: String?,
+        length: Long,
+        sha256: String,
+    ): Boolean {
+        if (source == null) return false
+        if (destinationPath == null) {
+            verifyDocument(source.uri, length, sha256)
+            return true
+        }
+        val destination = privateTempFile(destinationPath)
+        if (!destination.createNewFile()) throw IOException("Private destination already exists")
+        try {
+            (resolver.openInputStream(source.uri) ?: throw IOException("Read unavailable")).use { input ->
+                destination.outputStream().use { output ->
+                    verifyPayload(input, length, sha256, output)
+                    output.fd.sync()
+                }
+            }
+        } catch (error: Exception) {
+            destination.delete()
+            throw error
+        }
+        return true
+    }
+
+    private fun writePayload(
+        tree: Uri,
+        parent: Uri,
+        name: String,
+        existing: Child?,
+        sourcePath: String,
+        length: Long,
+        sha256: String,
+    ): Boolean {
+        val source = privateTempFile(sourcePath)
+        if (!source.isFile || source.length() != length) throw InvalidPayload()
+        if (existing != null) {
+            source.inputStream().use { verifyPayload(it, length, sha256) }
+            verifyDocument(existing.uri, length, sha256)
+            return true
+        }
+
+        // The signed descriptor is published only after this document can be
+        // read back. A failed copy never overwrites an immutable revision.
+        val created = DocumentsContract.createDocument(resolver, parent, "application/octet-stream", name)
+            ?: throw IOException("Create failed")
+        fun checkIdentity() {
+            if (children(tree, parent).singleOrNull { it.name == name }?.uri != created) {
+                throw IOException("Document name collision")
+            }
+        }
+        checkIdentity()
+        source.inputStream().use { input ->
+            (resolver.openOutputStream(created, "w") ?: throw IOException("Write unavailable")).use { output ->
+                verifyPayload(input, length, sha256, output)
+                output.flush()
+            }
+        }
+        checkIdentity()
+        verifyDocument(created, length, sha256)
+        return true
+    }
+
     private fun directory(tree: Uri, root: Uri, parts: List<String>, create: Boolean): Uri? {
         var current = root
         for (name in parts) {
@@ -80,13 +191,24 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
         if (!safe(path)) return false
         try { if (UUID.fromString(owner).toString() != owner) return false } catch (_: Exception) { return false }
         val parts = path.split('/')
-        if (parts.size !in setOf(4, 6) || parts[0] != "devices" || parts[1] != owner) return false
+        if (parts.size !in setOf(4, 6, 7, 8) || parts[0] != "devices" || parts[1] != owner) return false
         if (parts.size == 4 && parts[2] != "catalog") return false
-        if (parts.size == 6) {
+        if (parts.size >= 6) {
             if (parts[2] != "collections" || parts[3] !in setOf("bookmarks", "following_topics")) return false
             try { if (UUID.fromString(parts[4]).toString() != parts[4]) return false } catch (_: Exception) { return false }
         }
         val file = parts.last()
+        if (parts.size > 6) {
+            if (parts[3] != "bookmarks") return false
+            if (parts.size == 7 && parts[5] == "manifests") {
+                return file.matches(Regex("[1-9][0-9]{0,15}\\.json")) &&
+                    (file.substringBefore('.').toLongOrNull() ?: return false) <= 9007199254740991L
+            }
+            return parts.size == 8 && parts[5] == "chunks" &&
+                parts[6].matches(Regex("[1-9][0-9]{0,15}")) &&
+                (parts[6].toLongOrNull() ?: return false) <= 9007199254740991L &&
+                file.matches(Regex("[0-9a-f]{2}-(0|[1-9][0-9]{0,3})-[0-9a-f]{64}\\.ndjson\\.gz"))
+        }
         if (!file.matches(Regex("[1-9][0-9]{0,15}\\.(json|bsexport)"))) return false
         if (parts.size == 4 && !file.endsWith(".json")) return false
         return (file.substringBefore('.').toLongOrNull() ?: return false) <= 9007199254740991L
@@ -113,7 +235,10 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                 result.success(appContext.noBackupFilesDir.resolve("mitemite_private").absolutePath)
                 return@setMethodCallHandler
             }
-            if (call.method !in setOf("list", "read", "writeImmutable", "deleteOwnedRevision", "deleteOwnedDirectory")) {
+            if (call.method !in setOf(
+                    "list", "read", "writeImmutable", "copyPayload", "writePayload",
+                    "deleteOwnedRevision", "deleteOwnedDirectory",
+                )) {
                 result.notImplemented(); return@setMethodCallHandler
             }
             worker.execute {
@@ -126,9 +251,17 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                     val path = call.argument<String>("path") ?: ""
                     require(safe(path))
                     val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-                    val create = call.method == "writeImmutable"
-                    val namespace = directory(tree, root, listOf("v1"), create)
                     val parts = if (path.isEmpty()) emptyList() else path.split('/')
+                    val fileTransfer = call.method == "copyPayload" || call.method == "writePayload"
+                    val length = if (fileTransfer) call.argument<Number>("length")?.toLong() ?: 0L else 0L
+                    val sha256 = if (fileTransfer) call.argument<String>("sha256") ?: "" else ""
+                    if (fileTransfer) {
+                        require(parts.size == 6 && parts[3] == "bookmarks" &&
+                            path.endsWith(".bsexport") && owned(path, parts[1]))
+                        require(length in 1..maxBookmarkArchiveBytes && sha256.matches(Regex("[0-9a-f]{64}")))
+                    }
+                    val create = call.method == "writeImmutable" || call.method == "writePayload"
+                    val namespace = directory(tree, root, listOf("v1"), create)
                     val value: Any? = if (call.method == "list") {
                         val dir = namespace?.let { directory(tree, it, parts, false) }
                         if (dir == null) emptyList<String>() else children(tree, dir).map { it.name }.filter { !it.contains('/') && safe(it) }.sorted()
@@ -141,16 +274,27 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                         }
                         when (call.method) {
                             "read" -> existing?.let { read(it.uri, call.argument<Int>("maxBytes") ?: maxBytes) }
+                            "copyPayload" -> copyPayload(existing, call.argument<String>("destination"), length, sha256)
+                            "writePayload" -> {
+                                require(parent != null)
+                                writePayload(tree, parent, parts.last(), existing,
+                                    call.argument<String>("sourcePath") ?: throw IOException("Missing source"),
+                                    length, sha256)
+                            }
                             "deleteOwnedDirectory" -> {
                                 val owner = call.argument<String>("owner") ?: ""
                                 val allowed = if (path == "devices/$owner") {
                                     owned("$path/catalog/1.json", owner)
                                 } else {
-                                    parts.size == 5 && owned("$path/1.json", owner)
+                                    (parts.size == 5 && owned("$path/1.json", owner)) ||
+                                        (parts.size == 7 && owned("$path/00-0-${"0".repeat(64)}.ndjson.gz", owner))
                                 }
                                 require(allowed)
                                 if (existing != null) {
                                     if (!existing.directory) throw IOException("Expected directory")
+                                    if (parts.size == 7 && children(tree, existing.uri).isNotEmpty()) {
+                                        throw IOException("Expected an empty chunk directory")
+                                    }
                                     deleteTree(tree, existing, parts.size)
                                 }
                                 true
@@ -189,7 +333,11 @@ class MiteMiteChannel(context: Context, messenger: BinaryMessenger) {
                     }
                     main.post { result.success(value) }
                 } catch (error: Exception) {
-                    val code = if (error is SecurityException) "sync_folder_access_required" else "sync_storage_failed"
+                    val code = when (error) {
+                        is SecurityException -> "sync_folder_access_required"
+                        is InvalidPayload -> "sync_invalid_payload"
+                        else -> "sync_storage_failed"
+                    }
                     // Do not return paths, document URIs, private keys or package content.
                     main.post { result.error(code, "MiteMite storage operation failed", null) }
                 }

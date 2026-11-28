@@ -1,14 +1,15 @@
-// Dart imports:
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
-// Package imports:
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
-// Project imports:
 import '../../../../foundation/filesystem.dart';
+import '../import/import_progress.dart';
 import '../models/package_manifest.dart';
+import 'bookmark_transfer_format.dart';
 import 'export_package_exception.dart';
 import 'export_package_limits.dart';
 import 'staged_export_package.dart';
@@ -16,100 +17,179 @@ import 'staged_export_package.dart';
 class ExportPackageReader {
   const ExportPackageReader({
     required this.fs,
-    this.limits = const ExportPackageLimits(),
+    this.limits = const ExportPackageLimits(separateBookmarkBudget: true),
   });
 
   final AppFileSystem fs;
   final ExportPackageLimits limits;
 
   Future<StagedExportPackage> stage(String packagePath) async {
-    String? stagingPath;
+    ImportProgress.current?.show(ImportProgressPhase.opening);
+    final stagingPath = await fs.createTempDirectory('boorusama_import_');
+    try {
+      final task = _ExtractPackage(packagePath, stagingPath, limits);
+      final manifest = await runImportWorker(task.run);
+      return StagedExportPackage(
+        manifest: manifest,
+        directoryPath: stagingPath,
+        fs: fs,
+      );
+    } catch (_) {
+      if (await fs.directoryExists(stagingPath)) {
+        await fs.deleteDirectory(stagingPath, recursive: true);
+      }
+      rethrow;
+    }
+  }
+}
+
+final class _ExtractPackage {
+  const _ExtractPackage(this.packagePath, this.stagingPath, this.limits);
+
+  final String packagePath;
+  final String stagingPath;
+  final ExportPackageLimits limits;
+
+  Future<ExportPackageManifest> run() async {
+    final progress = ImportProgress.current;
+    void checkCancelled() {
+      if (progress?.cancelled ?? false) {
+        throw const ExportPackageException('Import cancelled');
+      }
+    }
+
     InputFileStream? input;
-    Archive? archive;
     try {
       input = InputFileStream(packagePath);
-      final decoder = ZipDecoder();
-      archive = decoder.decodeStream(input);
-      _validateHeaders(decoder);
-      if (archive.files.any(
-        (entry) => !entry.isFile || entry.isSymbolicLink,
-      )) {
-        throw const ExportPackageException(
-          'Directories and symbolic links are unsupported',
-        );
+      final directory = ZipDirectory()..read(input);
+      if (directory.fileHeaders.length >
+          limits.maxFileCount +
+              (limits.separateBookmarkBudget ? bookmarkTransferPartCount : 0)) {
+        throw const ExportPackageLimitException('Too many archive entries');
+      }
+      final headers = <String, ZipFileHeader>{};
+      for (final header in directory.fileHeaders) {
+        _validateHeader(header);
+        if (headers.containsKey(header.filename)) {
+          throw const ExportPackageException('Repeated archive path');
+        }
+        headers[header.filename] = header;
       }
 
-      final manifestEntry = archive.find('manifest.json');
+      final manifestEntry = headers.remove('manifest.json');
       if (manifestEntry == null ||
-          !manifestEntry.isFile ||
-          manifestEntry.size > limits.maxManifestBytes) {
+          manifestEntry.uncompressedSize > limits.maxManifestBytes) {
         throw const ExportPackageException('Missing or oversized manifest');
       }
-      final manifestBytes = manifestEntry.readBytes();
-      if (manifestBytes == null) {
-        throw const ExportPackageException('Manifest cannot be read');
-      }
-      final decoded = jsonDecode(utf8.decode(manifestBytes));
+      final manifestBytes = BytesBuilder(copy: false);
+      _extract(manifestEntry, manifestBytes.add);
+      final decoded = jsonDecode(utf8.decode(manifestBytes.takeBytes()));
       if (decoded is! Map<String, dynamic>) {
         throw const ExportPackageException('Manifest is not an object');
       }
       final manifest = ExportPackageManifest.fromJson(decoded);
-      final parts = {
-        for (final source in manifest.sources)
-          for (final part in source.parts) part.path: part,
-      };
-      final declaredPartCount = manifest.sources.fold<int>(
-        0,
-        (total, source) => total + source.parts.length,
-      );
-      if (parts.length != declaredPartCount) {
-        throw const ExportPackageException('Manifest repeats a part path');
+      final parts = <String, ExportPartManifest>{};
+      final streamed = <String>{};
+      for (final source in manifest.sources) {
+        final tables = bookmarkTransferParts(source);
+        if (tables != null) {
+          streamed.addAll(source.parts.map((part) => part.path));
+        }
+        for (final part in source.parts) {
+          final header = headers[part.path];
+          if (parts.containsKey(part.path) ||
+              header == null ||
+              header.uncompressedSize != part.byteLength) {
+            throw const ExportPackageException(
+              'Archive entries do not match the manifest',
+            );
+          }
+          parts[part.path] = part;
+        }
       }
-      final archivePaths = decoder.directory.fileHeaders
-          .map((header) => header.filename)
-          .toSet();
-      if (archivePaths.length != parts.length + 1 ||
-          !archivePaths.contains('manifest.json') ||
-          !archivePaths.containsAll(parts.keys)) {
+      if (parts.length != headers.length) {
         throw const ExportPackageException(
           'Archive entries do not match the manifest',
         );
       }
 
-      stagingPath = await fs.createTempDirectory('boorusama_import_');
-      for (final entry in parts.entries) {
-        final archiveFile = archive.find(entry.key);
-        if (archiveFile == null || !archiveFile.isFile) {
-          throw const ExportPackageException('Declared part is missing');
+      var generalBytes = manifestEntry.uncompressedSize;
+      var generalFiles = 1;
+      var bookmarkBytes = 0;
+      var bytes = 0;
+      for (final part in parts.values) {
+        bytes += part.byteLength;
+        if (streamed.contains(part.path)) {
+          bookmarkBytes += part.byteLength;
+          if (part.byteLength > bookmarkTransferPartBytes) {
+            throw const ExportPackageLimitException(
+              'Bookmark part is too large',
+            );
+          }
+          if (limits.separateBookmarkBudget) continue;
         }
-        final outputPath = p.joinAll([
-          stagingPath,
-          ...entry.key.split('/'),
-        ]);
-        await fs.createDirectory(p.dirname(outputPath), recursive: true);
+        generalFiles++;
+        generalBytes += part.byteLength;
+        if (part.byteLength > limits.maxPartBytes) {
+          throw const ExportPackageLimitException('Archive entry is too large');
+        }
+      }
+      if (streamed.length > bookmarkTransferPartCount ||
+          generalFiles > limits.maxFileCount) {
+        throw const ExportPackageLimitException('Too many archive entries');
+      }
+      if (generalBytes > limits.maxExpandedBytes ||
+          bookmarkBytes > bookmarkTransferExpandedBytes) {
+        throw const ExportPackageLimitException(
+          'Expanded archive is too large',
+        );
+      }
+
+      var extracted = 0;
+      progress?.show(ImportProgressPhase.extracting, total: bytes);
+      for (final part in parts.values) {
+        final outputPath = p.joinAll([stagingPath, ...part.path.split('/')]);
+        await Directory(p.dirname(outputPath)).create(recursive: true);
+        checkCancelled();
         final output = OutputFileStream(outputPath);
         try {
-          archiveFile.writeContent(output);
+          _extract(headers[part.path]!, (chunk) {
+            output.writeBytes(chunk);
+            extracted += chunk.length;
+            progress?.show(
+              ImportProgressPhase.extracting,
+              completed: extracted,
+              total: bytes,
+            );
+          });
         } finally {
           await output.close();
         }
-        final byteLength = await fs.fileSize(outputPath);
-        final digest = await sha256.bind(fs.openRead(outputPath)).first;
-        if (byteLength != entry.value.byteLength ||
-            digest.toString() != entry.value.sha256) {
-          throw ExportPackageException(
-            'Part verification failed: ${entry.key}',
-          );
-        }
       }
 
-      final staged = StagedExportPackage(
-        manifest: manifest,
-        directoryPath: stagingPath,
-        fs: fs,
-      );
-      stagingPath = null;
-      return staged;
+      var verified = 0;
+      progress?.show(ImportProgressPhase.verifying, total: bytes);
+      for (final part in parts.values) {
+        final outputPath = p.joinAll([stagingPath, ...part.path.split('/')]);
+        final digest = await sha256
+            .bind(
+              File(outputPath).openRead().map((chunk) {
+                checkCancelled();
+                verified += chunk.length;
+                progress?.show(
+                  ImportProgressPhase.verifying,
+                  completed: verified,
+                  total: bytes,
+                );
+                return chunk;
+              }),
+            )
+            .first;
+        if (digest.toString() != part.sha256) {
+          throw const ExportPackageException('Part verification failed');
+        }
+      }
+      return manifest;
     } on ExportPackageException {
       rethrow;
     } on FormatException catch (error) {
@@ -120,55 +200,93 @@ class ExportPackageReader {
         cause: error,
       );
     } finally {
-      if (archive != null) await archive.clear();
       if (input != null) await input.close();
-      if (stagingPath != null && await fs.directoryExists(stagingPath)) {
-        await fs.deleteDirectory(stagingPath, recursive: true);
-      }
     }
   }
 
-  void _validateHeaders(ZipDecoder decoder) {
-    final headers = decoder.directory.fileHeaders;
-    if (headers.isEmpty) {
-      throw const ExportPackageException('Archive file count is invalid');
+  void _validateHeader(ZipFileHeader header) {
+    final path = header.filename;
+    final file = header.file;
+    if (!isSafeExportPartPath(path) || file == null || file.filename != path) {
+      throw const ExportPackageException('Invalid archive path');
     }
-    if (headers.length > limits.maxFileCount) {
-      throw const ExportPackageLimitException('Too many archive entries');
+    final mode = (header.externalFileAttributes >> 16) & 0xf000;
+    if (mode == 0xa000 ||
+        mode == 0x4000 ||
+        path.endsWith('/') ||
+        (header.externalFileAttributes & 0x10) != 0) {
+      throw const ExportPackageException(
+        'Directories and symbolic links are unsupported',
+      );
     }
-    final paths = <String>{};
-    var totalExpandedBytes = 0;
-    for (final header in headers) {
-      final path = header.filename;
-      if (!isSafeExportPartPath(path) || !paths.add(path)) {
-        throw ExportPackageException('Unsafe or repeated archive path: $path');
-      }
-      if ((header.generalPurposeBitFlag & 1) != 0) {
-        throw const ExportPackageException(
-          'Encrypted archives are unsupported',
-        );
-      }
-      if (header.compressionMethod != 0 && header.compressionMethod != 8) {
-        throw const ExportPackageException('Unsupported ZIP compression');
-      }
-      if (header.uncompressedSize < 0) {
-        throw const ExportPackageException('Invalid archive entry size');
-      }
-      if (header.uncompressedSize > limits.maxPartBytes) {
-        throw const ExportPackageLimitException('Archive entry is too large');
-      }
-      totalExpandedBytes += header.uncompressedSize;
-      if (totalExpandedBytes > limits.maxExpandedBytes) {
-        throw const ExportPackageLimitException(
-          'Expanded archive is too large',
-        );
-      }
-      if (header.uncompressedSize > 0 &&
-          (header.compressedSize == 0 ||
-              header.uncompressedSize / header.compressedSize >
-                  limits.maxExpansionRatio)) {
-        throw const ExportPackageException('Archive expansion ratio is unsafe');
-      }
+    if (((header.generalPurposeBitFlag | file.flags) & 1) != 0) {
+      throw const ExportPackageException('Encrypted archives are unsupported');
+    }
+    final method = switch (header.compressionMethod) {
+      0 => CompressionType.none,
+      8 => CompressionType.deflate,
+      _ => throw const ExportPackageException('Unsupported ZIP compression'),
+    };
+    if (method != file.compressionMethod ||
+        header.uncompressedSize < 0 ||
+        header.compressedSize < 0 ||
+        header.compressedSize != file.compressedSize ||
+        header.uncompressedSize != file.uncompressedSize) {
+      throw const ExportPackageException('Invalid ZIP entry header');
+    }
+    if (header.uncompressedSize > 0 &&
+        (header.compressedSize == 0 ||
+            header.uncompressedSize / header.compressedSize >
+                limits.maxExpansionRatio)) {
+      throw const ExportPackageException('Archive expansion ratio is unsafe');
     }
   }
+}
+
+void _extract(ZipFileHeader header, void Function(List<int>) write) {
+  final file = header.file!;
+  final input = file.getStream(decompress: false);
+  if (input.length != header.compressedSize) {
+    throw const ExportPackageException('Incomplete ZIP entry');
+  }
+  final output = _ZipOutput(header.uncompressedSize, write);
+  final sink = file.compressionMethod == CompressionType.deflate
+      ? ZLibCodec(raw: true).decoder.startChunkedConversion(output)
+      : output;
+  const chunkSize = 64 * 1024;
+  while (!input.isEOS) {
+    sink.add(
+      input
+          .readBytes(input.length < chunkSize ? input.length : chunkSize)
+          .toUint8List(),
+    );
+  }
+  sink.close();
+  if (output.written != header.uncompressedSize || output.crc != header.crc32) {
+    throw const ExportPackageException('Invalid ZIP entry content');
+  }
+}
+
+final class _ZipOutput extends ByteConversionSink {
+  _ZipOutput(this.limit, this.write);
+
+  final int limit;
+  final void Function(List<int>) write;
+  var written = 0;
+  var crc = 0;
+
+  @override
+  void add(List<int> chunk) {
+    if (written + chunk.length > limit) {
+      throw const ExportPackageLimitException(
+        'Expanded ZIP entry exceeds its declared size',
+      );
+    }
+    written += chunk.length;
+    crc = getCrc32(chunk, crc);
+    write(chunk);
+  }
+
+  @override
+  void close() {}
 }

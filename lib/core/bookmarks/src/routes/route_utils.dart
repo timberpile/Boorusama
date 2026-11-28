@@ -12,7 +12,7 @@ import '../../../router.dart';
 import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_view.dart';
-import '../services/bookmark_read_projection.dart';
+import '../services/bookmark_seen_projection.dart';
 
 Future<void> goToBookmarkPage(
   WidgetRef ref,
@@ -48,7 +48,7 @@ Future<void> goToBookmarkDetailsPage(
   required PostGridController<Post> controller,
   BookmarkView sourceView = const BookmarkView.all(),
   List<ViewerEntry>? entries,
-  Map<Object, BookmarkReadTarget>? readingTargets,
+  Map<Object, BookmarkSeenTarget>? seenTargets,
 }) async {
   final detailsMutations = ref.read(
     bookmarkDetailsMutationProvider.notifier,
@@ -67,7 +67,7 @@ Future<void> goToBookmarkDetailsPage(
         'controller': controller,
         'entries': entries,
         'sourceView': sourceView,
-        'readingTargets': readingTargets,
+        'seenTargets': seenTargets,
         'initialThumbnailUrl': initialThumbnailUrl,
       },
     );

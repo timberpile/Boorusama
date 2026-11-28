@@ -7,6 +7,7 @@ import 'package:cryptography/cryptography.dart' as signing;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:uuid/uuid.dart';
 
+import '../sources/bookmark_backup_schema.dart' show kBookmarksBackupVersion;
 import 'limits.dart';
 
 export 'limits.dart';
@@ -267,10 +268,25 @@ final class SyncRevision {
     required this.sha256,
     required this.semanticHash,
     required this.schema,
+    this.bookmarkTables = false,
+    this.bookmarkManifest = false,
   }) {
     syncPositiveInteger(revision);
-    syncPositiveInteger(length, maximum: miteMiteMaxBytes);
     syncPositiveInteger(schema);
+    if ((bookmarkTables || bookmarkManifest) &&
+        (collection.kind != 'bookmarks' ||
+            schema != kBookmarksBackupVersion ||
+            (bookmarkTables && bookmarkManifest))) {
+      throw const FormatException('Invalid Bookmark revision format');
+    }
+    syncPositiveInteger(
+      length,
+      maximum: bookmarkManifest
+          ? miteMiteMaxBookmarkManifestBytes
+          : bookmarkTables
+          ? miteMiteMaxBookmarkArchiveBytes
+          : miteMiteMaxBytes,
+    );
     if (!isSyncDigest(sha256) || !isSyncDigest(semanticHash)) {
       throw const FormatException('Invalid sync revision digest');
     }
@@ -279,13 +295,25 @@ final class SyncRevision {
     if (json['protocol'] != miteMiteProtocol) {
       throw const SyncUpdateRequired();
     }
+    final bookmarkTables = identical(json['bookmarkTables'], true);
+    if (json.containsKey('bookmarkTables') && !bookmarkTables) {
+      throw const FormatException('Invalid Bookmark revision format');
+    }
+    final format = json['bookmarkManifest'];
+    final bookmarkManifest =
+        format is int && format == miteMiteBookmarkManifestVersion;
+    if (json.containsKey('bookmarkManifest') && !bookmarkManifest) {
+      throw const SyncUpdateRequired();
+    }
     return SyncRevision(
       collection: SyncCollectionId.fromJson(json),
       revision: syncPositiveInteger(json['revision']),
-      length: syncPositiveInteger(json['length'], maximum: miteMiteMaxBytes),
+      length: syncPositiveInteger(json['length']),
       sha256: syncString(json['sha256']),
       semanticHash: syncString(json['semanticHash']),
       schema: syncPositiveInteger(json['schema']),
+      bookmarkTables: bookmarkTables,
+      bookmarkManifest: bookmarkManifest,
     );
   }
   final SyncCollectionId collection;
@@ -294,7 +322,12 @@ final class SyncRevision {
   final String sha256;
   final String semanticHash;
   final int schema;
-  String get payloadPath => '${collection.directory}/$revision.bsexport';
+  final bool bookmarkTables;
+  final bool bookmarkManifest;
+
+  String get payloadPath => bookmarkManifest
+      ? '${collection.directory}/manifests/$revision.json'
+      : '${collection.directory}/$revision.bsexport';
   String get descriptorPath => '${collection.directory}/$revision.json';
   Map<String, Object?> toJson() => {
     'protocol': miteMiteProtocol,
@@ -304,6 +337,8 @@ final class SyncRevision {
     'sha256': sha256,
     'semanticHash': semanticHash,
     'schema': schema,
+    if (bookmarkTables) 'bookmarkTables': true,
+    if (bookmarkManifest) 'bookmarkManifest': miteMiteBookmarkManifestVersion,
   };
   void verifyPayload(List<int> bytes) {
     if (bytes.length != length || syncDigest(bytes) != sha256) {

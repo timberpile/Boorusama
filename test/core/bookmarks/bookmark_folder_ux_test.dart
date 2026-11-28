@@ -1,6 +1,7 @@
 import 'package:boorusama/core/backups/mitemite/mitemite_icon.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/providers.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/navigation/page_presentation_profile.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
@@ -54,6 +55,61 @@ import '../posts/details/progressive_image_test_utils.dart';
 import '../../support/legacy_material_test_scope.dart';
 
 void main() {
+  testWidgets('only directly published groups show the publication badge', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _Library(
+        _state(
+          groups: [
+            _group('published-root', 'Shared folder'),
+            _group(
+              'inherited-child',
+              'Included child',
+              parent: 'published-root',
+            ),
+            _group('published-child', 'Shared child', parent: 'published-root'),
+          ],
+        ),
+      ),
+      publishedRoots: {_id('published-root'), _id('published-child')},
+    );
+
+    Finder badge(Finder surface) =>
+        find.descendant(of: surface, matching: find.byTooltip('Published'));
+    Finder card(String title) =>
+        find.widgetWithText(BookmarkLocalGroupCard, title);
+    final appBar = find.byType(AppBar);
+    expect(badge(card('Shared folder')), findsOneWidget);
+    await tester.tap(_cardInk('Shared folder'));
+    await tester.pumpAndSettle();
+    expect(badge(appBar), findsOneWidget);
+    expect(badge(card('Shared child')), findsOneWidget);
+    expect(badge(card('Included child')), findsNothing);
+
+    await _menu(tester, 'Included child');
+    expect(find.text('Publish'), findsOneWidget);
+    expect(find.text('Via Parent'), findsNothing);
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_cardInk('Included child'));
+    await tester.pumpAndSettle();
+    expect(badge(appBar), findsNothing);
+    await tester.tap(
+      find
+          .descendant(
+            of: appBar,
+            matching: find.byType(KurumiPopupMenuButton),
+          )
+          .last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Publish'), findsOneWidget);
+    expect(find.text('Via Parent'), findsNothing);
+  });
+
   testWidgets('folder grid keeps its children on scroll and adapts to width', (
     tester,
   ) async {
@@ -112,7 +168,7 @@ void main() {
       final received = _group('received', 'Source-owned Group');
       final publisher = _id('publisher');
       final source = _id('source');
-      final reading = SyncGroupReadingState.empty(
+      final reading = SyncGroupSeenState.empty(
         SyncCollectionId(
           publisher: publisher,
           kind: 'bookmarks',
@@ -1850,6 +1906,7 @@ Future<GoRouter> _pump(
   WidgetTester tester,
   _Library library, {
   Widget? home,
+  Set<String>? publishedRoots,
   double textScale = 1,
   Size size = const Size(400, 1000),
 }) async {
@@ -1880,6 +1937,8 @@ Future<GoRouter> _pump(
     ProviderScope(
       overrides: [
         bookmarkProvider.overrideWith(() => library),
+        if (publishedRoots != null)
+          publishedBookmarkRootsProvider.overrideWithValue(publishedRoots),
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(initialConfigs: [_config]),
         ),

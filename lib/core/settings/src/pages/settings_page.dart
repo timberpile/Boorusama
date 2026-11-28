@@ -14,6 +14,8 @@ import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/url_launcher.dart';
 import '../../../analytics/providers.dart';
 import '../../../build_info/providers.dart';
+import '../../../backups/mitemite/mitemite_icon.dart';
+import '../../../backups/mitemite/page.dart';
 import '../../../changelogs/routes.dart';
 import '../../../debug/routes.dart';
 import '../../../developer_options/l10n.dart';
@@ -98,6 +100,13 @@ List<SettingEntry> _entries(
     title: context.t.settings.backup_and_restore.export_import.title,
     icon: FontAwesomeIcons.cloudArrowDown,
     content: const BackupAndRestorePage(showAppBar: false),
+  ),
+  SettingEntry(
+    id: 'mitemite',
+    name: '/settings/mitemite',
+    title: context.t.mitemite.title,
+    icon: const MiteMiteIcon(),
+    content: const MiteMitePage(embedded: true),
   ),
   SettingEntry(
     id: 'search',

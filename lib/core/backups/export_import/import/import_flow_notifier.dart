@@ -12,7 +12,9 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/performance.dart';
 import 'package:kurumi/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../../../foundation/data_mutation_coordinator.dart';
@@ -22,7 +24,11 @@ import '../../../../foundation/utils/file_utils.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../bookmarks/providers.dart';
+import '../../../bookmarks/src/data/hive/factory.dart';
+import '../../../bookmarks/src/data/hive/repository.dart';
 import '../../../bookmarks/types.dart';
+import '../../../boorus/engine/providers.dart';
+import '../../../content/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../preparation/version_checking.dart';
@@ -31,6 +37,8 @@ import '../../sources/bookmark_backup_schema.dart';
 import '../../utils/data_converter.dart';
 import '../../sources/bookmark_import_planner.dart';
 import '../../sources/bookmark_import_service.dart';
+import '../../sources/bookmark_transfer_database.dart';
+import '../../sources/bookmark_transfer_import.dart';
 import '../../sources/topic_feed_backup_data.dart';
 import '../../sources/topic_feed_import_service.dart';
 import '../../sources/following_topic_backup_data.dart';
@@ -44,7 +52,9 @@ import '../../utils/backup_utils.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import '../package/staged_export_package.dart';
+import '../package/bookmark_transfer_format.dart';
 import '../sources/profile_export_sanitizer.dart';
+import '../sources/export_selection_ids.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
 import 'import_item_labels.dart';
@@ -54,7 +64,10 @@ import 'import_source_durability.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_planner.dart';
+import 'import_progress.dart';
+import '../../../bookmarks/src/services/bookmark_library_service.dart';
 import 'import_preflight.dart';
+import 'import_recovery_gate.dart';
 import 'import_transaction.dart';
 import 'legacy_import_stager.dart';
 import 'profile_import_projection.dart';
@@ -85,6 +98,7 @@ final class ImportFlowState {
     this.bookmarkRefreshFailed = false,
     this.planRefreshed = false,
     this.previewPending = false,
+    this.progress,
     this.error,
   });
 
@@ -105,6 +119,7 @@ final class ImportFlowState {
   final bool bookmarkRefreshFailed;
   final bool planRefreshed;
   final bool previewPending;
+  final ImportProgressValue? progress;
   final Object? error;
 
   ImportFlowState copyWith({
@@ -123,6 +138,7 @@ final class ImportFlowState {
     bool? bookmarkRefreshFailed,
     bool? planRefreshed,
     bool? previewPending,
+    ImportProgressValue? progress,
     Object? error,
   }) => ImportFlowState(
     status: status ?? this.status,
@@ -141,6 +157,7 @@ final class ImportFlowState {
     bookmarkRefreshFailed: bookmarkRefreshFailed ?? this.bookmarkRefreshFailed,
     planRefreshed: planRefreshed ?? this.planRefreshed,
     previewPending: previewPending ?? this.previewPending,
+    progress: progress ?? this.progress,
     error: error,
   );
 }
@@ -197,13 +214,33 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     return const ImportFlowState.initial();
   }
 
-  Future<void> load(String path) => _load(path);
+  Future<void> load(String path) =>
+      state.status == ImportFlowStatus.importing ? Future.value() : _load(path);
 
-  Future<void> _load(String? path) async {
+  ImportProgress _progress(int revision) => ImportProgress(
+    (value) {
+      if (!_disposed && revision == _planningRevision) {
+        state = state.copyWith(progress: value);
+      }
+    },
+    cancelled: () => _disposed || revision != _planningRevision,
+  );
+
+  Future<void> _load(String? path) {
     final revision = ++_planningRevision;
     _completedPreflight = null;
     final previous = path == null ? state.resolved : null;
     state = const ImportFlowState(status: ImportFlowStatus.checking);
+    return _progress(revision)
+        .run(() => _loadPackage(path, previous, revision));
+  }
+
+  Future<void> _loadPackage(
+    String? path,
+    ResolvedImportPlan? previous,
+    int revision,
+  ) async {
+    ImportProgress.current?.show(ImportProgressPhase.opening);
     try {
       final StagedExportPackage package;
       if (path == null) {
@@ -218,6 +255,14 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         return;
       }
       _package = package;
+      if ((path, _sources['bookmarks']?.streamedBookmarks) case (
+        null,
+        final stale?,
+      )) {
+        final fs = ref.read(appFileSystemProvider);
+        await fs.deleteFileIfExists(stale.incoming.path);
+        await fs.deleteFileIfExists(stale.previous.path);
+      }
       _stagingBytes = package.manifest.sources.fold(
         0,
         (total, source) =>
@@ -270,22 +315,63 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           );
           continue;
         }
-        if (manifest.parts.length != 1) {
+        final streamedParts = bookmarkTransferParts(manifest);
+        if (streamedParts == null && manifest.parts.length != 1) {
           throw FormatException(
             'Source ${manifest.id} has an unsupported part layout',
           );
         }
-        final incomingPath = package.pathFor(manifest.parts.single.path);
+        final BookmarkTransferImport? streamed;
+        if (streamedParts != null) {
+          final serial = const Uuid().v4();
+          final incoming = BookmarkTransferDatabase(
+            p.join(package.directoryPath, 'bookmarks-$serial.sqlite'),
+          );
+          final codec =
+              ((source as JsonBackupSource).handler as BookmarkBackupCodec)
+                  .records;
+          await incoming.stage(
+            package: package,
+            parts: streamedParts,
+            codec: codec,
+            cancelled: () => _disposed || revision != _planningRevision,
+          );
+          if (_disposed || revision != _planningRevision) return;
+          final incomingBytes = await ref
+              .read(appFileSystemProvider)
+              .fileSize(incoming.path);
+          if (_disposed || revision != _planningRevision) return;
+          _stagingBytes += incomingBytes;
+          streamed = BookmarkTransferImport(
+            incoming: incoming,
+            previous: BookmarkTransferDatabase(
+              p.join(package.directoryPath, 'preimage-$serial.sqlite'),
+            ),
+            codec: codec,
+          );
+        } else {
+          streamed = null;
+        }
+        final incomingPath = streamed == null
+            ? package.pathFor(manifest.parts.single.path)
+            : null;
         final wrapper = PackageTransactionSource(
           source: source,
           incomingPath: incomingPath,
           fs: ref.read(appFileSystemProvider),
           ref: ref,
           credentialsIncluded: package.manifest.containsCredentials ?? false,
+          streamedBookmarks: streamed,
+          preparationCancelled: () =>
+              _disposed || revision != _planningRevision,
         );
-        await wrapper.prepare(null);
+        if (streamed == null) {
+          await wrapper.prepare(null);
+        } else {
+          await package.read(() => wrapper.prepare(null));
+        }
         if (_disposed || revision != _planningRevision) return;
-        if (manifest.id == 'bookmarks') {
+        if (manifest.id == 'bookmarks' && streamed == null) {
           // Provider initialization can run in a different zone and acquire
           // this same coordinator. Finish cold storage/library startup before
           // holding the lock while snapshot getters await those providers.
@@ -301,15 +387,19 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         containsCredentials = containsCredentials || actualCredentials;
         wrapper.credentialsIncluded =
             wrapper.credentialsIncluded || actualCredentials;
-        final capturedRevision = await _withDataLock(() async {
+        Future<String> capture() => _withDataLock(() async {
           await wrapper.captureLocalSnapshot();
           await wrapper.measureRollback();
           return wrapper.revisionToken();
-        }, bookmarks: manifest.id == 'bookmarks');
+        }, bookmarks: manifest.id == 'bookmarks' && streamed == null);
+        final capturedRevision = streamed == null
+            ? await capture()
+            : await package.read(capture);
         if (_disposed || revision != _planningRevision) return;
         final itemPresentation = importItemPresentation(
           manifest.id,
           wrapper.preparedData,
+          bookmarkHasUngrouped: wrapper.streamedHasUngrouped,
         );
         itemLabels.addAll(itemPresentation.labels);
         itemPresentations[manifest.id] = itemPresentation;
@@ -331,6 +421,8 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           selection: selection,
           itemRecommendations: manifest.itemRecommendedActions,
           data: wrapper.preparedData,
+          bookmarkMembershipCounts: wrapper.streamedMembershipCounts,
+          bookmarkHasUngrouped: wrapper.streamedHasUngrouped,
         );
         if (actualCredentials &&
             package.manifest.containsCredentials == false) {
@@ -361,7 +453,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           },
           _ => descriptor?.childIds ?? const <String>{},
         };
-        final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
+        final data = wrapper.preparedData;
+        final partialBookmarkSelection =
+            data is BookmarkBackupData &&
+                selection.kind == ExportNodeSelectionKind.explicit &&
+                data.groups.every((group) => group.id != null)
+            ? ExportNodeSelection.explicit('bookmarks', {
+                for (final key in selection.childIds)
+                  if (data.legacyFolderGroupIds[ExportSelectionIds.bookmarkFolderId(
+                        key,
+                      )]
+                      case final id?)
+                    ExportSelectionIds.bookmarkGroup(id)
+                  else
+                    key,
+              })
+            : null;
+        final incomingIds = streamed != null || partialBookmarkSelection != null
+            ? importedItemIds(
+                data,
+                bookmarkHasUngrouped: wrapper.streamedHasUngrouped,
+              )
+            : _incomingItemIds(data, selection);
         final alreadyPresentSearchIds = <String>{};
         if ((wrapper.preparedData, wrapper._localSnapshot) case (
           final FollowingTopicBackupData data,
@@ -391,6 +504,20 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           }
           alreadyPresentSearches += alreadyPresentSearchIds.length;
         }
+        // A partial backup includes empty ancestor definitions for placement.
+        // Only explicitly exported memberships may replace a local group's members.
+        final selectionOnlyAncestors = partialBookmarkSelection == null
+            ? const <String>{}
+            : incomingIds.difference(
+                partialBookmarkSelection.resolve(itemPresentation.descriptor),
+              );
+        final mergeOnly = {
+          if (manifest.id == 'bookmarks') ...[
+            'group:$defaultBookmarkGroupId',
+            'ungrouped',
+            ...selectionOnlyAncestors.where(localIds.contains),
+          ],
+        };
         final items = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => _profilePlanningItems(
             profiles,
@@ -406,25 +533,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                   id: itemId,
                   matchingItemId: localIds.contains(itemId) ? itemId : null,
                   compatibleTargetIds: localIds.difference({itemId}),
-                  recommendedAction:
-                      manifest.id == 'bookmarks' &&
-                          (itemId == 'group:$defaultBookmarkGroupId' ||
-                              itemId == 'ungrouped')
+                  recommendedAction: mergeOnly.contains(itemId)
                       ? ImportAction.merge
                       : manifest.itemRecommendedActions[itemId],
-                  availableActions:
-                      manifest.id == 'bookmarks' &&
-                          (itemId == 'group:$defaultBookmarkGroupId' ||
-                              itemId == 'ungrouped')
+                  availableActions: mergeOnly.contains(itemId)
                       ? const {ImportAction.merge, ImportAction.skip}
                       : manifest.id == followingTopicsBackupSourceId &&
                             itemId.startsWith('search:')
                       ? const {ImportAction.copy, ImportAction.skip}
                       : null,
-                  fallbackAction:
-                      manifest.id == 'bookmarks' &&
-                          (itemId == 'group:$defaultBookmarkGroupId' ||
-                              itemId == 'ungrouped')
+                  fallbackAction: mergeOnly.contains(itemId)
                       ? ImportAction.merge
                       : manifest.id == followingTopicsBackupSourceId &&
                             itemId.startsWith('search:')
@@ -515,7 +633,8 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               errors: planned.errors,
             );
       final resolved = _retainImportChoices(proposed, previous);
-      final dependencies = _profileDependencies(resolved);
+      final dependencies = await _profileDependencies(resolved);
+      if (_disposed || revision != _planningRevision) return;
       final completed = await _preflightWithDependencies(
         proposed,
         resolved,
@@ -543,6 +662,10 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       );
     } catch (error, stackTrace) {
       if (_disposed || revision != _planningRevision) return;
+      final failedPackage = _package;
+      _package = null;
+      await failedPackage?.dispose();
+      if (_disposed || revision != _planningRevision) return;
       ref
           .read(loggerProvider)
           .handledError(
@@ -557,6 +680,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   }
 
   void replaceSource(ResolvedImportSource source) {
+    if (state.status != ImportFlowStatus.review) return;
     final resolved = state.resolved?.replaceSource(source);
     if (state.proposed == null ||
         resolved == null ||
@@ -567,6 +691,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   }
 
   void chooseProfileMapping(ProfileSiteKey key, String profileId) {
+    if (state.status != ImportFlowStatus.review) return;
     if (_profileChoices[key] == profileId) return;
     _profileChoices[key] = profileId;
     final resolved = state.resolved;
@@ -589,8 +714,20 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
 
   Future<void> _replan(ResolvedImportPlan resolved, int revision) async {
     if (_disposed || revision != _planningRevision) return;
+    final package = _package!;
+    await package.read(
+      () => _progress(revision).run(() => _refreshPreview(resolved, revision)),
+    );
+  }
+
+  Future<void> _refreshPreview(
+    ResolvedImportPlan resolved,
+    int revision,
+  ) async {
+    ImportProgress.current?.show(ImportProgressPhase.preparing);
     try {
-      final dependencies = _profileDependencies(resolved);
+      final dependencies = await _profileDependencies(resolved);
+      if (_disposed || revision != _planningRevision) return;
       final completed = await _preflightWithDependencies(
         state.proposed!,
         resolved,
@@ -664,11 +801,21 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       ? ref.read(bookmarkProvider.notifier).runWithLibrary(operation)
       : ref.read(dataMutationCoordinatorProvider).runExclusive(operation);
 
-  Future<void> apply(BuildContext? context) async {
-    if (state.previewPending) return;
+  Future<void> apply(BuildContext? context) =>
+      _progress(_planningRevision).run(() => _apply(context));
+
+  Future<void> _apply(BuildContext? context) async {
+    if (state.status != ImportFlowStatus.review || state.previewPending) return;
     final validated = state.preflight?.validatedPlan;
     if (validated == null) return;
+    final keepAlive = ref.keepAlive();
+    final streamed = _sources['bookmarks']?.streamedBookmarks != null;
+    final appliesBookmarks = validated.plan.sources.any(
+      (source) =>
+          source.id == 'bookmarks' && source.action != ImportAction.skip,
+    );
     state = state.copyWith(status: ImportFlowStatus.importing);
+    ImportProgress.current?.show(ImportProgressPhase.checkpoint);
     try {
       await _withDataLock(
         () async {
@@ -679,7 +826,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           }
           final fs = ref.read(appFileSystemProvider);
           final root = await fs.getAppStoragePath();
-          await ref
+          Future<void> commit() => ref
               .read(importCoordinatorProvider)
               .apply(
                 plan: validated,
@@ -692,17 +839,33 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                 ),
                 sources: Map.unmodifiable(_sources),
               );
+          if (streamed && appliesBookmarks) {
+            await performanceRecorder.measureAsync(
+              PerfOperation.bookmarkTransferApply,
+              commit,
+            );
+          } else {
+            await commit();
+          }
           for (final sourcePlan in validated.plan.sources) {
-            if (sourcePlan.action != ImportAction.skip) {
+            if (sourcePlan.action != ImportAction.skip &&
+                !(streamed && sourcePlan.id == 'bookmarks')) {
               await _sources[sourcePlan.id]!.restart();
             }
           }
         },
-        bookmarks: validated.plan.sources.any(
-          (source) =>
-              source.id == 'bookmarks' && source.action != ImportAction.skip,
-        ),
+        bookmarks: appliesBookmarks && !streamed,
       );
+      if (appliesBookmarks && streamed) {
+        await performanceRecorder.measureAsync(
+          PerfOperation.bookmarkTransferRefresh,
+          _sources['bookmarks']!.restart,
+        );
+      }
+      if (streamed) {
+        await _package?.dispose();
+        _package = null;
+      }
       state = state.copyWith(
         status: ImportFlowStatus.complete,
         bookmarkRefreshFailed:
@@ -734,6 +897,15 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         }
       }
       state = state.copyWith(status: ImportFlowStatus.error, error: error);
+      if (streamed) {
+        await _package?.dispose();
+        _package = null;
+        if (error is ImportRollbackException) {
+          ref.invalidate(importRecoveryProvider);
+        }
+      }
+    } finally {
+      keepAlive.close();
     }
   }
 
@@ -766,16 +938,22 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     final resolvedById = {
       for (final source in resolved.sources) source.id: source,
     };
+    final sources = _sources;
+    final package = _package!;
+    Future<PlannedChangeSummary?> project(ResolvedImportSource resolution) {
+      final source = sources[resolution.id]!;
+      return source.streamedBookmarks == null
+          ? source.plannedChanges(resolution)
+          : package.read(() => source.plannedChanges(resolution));
+    }
+
     final snapshots = [
       for (final snapshot in _preflightSnapshots)
         SourcePreflightSnapshot(
           sourceId: snapshot.sourceId,
           revisionToken: snapshot.revisionToken,
           summary: switch (resolvedById[snapshot.sourceId]) {
-            final resolution? =>
-              await _sources[snapshot.sourceId]!.plannedChanges(
-                resolution,
-              ),
+            final resolution? => await project(resolution),
             null => snapshot.summary,
           },
           warnings: snapshot.warnings,
@@ -801,7 +979,10 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     );
   }
 
-  ProfileDependencyPlan _profileDependencies(ResolvedImportPlan resolved) {
+  Future<ProfileDependencyPlan> _profileDependencies(
+    ResolvedImportPlan resolved,
+  ) async {
+    ImportProgress.current?.show(ImportProgressPhase.preparing);
     dependencyPlanningRuns++;
     final resolvedById = {
       for (final source in resolved.sources) source.id: source,
@@ -820,10 +1001,19 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           .add(sourceId);
     }
 
-    if ((_sources['bookmarks']?.preparedData, resolvedById['bookmarks']) case (
-      final BookmarkBackupData data,
-      final resolution?,
-    )) {
+    if ((_sources['bookmarks']?.streamedBookmarks, resolvedById['bookmarks'])
+        case (final streamed?, final resolution?)) {
+      optionalReferences.addAll(
+        await _package!.read(() => streamed.profileReferences(resolution)),
+      );
+      if (ImportProgress.current?.cancelled ?? false) {
+        throw const FormatException('Import preview was superseded');
+      }
+    } else if ((_sources['bookmarks']?.preparedData, resolvedById['bookmarks'])
+        case (
+          final BookmarkBackupData data,
+          final resolution?,
+        )) {
       for (final record in selectedProfileRecords(data, resolution)) {
         optionalReferences.add(bookmarkRecordProfileReference(record));
       }
@@ -1030,6 +1220,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
     required this.ref,
     required this.credentialsIncluded,
     this.recoverReleasedBookmarks,
+    this.streamedBookmarks,
+    this.preparationCancelled,
   });
 
   final BackupDataSource source;
@@ -1037,7 +1229,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
   final AppFileSystem fs;
   final Ref ref;
   final Future<bool> Function(BookmarkBackupData)? recoverReleasedBookmarks;
+  final BookmarkTransferImport? streamedBookmarks;
+  final bool Function()? preparationCancelled;
   var _restoredBeforeBookmarkActivation = false;
+  var _streamedRollbackSynced = false;
   bool credentialsIncluded;
   Map<ProfileReferenceKey, String> profileMappings = const {};
   Set<ProfileReferenceKey> explicitBookmarkProfileMappings = const {};
@@ -1048,13 +1243,36 @@ final class PackageTransactionSource implements ImportTransactionSource {
   SearchRuntimeSnapshot? _searchRuntimeSnapshot;
   var preflightRollbackBytes = 0;
   var bookmarkRefreshFailed = false;
+  BookmarkBackupData? _streamedMetadata;
+  bool? streamedHasUngrouped;
+  Map<String, int>? streamedMembershipCounts;
 
-  Object? get preparedData => _preparation?.preparedData;
+  Object? get preparedData => _streamedMetadata ?? _preparation?.preparedData;
+
+  Future<BookmarkHiveRepository> _transferStore() async {
+    final repository = await ref.read(bookmarkRepoProvider.future);
+    if (repository is! BookmarkHiveRepository) {
+      throw StateError('Streamed Bookmark imports require the Hive repository');
+    }
+    return repository;
+  }
 
   @override
   String get id => source.id;
 
   Future<void> prepare(BuildContext? context) async {
+    if (streamedBookmarks case final streamed?) {
+      if (_streamedMetadata != null) return;
+      // Initialize in this zone before the source-wide coordinator is taken.
+      await _transferStore();
+      final metadata = await runImportWorker(
+        streamed.incoming.readReviewMetadata,
+      );
+      _streamedMetadata = metadata.groups;
+      streamedHasUngrouped = metadata.hasUngrouped;
+      streamedMembershipCounts = metadata.counts;
+      return;
+    }
     final capability = source.capabilities.file;
     if (capability == null) {
       throw StateError('Source $id cannot import files');
@@ -1070,6 +1288,23 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Future<void> captureLocalSnapshot() async {
     _projectionKey = null;
     _projection = null;
+    if (streamedBookmarks case final streamed?) {
+      final store = await _transferStore();
+      await streamed.previous.capture(
+        store,
+        streamed.codec,
+        cancelled: preparationCancelled ?? () => false,
+      );
+      final db = streamed.previous.open(preimage: true);
+      try {
+        _localSnapshot = BookmarkImportLocalSnapshot(
+          groups: BookmarkTransferDatabase.groupDefinitions(db),
+        );
+      } finally {
+        db.close();
+      }
+      return;
+    }
     switch (id) {
       case 'profiles':
         _localSnapshot = (await ref.read(booruConfigRepoProvider).getAll())
@@ -1158,6 +1393,17 @@ final class PackageTransactionSource implements ImportTransactionSource {
     _projectionKey = key;
     _projection = null;
     projectionRuns++;
+    if (streamedBookmarks case final streamed?) {
+      return _projection = () async {
+        final store = await _transferStore();
+        return streamed.plan(
+          resolution: resolution,
+          mappings: mappings,
+          explicitMappings: explicit,
+          receivedGroupIds: (await store.readMirrorState()).owners.keys.toSet(),
+        );
+      }();
+    }
     final task = _ImportProjectionTask(
       id: id,
       local: _localSnapshot,
@@ -1180,6 +1426,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<String> revisionToken() async {
+    if (streamedBookmarks != null) {
+      return (await (await _transferStore()).readRevision()).toString();
+    }
     final digest = switch (source) {
       final JsonBackupSource jsonSource => sha256.convert(
         utf8.encode(await jsonSource.encodeRevisionSnapshot()),
@@ -1198,6 +1447,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
   }
 
   Future<void> measureRollback() async {
+    if (streamedBookmarks case final streamed?) {
+      preflightRollbackBytes = await fs.fileSize(streamed.previous.path);
+      return;
+    }
     if (_isSearchRuntimeSource) {
       final snapshot = await _captureSearchRuntimeSnapshot();
       preflightRollbackBytes = utf8
@@ -1221,6 +1474,34 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> captureRollback(String outputPath) async {
+    if (streamedBookmarks case final streamed?) {
+      final progress = ImportProgress.current;
+      final input = streamed.previous.path;
+      if (progress == null) {
+        await fs.copyFile(input, outputPath);
+        return;
+      }
+      final total = await fs.fileSize(input);
+      var copied = 0;
+      progress.show(ImportProgressPhase.checkpoint, total: total);
+      final sink = await fs.openWrite(outputPath);
+      try {
+        await sink.addStream(
+          fs.openRead(input).map((bytes) {
+            copied += bytes.length;
+            progress.show(
+              ImportProgressPhase.checkpoint,
+              completed: copied,
+              total: total,
+            );
+            return bytes;
+          }),
+        );
+      } finally {
+        await sink.close();
+      }
+      return;
+    }
     if (_isSearchRuntimeSource) {
       final repository = await ref.read(
         followingTopicRepositoryProvider.future,
@@ -1253,6 +1534,11 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> durableSync() async {
+    if (_streamedRollbackSynced) return;
+    if (streamedBookmarks != null) {
+      await (await _transferStore()).durableSync();
+      return;
+    }
     if (id == 'bookmarks' && !_restoredBeforeBookmarkActivation) {
       await unifiedBookmarkStorage(
         await ref.read(bookmarkProvider.notifier).bookmarkRepository,
@@ -1271,6 +1557,17 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> apply(ResolvedImportSource plan) async {
+    if (streamedBookmarks case final streamed?) {
+      final store = await _transferStore();
+      await streamed.plan(
+        resolution: plan,
+        mappings: profileMappings,
+        explicitMappings: explicitBookmarkProfileMappings,
+        receivedGroupIds: (await store.readMirrorState()).owners.keys.toSet(),
+        applyTo: store,
+      );
+      return;
+    }
     final preparedData = _preparation?.preparedData;
     if (id == 'profiles' && preparedData is List<BooruConfig>) {
       await _applyProfiles(preparedData, plan);
@@ -1613,6 +1910,35 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> restore(String rollbackPath) async {
+    if (id == 'bookmarks' && await _isStreamedRollback(rollbackPath)) {
+      final previous = BookmarkTransferDatabase(rollbackPath);
+      final codec =
+          ((source as JsonBackupSource).handler as BookmarkBackupCodec).records;
+      if (streamedBookmarks != null) {
+        await BookmarkTransferImport.restore(
+          previous,
+          codec,
+          await _transferStore(),
+        );
+      } else {
+        final factory = ref.read(bookmarkRepositoryFactoryProvider);
+        if (factory is! HiveBookmarkRepositoryFactory) {
+          throw StateError('Streamed Bookmark recovery requires Hive');
+        }
+        final registry = ref.read(booruEngineRegistryProvider);
+        await factory.recoverTransfer(
+          postDataCodec: (type) => registry.getPostCapability(type)?.codec,
+          storage: BookmarkStorageContext(
+            coordinator: ref.read(dataMutationCoordinatorProvider),
+            groupMetadataCodec: ref.read(groupMetadataCodecProvider),
+          ),
+          restore: (store) =>
+              BookmarkTransferImport.restore(previous, codec, store),
+        );
+        _streamedRollbackSynced = true;
+      }
+      return;
+    }
     if (_isSearchRuntimeSource) {
       final snapshot = const SearchRuntimeSnapshotCodec().decode(
         await fs.readString(rollbackPath),
@@ -1683,12 +2009,43 @@ final class PackageTransactionSource implements ImportTransactionSource {
   bool get _isSearchRuntimeSource =>
       id == followingTopicsBackupSourceId || id == topicFeedsBackupSourceId;
 
+  Future<bool> _isStreamedRollback(String path) async {
+    final header = await fs
+        .openRead(path, end: 16)
+        .expand((bytes) => bytes)
+        .toList();
+    return ascii.decode(header, allowInvalid: true) == 'SQLite format 3\x00';
+  }
+
   Future<void> restart() async {
     await _preparation?.restartApp?.call();
     if (id != 'bookmarks') return;
     bookmarkRefreshFailed = false;
     try {
-      await ref.read(bookmarkProvider.notifier).refresh();
+      final progress = ImportProgress.current;
+      final notifier = ref.read(bookmarkProvider.notifier);
+      if (progress != null) {
+        await notifier.refreshWithProgress((phase, completed, total) {
+          progress.show(
+            switch (phase) {
+              BookmarkLibraryLoadPhase.reading =>
+                ImportProgressPhase.loadingLibrary,
+              BookmarkLibraryLoadPhase.preparing =>
+                ImportProgressPhase.preparingLibrary,
+              BookmarkLibraryLoadPhase.indexing =>
+                ImportProgressPhase.indexingLibrary,
+              BookmarkLibraryLoadPhase.publishing =>
+                ImportProgressPhase.publishingLibrary,
+            },
+            completed: completed,
+            total: total,
+          );
+        });
+      } else if (streamedBookmarks != null) {
+        await notifier.refreshWithProgress();
+      } else {
+        await notifier.refresh();
+      }
     } catch (_) {
       bookmarkRefreshFailed = true;
     }

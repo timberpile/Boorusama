@@ -1,27 +1,27 @@
-import '../../../backups/mitemite/reading_state.dart';
+import '../../../backups/mitemite/seen_state.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_grid_entry.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
 
-export '../../../backups/mitemite/reading_state.dart' show BookmarkReadTarget;
+export '../../../backups/mitemite/seen_state.dart' show BookmarkSeenTarget;
 
 enum BookmarkSeenFilter { all, unseen, seen }
 
 /// Read-only projection of complete memberships, independent of search, media
 /// availability and sorting. Combined subtrees capture all canonical memberships
 /// for a collapsed occurrence; normal Group views retain one reading target.
-final class BookmarkReadProjection {
-  factory BookmarkReadProjection(
+final class BookmarkSeenProjection {
+  factory BookmarkSeenProjection(
     BookmarkLibraryState state,
     BookmarkView view,
   ) {
     final root = view.groupId;
     final publisher = state.mirrors.owners[root]?.publisher;
     if (root == null || publisher == null) {
-      return const BookmarkReadProjection._({}, {}, {});
+      return const BookmarkSeenProjection._({}, {}, {});
     }
-    final memberships = <int, List<BookmarkReadTarget>>{};
+    final memberships = <int, List<BookmarkSeenTarget>>{};
     final unseen = <int>{};
     final pending = [root];
     while (pending.isNotEmpty) {
@@ -32,8 +32,8 @@ final class BookmarkReadProjection {
           owner.reading.isEmpty) {
         continue;
       }
-      final reading = SyncGroupReadingState.fromJson(owner.reading);
-      final unread = reading.unreadMembers;
+      final reading = SyncGroupSeenState.fromJson(owner.reading);
+      final unread = reading.unseenMembers;
       for (final recordId in state.groupsById[id]?.bookmarkIds ?? <int>{}) {
         final record = state.byId[recordId];
         if (record == null) continue;
@@ -42,7 +42,7 @@ final class BookmarkReadProjection {
         memberships
             .putIfAbsent(recordId, () => [])
             .add(
-              BookmarkReadTarget(
+              BookmarkSeenTarget(
                 groupId: id,
                 publisher: publisher,
                 source: owner.source,
@@ -63,10 +63,10 @@ final class BookmarkReadProjection {
         );
       }
     }
-    return BookmarkReadProjection._(
+    return BookmarkSeenProjection._(
       Map.unmodifiable({
         for (final entry in memberships.entries)
-          entry.key: BookmarkReadTarget(
+          entry.key: BookmarkSeenTarget(
             groupId: entry.value.first.groupId,
             publisher: publisher,
             source: entry.value.first.source,
@@ -81,8 +81,8 @@ final class BookmarkReadProjection {
     );
   }
 
-  const BookmarkReadProjection._(this.targets, this.unseenIds, this._records);
-  final Map<int, BookmarkReadTarget> targets;
+  const BookmarkSeenProjection._(this.targets, this.unseenIds, this._records);
+  final Map<int, BookmarkSeenTarget> targets;
   final Set<int> unseenIds;
   final Map<int, Bookmark> _records;
 
@@ -96,7 +96,7 @@ final class BookmarkReadProjection {
     BookmarkPoolEntry(:final pool) => _records[pool.bookmarkId]?.id,
   };
 
-  BookmarkReadTarget? target(BookmarkGridEntry entry) =>
+  BookmarkSeenTarget? target(BookmarkGridEntry entry) =>
       targets[recordId(entry)];
   bool isUnseen(BookmarkGridEntry entry) => unseenIds.contains(recordId(entry));
   bool includes(BookmarkGridEntry entry, BookmarkSeenFilter filter) =>

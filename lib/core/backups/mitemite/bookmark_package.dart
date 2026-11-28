@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+
 import '../../../foundation/filesystem.dart';
+import '../../bookmarks/src/types/bookmark.dart';
 import '../export_import/models/package_manifest.dart';
 import '../export_import/package/export_package_writer.dart';
 import '../export_import/models/export_selection.dart';
@@ -15,7 +18,7 @@ import '../sources/detached_bookmark_codec.dart';
 import '../sources/bookmark_backup_data.dart';
 import '../utils/data_converter.dart';
 import 'protocol.dart';
-import 'reading_state.dart';
+import 'seen_state.dart';
 
 /// A bounded Bookmark package for exactly one source Group's direct membership.
 /// Hierarchy and current names come from its signed catalog, not an old archive.
@@ -27,6 +30,8 @@ final class ValidatedSyncBookmarkPackage {
     this._codec,
     this.semanticHash,
     this.schemaVersion,
+    this.recordCount,
+    this.payloadByteLength,
     Uint8List bytes, {
     this.forPublication = false,
   }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
@@ -42,7 +47,12 @@ final class ValidatedSyncBookmarkPackage {
   Future<BookmarkBackupData> materialize() => Isolate.run(
     _BookmarkDecodeTask(_payload, detachBookmarkBackupCodec(_codec)).run,
   );
+  Future<void> writeStagedPayload(AppFileSystem fs, String path) =>
+      fs.writeString(path, _payload);
+
   final String semanticHash;
+  final int recordCount;
+  final int payloadByteLength;
   final Uint8List bytes;
   final int schemaVersion;
 
@@ -122,9 +132,7 @@ final class SyncBookmarkPackageValidator {
         }
         final source = manifest.sources.single;
         if (source.id != collection.kind ||
-            !ValidatedSyncBookmarkPackage.supportsSchema(
-              source.schemaVersion,
-            )) {
+            !isNestedBookmarkBackup(source.schemaVersion)) {
           throw const SyncUpdateRequired();
         }
         if (source.parts.length != 1) {
@@ -145,6 +153,8 @@ final class SyncBookmarkPackageValidator {
           codec,
           syncBookmarkSemanticHash(data, codec),
           source.schemaVersion,
+          data.records.length,
+          source.parts.single.byteLength,
           captured,
         );
       } finally {
@@ -207,51 +217,109 @@ Object? _withoutLocalProfileHints(Object? value) => switch (value) {
   _ => value,
 };
 
+/// Use the same portable representation in legacy and streamed publications.
+Map<String, Object?> syncBookmarkPublicationRecord(
+  Map<String, Object?> record,
+) => Map<String, Object?>.from(
+  _withoutLocalProfileHints(_withoutBrowsingContext(record))! as Map,
+);
+
 /// File-local IDs, local profile hints, save/observation clocks and Group labels
 /// do not cause payload churn. Actual source dates inside snapshots remain facts.
+(String, String) syncBookmarkSemanticEntry(
+  Bookmark record,
+  BookmarkBackupCodec codec,
+) {
+  final key = syncBookmarkMemberKey(record);
+  final wire = codec.records.encodeForTransfer(record)
+    ..remove('id')
+    ..remove('createdAt')
+    ..remove('updatedAt')
+    ..remove('observedAt')
+    ..remove('sourceProfileHint');
+  if (wire['kind'] == 'post') {
+    final snapshot = wire['snapshot']! as Map;
+    final common = Map<String, Object?>.from(snapshot['common'] as Map);
+    for (final field in [
+      'tags',
+      'artistTags',
+      'characterTags',
+      'copyrightTags',
+    ]) {
+      if (common[field] case final List values) {
+        common[field] = values.cast<String>().toList()..sort();
+      }
+    }
+    wire['snapshot'] = {...snapshot, 'common': common};
+  }
+  Object? portable(Object? value) => switch (value) {
+    Map() => {
+      for (final entry in value.entries)
+        if (entry.key != 'profileIdHint' && entry.key != 'localId')
+          entry.key as String: portable(entry.value),
+    },
+    List() => value.map(portable).toList(),
+    _ => value,
+  };
+  final object = canonicalSyncJson({
+    key: portable(_withoutBrowsingContext(wire)),
+  });
+  return (key, object.substring(1, object.length - 1));
+}
+
+/// SQLite BLOB ordering reproduces Dart's UTF-16 string ordering, including
+/// keys with non-BMP characters.
+Uint8List syncBookmarkSemanticSortKey(String key) {
+  final bytes = ByteData(key.length * 2);
+  for (var i = 0; i < key.length; i++) {
+    bytes.setUint16(i * 2, key.codeUnitAt(i));
+  }
+  return bytes.buffer.asUint8List();
+}
+
+Iterable<List<int>> _semanticChunks(Iterable<String> sortedFragments) sync* {
+  yield const [123]; // {
+  var separator = false;
+  for (final fragment in sortedFragments) {
+    if (separator) yield const [44]; // ,
+    yield utf8.encode(fragment);
+    separator = true;
+  }
+  yield const [125]; // }
+}
+
+Future<String> hashSyncBookmarkSemanticEntries(
+  Iterable<String> sortedFragments,
+) async =>
+    (await sha256
+            .bind(
+              Stream.fromIterable(_semanticChunks(sortedFragments)),
+            )
+            .first)
+        .toString();
+
 String syncBookmarkSemanticHash(
   BookmarkBackupData data,
   BookmarkBackupCodec codec,
 ) {
-  final content = <String, Object?>{};
+  final fragments = <String, String>{};
   for (final record in data.records) {
-    final key = syncBookmarkMemberKey(record);
-    final wire = codec.records.encodeForTransfer(record)
-      ..remove('id')
-      ..remove('createdAt')
-      ..remove('updatedAt')
-      ..remove('observedAt')
-      ..remove('sourceProfileHint');
-    if (wire['kind'] == 'post') {
-      final snapshot = wire['snapshot']! as Map;
-      final common = Map<String, Object?>.from(snapshot['common'] as Map);
-      for (final field in [
-        'tags',
-        'artistTags',
-        'characterTags',
-        'copyrightTags',
-      ]) {
-        if (common[field] case final List values) {
-          common[field] = values.cast<String>().toList()..sort();
-        }
-      }
-      wire['snapshot'] = {...snapshot, 'common': common};
-    }
-    Object? portable(Object? value) => switch (value) {
-      Map() => {
-        for (final entry in value.entries)
-          if (entry.key != 'profileIdHint' && entry.key != 'localId')
-            entry.key as String: portable(entry.value),
-      },
-      List() => value.map(portable).toList(),
-      _ => value,
-    };
-    if (content.containsKey(key)) {
+    final (key, fragment) = syncBookmarkSemanticEntry(record, codec);
+    if (fragments.containsKey(key)) {
       throw const FormatException('Duplicate sync member');
     }
-    content[key] = portable(_withoutBrowsingContext(wire));
+    fragments[key] = fragment;
   }
-  return syncDigest(utf8.encode(canonicalSyncJson(content)));
+  final keys = fragments.keys.toList()..sort();
+  late Digest digest;
+  final input = sha256.startChunkedConversion(
+    ChunkedConversionSink<Digest>.withCallback(
+      (result) => digest = result.single,
+    ),
+  );
+  _semanticChunks(keys.map((key) => fragments[key]!)).forEach(input.add);
+  input.close();
+  return digest.toString();
 }
 
 /// Build a fresh credential-free archive through the existing transfer codec.
@@ -312,8 +380,8 @@ final class SyncBookmarkPackageBuilder {
                       'data': codec
                           .encode(data)
                           .map(
-                            (value) => _withoutLocalProfileHints(
-                              _withoutBrowsingContext(value),
+                            (value) => syncBookmarkPublicationRecord(
+                              Map<String, Object?>.from(value as Map),
                             ),
                           )
                           .toList(),
@@ -338,6 +406,8 @@ final class SyncBookmarkPackageBuilder {
         codec,
         validated.semanticHash,
         validated.schemaVersion,
+        validated.recordCount,
+        validated.payloadByteLength,
         validated.bytes,
         forPublication: true,
       );

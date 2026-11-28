@@ -111,6 +111,9 @@ T observeBookmarkWrites<T>(
   zoneValues: {_bookmarkWriteObserverZoneKey: observer},
 );
 
+bool get hasBookmarkWriteObserver =>
+    Zone.current[_bookmarkWriteObserverZoneKey] != null;
+
 void publishBookmarkWrite(BookmarkCommittedChange change) {
   final observer = Zone.current[_bookmarkWriteObserverZoneKey];
   if (observer is void Function(BookmarkCommittedChange)) observer(change);

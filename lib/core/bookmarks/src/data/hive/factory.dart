@@ -58,6 +58,19 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
     );
   });
 
+  Future<void> recoverTransfer({
+    required BooruPostDataCodec? Function(BooruType type) postDataCodec,
+    required BookmarkStorageContext storage,
+    required Future<void> Function(BookmarkHiveRepository) restore,
+  }) => storage.coordinator.runExclusive(() async {
+    final repository = await _open(
+      postDataCodec: postDataCodec,
+      storage: storage,
+    );
+    await restore(repository);
+    await repository.durableSync();
+  });
+
   Future<BookmarkHiveRepository> _open({
     required BooruPostDataCodec? Function(BooruType type)? postDataCodec,
     required BookmarkStorageContext storage,

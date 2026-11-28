@@ -1,4 +1,4 @@
-import 'package:boorusama/core/bookmarks/src/services/bookmark_read_projection.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_seen_projection.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -7,7 +7,7 @@ import 'package:kurumi/material.dart';
 
 void main() {
   testWidgets(
-    'Read Status Eye stays fixed across all choices at 320dp and 200% text',
+    'Seen Status Eye stays fixed across all choices at 320dp and 200% text',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(320, 720);
@@ -39,14 +39,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Read Status: All'), findsOneWidget);
+      expect(find.byTooltip('Seen Status: All'), findsOneWidget);
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
       for (final choice in ['Unseen', 'Seen', 'All']) {
         await tester.tap(find.byType(BookmarkSeenFilterButton));
         await tester.pumpAndSettle();
         await tester.tap(find.text(choice).last);
         await tester.pumpAndSettle();
-        expect(find.byTooltip('Read Status: $choice'), findsOneWidget);
+        expect(find.byTooltip('Seen Status: $choice'), findsOneWidget);
         expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
         expect(tester.takeException(), isNull);
       }

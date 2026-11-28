@@ -1419,6 +1419,7 @@ void main() {
       sequence: published.sequence + 1,
       name: published.name,
       publicationRoots: published.publicationRoots,
+      completeSnapshot: published.completeSnapshot,
       entries: [
         for (final item in published.entries)
           item.id == entry.id

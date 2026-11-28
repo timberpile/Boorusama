@@ -1,3 +1,4 @@
+import '../sources/bookmark_backup_schema.dart';
 import 'identity_file.dart';
 
 import 'dart:convert';
@@ -7,13 +8,14 @@ import '../../../foundation/data_mutation_coordinator.dart';
 import '../../cache/misc_data_store.dart';
 import 'catalog.dart';
 import 'bookmark_package.dart';
-import '../sources/bookmark_backup_schema.dart';
+import '../../bookmarks/src/types/bookmark.dart';
+import '../../bookmarks/src/types/bookmark_group.dart';
 import 'following_package.dart';
 import '../sources/following_topic_backup_data.dart';
 import 'protocol.dart';
 import 'storage.dart';
 import 'revision_transport.dart';
-import '../sources/bookmark_backup_data.dart';
+import 'streamed_bookmark_publication.dart';
 
 /// Durable reservations are consumed before shared writes. Failed/crashed
 /// attempts leave gaps, never a reused immutable revision or catalog winner.
@@ -184,6 +186,36 @@ final class SyncPublicationWriter {
     );
   });
 
+  Future<SyncRevision> publishStreamedBookmarkRevision(
+    StagedSyncBookmarkPublication package, {
+    required String path,
+    required int length,
+    required String sha256,
+  }) async {
+    final collection = package.collection;
+    if (collection.publisher != identity.id) {
+      throw const FormatException('Foreign publisher');
+    }
+    final number = await sequences.reserve(identity.id, collection: collection);
+    final revision = SyncRevision(
+      collection: collection,
+      revision: number,
+      length: length,
+      sha256: sha256,
+      semanticHash: package.semanticHash,
+      schema: kBookmarksBackupVersion,
+      bookmarkTables: true,
+    );
+    final descriptor = await identity.sign(revision.toJson());
+    await writeOwnSyncIdentity(storage, identity);
+    await SyncRevisionTransport(storage).writeFile(
+      revision: revision,
+      sourcePath: path,
+    );
+    await storage.writeImmutable(revision.descriptorPath, descriptor);
+    return revision;
+  }
+
   Future<SyncRevision> publishFollowingRevision(
     ValidatedSyncFollowingPackage package,
   ) => Future.sync(() {
@@ -230,6 +262,7 @@ final class SyncPublicationWriter {
     required Iterable<SyncCatalogEntry> entries,
     Set<SyncCollectionId>? publicationRoots,
     bool completeSnapshot = false,
+    Set<SyncRevision> verifiedBookmarkManifests = const {},
   }) async {
     final captured = List<SyncCatalogEntry>.of(entries);
     final roots = publicationRoots == null
@@ -258,23 +291,16 @@ final class SyncPublicationWriter {
     for (final entry in captured) {
       if (entry.state != SyncPublicationState.active) continue;
       final expected = entry.revision!;
-      final descriptorBytes = await storage.read(
-        expected.descriptorPath,
-        maxBytes: miteMiteMaxMetadataBytes,
-      );
-      final bytes = await storage.read(
-        expected.payloadPath,
-        maxBytes: expected.length,
-      );
-      if (descriptorBytes == null ||
-          bytes == null ||
-          canonicalSyncJson(
-                await verifySyncDocument(descriptorBytes, identity.publicKey),
-              ) !=
-              canonicalSyncJson(expected.toJson())) {
+      if (expected.bookmarkManifest &&
+          verifiedBookmarkManifests.contains(expected)) {
+        continue;
+      }
+      if (!await SyncRevisionTransport(storage).verify(
+        expected: expected,
+        publisherKey: identity.publicKey,
+      )) {
         throw const FormatException('Outgoing revision is incomplete');
       }
-      await verifySyncPayloadAsync(expected, bytes);
     }
     final signed = await identity.sign(catalog.toJson());
     await sequences.stageCatalog(catalog);
@@ -301,12 +327,13 @@ final class SyncBookmarkPublisher {
     }
   }
   final SyncPublicationWriter writer;
-  final SyncBookmarkPackageBuilder builder;
+  final SyncBookmarkStreamedPackageBuilder builder;
   final DataMutationCoordinator workQueue;
 
   Future<SyncRevision> publishIfChanged({
     required SyncCollectionId collection,
-    required BookmarkBackupData data,
+    required BookmarkGroup group,
+    required Stream<Bookmark> records,
     required String appVersion,
     required DateTime createdAt,
     bool verifyExisting = true,
@@ -315,55 +342,62 @@ final class SyncBookmarkPublisher {
     if (collection.publisher != writer.identity.id) {
       throw const FormatException('Foreign publisher');
     }
-    requireSyncBookmarkScope(data, collection);
-    final semantic = await builder.semanticHash(data);
-    await validateSnapshot?.call();
-    final key = 'mitemite.v1.outgoing.${collection.key}.published';
-    final encoded = writer.sequences.store.get(key);
-    if (encoded != null) {
-      final raw = jsonDecode(encoded);
-      if (raw is! Map<String, dynamic>) {
-        throw const FormatException('Invalid local publication');
-      }
-      final prior = SyncRevision.fromJson(raw);
-      if (prior.collection != collection) {
-        throw const FormatException('Foreign local publication');
-      }
-      if (prior.schema == bookmarkTransferVersion(data.records) &&
-          prior.semanticHash == semantic &&
-          !writer.sequences.isWithdrawnRevision(prior)) {
-        // Incomplete/offline data never becomes an empty revision or withdrawal.
-        // A missing immutable file may be republished at a fresh reserved number.
-        if (!verifyExisting) return prior;
-        VerifiedSyncPayload? retained;
-        try {
-          retained = await SyncRevisionTransport(writer.storage)
-              .read(expected: prior, publisherKey: writer.identity.publicKey);
-        } on FormatException {
-          // Repair only this installation's immutable publication at a fresh number.
-        }
-        if (retained != null) return prior;
-      }
-    }
-    final package = await builder.build(
+    final package = await builder.stage(
       collection: collection,
-      data: data,
-      appVersion: appVersion,
-      createdAt: createdAt,
+      group: group,
+      records: records,
     );
-    if (package.semanticHash != semantic) {
-      throw StateError('Source snapshot changed during preparation');
-    }
-    await validateSnapshot?.call();
-    final revision = await writer.publishRevision(package);
-    await writer.sequences.mutations.runExclusive(() async {
-      writer.sequences.ensureCurrent?.call();
-      await writer.sequences.store.put(
-        key,
-        canonicalSyncJson(revision.toJson()),
+    try {
+      await validateSnapshot?.call();
+      final key = 'mitemite.v1.outgoing.${collection.key}.published';
+      final encoded = writer.sequences.store.get(key);
+      if (encoded != null) {
+        final raw = jsonDecode(encoded);
+        if (raw is! Map<String, dynamic>) {
+          throw const FormatException('Invalid local publication');
+        }
+        final prior = SyncRevision.fromJson(raw);
+        if (prior.collection != collection) {
+          throw const FormatException('Foreign local publication');
+        }
+        if (ValidatedSyncBookmarkPackage.supportsSchema(prior.schema) &&
+            prior.semanticHash == package.semanticHash &&
+            !writer.sequences.isWithdrawnRevision(prior)) {
+          if (!verifyExisting) return prior;
+          var retained = false;
+          try {
+            retained = await SyncRevisionTransport(writer.storage).verify(
+              expected: prior,
+              publisherKey: writer.identity.publicKey,
+            );
+          } on FormatException {
+            // Repair only this installation's immutable publication at a fresh number.
+          }
+          if (retained) return prior;
+        }
+      }
+      final archive = await package.buildArchive(
+        appVersion: appVersion,
+        createdAt: createdAt,
       );
-    });
-    return revision;
+      await validateSnapshot?.call();
+      final revision = await writer.publishStreamedBookmarkRevision(
+        package,
+        path: archive.path,
+        length: archive.length,
+        sha256: archive.sha256,
+      );
+      await writer.sequences.mutations.runExclusive(() async {
+        writer.sequences.ensureCurrent?.call();
+        await writer.sequences.store.put(
+          key,
+          canonicalSyncJson(revision.toJson()),
+        );
+      });
+      return revision;
+    } finally {
+      await package.dispose();
+    }
   });
 }
 

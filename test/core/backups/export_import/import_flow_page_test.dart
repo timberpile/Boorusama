@@ -19,6 +19,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
+import 'package:boorusama/core/backups/export_import/import/import_progress.dart';
 import 'package:boorusama/core/backups/export_import/models/export_item_presentation.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -26,6 +27,33 @@ import 'package:boorusama/core/backups/export_import/widgets/import_action_edito
 import 'package:boorusama/core/backups/export_import/widgets/import_recommendation_tree.dart';
 
 void main() {
+  testWidgets('import progress displays phase counts and unknown totals', (
+    tester,
+  ) async {
+    Future<void> show(ImportProgressPhase phase, {int done = 0, int? total}) =>
+        tester.pumpWidget(
+          _app(
+            ImportProgressIndicator(
+              progress: (phase: phase, completed: done, total: total),
+            ),
+          ),
+        );
+
+    await show(ImportProgressPhase.reading, done: 75, total: 100);
+    final bar = find.byType(LinearProgressIndicator);
+    expect(tester.widget<LinearProgressIndicator>(bar).value, .75);
+    expect(find.text('Reading backup data'), findsOneWidget);
+    expect(find.text('75%'), findsOneWidget);
+
+    await show(ImportProgressPhase.saving, done: 120, total: 300);
+    expect(tester.widget<LinearProgressIndicator>(bar).value, .4);
+    expect(find.text('120 of 300'), findsOneWidget);
+
+    await show(ImportProgressPhase.writingGroup);
+    expect(tester.widget<LinearProgressIndicator>(bar).value, isNull);
+    expect(find.text('Saving bookmark group'), findsOneWidget);
+  });
+
   testWidgets(
     'pending preview disables acknowledgement and Apply for old valid plan',
     (tester) async {

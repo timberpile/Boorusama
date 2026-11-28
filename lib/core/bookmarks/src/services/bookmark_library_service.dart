@@ -6,8 +6,10 @@ import 'package:collection/collection.dart' show SetEquality, MapEquality;
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../../foundation/cooperative_work.dart';
 import '../../../content/groups/group_metadata.dart';
 import '../../../posts/post/types.dart';
+import '../data/hive/unified_bookmark_repository.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../types/content_group_bookmark.dart';
 import '../types/legacy_group_bookmark.dart';
@@ -81,6 +83,14 @@ typedef BookmarkDraftSaveResult = ({
   int addedCount,
   List<Bookmark> createdRecords,
 });
+
+enum BookmarkLibraryLoadPhase { reading, preparing, indexing, publishing }
+
+typedef BookmarkLibraryProgress = void Function(
+  BookmarkLibraryLoadPhase phase,
+  int completed,
+  int? total,
+);
 
 class BookmarkLibraryService {
   const BookmarkLibraryService({
@@ -313,10 +323,14 @@ class BookmarkLibraryService {
     required List<BookmarkGroup> expectedGroups,
   }) => _scope(() => _duplicateGroups(names, expectedGroups: expectedGroups));
 
-  Future<BookmarkLibraryState> load() =>
-      unifiedStore?.runReadWriteScope(_load) ?? _load();
+  Future<BookmarkLibraryState> load({BookmarkLibraryProgress? onProgress}) {
+    Future<BookmarkLibraryState> read() => _load(onProgress);
+    return unifiedStore?.runReadWriteScope(read) ?? read();
+  }
 
-  Future<BookmarkLibraryState> _load() async {
+  Future<BookmarkLibraryState> _load(
+    BookmarkLibraryProgress? onProgress,
+  ) async {
     final performanceSpan = performanceRecorder.begin(
       PerfOperation.bookmarkLibraryLoad,
       PerfSpanKind.asyncWall,
@@ -324,15 +338,25 @@ class BookmarkLibraryService {
     var performanceFailed = false;
     try {
       final store = unifiedStore;
-      final records = store == null
-          ? await bookmarkRepository.getAllBookmarksOrThrow(
-              imageUrlResolver: imageUrlResolver,
-            )
-          : await store.readAll();
-      final bookmarks = records.whereType<PostBookmark>().toList();
-      await groupRepository.repair(
-        validBookmarkIds: records.map((bookmark) => bookmark.id).toSet(),
-      );
+      onProgress?.call(BookmarkLibraryLoadPhase.reading, 0, null);
+      final records = switch (store) {
+        BookmarkHiveRepository() => await store.readLibraryRecords(
+          onProgress: (done, total) =>
+              onProgress?.call(BookmarkLibraryLoadPhase.reading, done, total),
+        ),
+        null => await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: imageUrlResolver,
+        ),
+        _ => await store.readAll(),
+      };
+      onProgress?.call(BookmarkLibraryLoadPhase.preparing, 0, null);
+      final work = CooperativeWork();
+      final ids = <int>{};
+      for (final record in records) {
+        ids.add(record.id);
+        if (work.checkpoint() case final pause?) await pause;
+      }
+      await groupRepository.repair(validBookmarkIds: ids);
       await ensureDefaultMemberships(records);
       await _initializeMembershipDates(records);
       if (store == null) await repairPoolMemberships();
@@ -346,19 +370,28 @@ class BookmarkLibraryService {
             position: g.position,
           ),
       ]);
-      return BookmarkLibraryState(
-        bookmarks: bookmarks,
-        records: store == null ? null : records,
-        mirrors: store is BookmarkMirrorReader
-            ? await (store! as BookmarkMirrorReader).readMirrorState()
-            : const BookmarkMirrorState.empty(),
-        revision: store == null ? 0 : await store.readRevision(),
-        pools: store == null
-            ? await groupRepository.getPoolBookmarks()
-            : const [],
+      final aliases = await groupRepository.getLegacyFolderGroupIds();
+      if (store == null) {
+        return BookmarkLibraryState(
+          bookmarks: records.whereType<PostBookmark>().toList(),
+          pools: await groupRepository.getPoolBookmarks(),
+          groups: groups,
+          folders: folders,
+          legacyFolderGroupIds: aliases,
+        );
+      }
+      final mirrors = store is BookmarkMirrorReader
+          ? await (store as BookmarkMirrorReader).readMirrorState()
+          : const BookmarkMirrorState.empty();
+      return await BookmarkLibraryState.buildCooperatively(
+        records: records,
+        mirrors: mirrors,
+        revision: await store.readRevision(),
         groups: groups,
         folders: folders,
-        legacyFolderGroupIds: await groupRepository.getLegacyFolderGroupIds(),
+        legacyFolderGroupIds: aliases,
+        onProgress: (done, total) =>
+            onProgress?.call(BookmarkLibraryLoadPhase.indexing, done, total),
       );
     } catch (_) {
       performanceFailed = true;
@@ -384,8 +417,19 @@ class BookmarkLibraryService {
       }
       groups = await groupRepository.getGroups();
     }
-    final members = {for (final g in groups) ...g.bookmarkIds};
-    final missing = bookmarks.map((b) => b.id).toSet().difference(members);
+    final work = CooperativeWork();
+    final members = <int>{};
+    for (final group in groups) {
+      for (final id in group.bookmarkIds) {
+        members.add(id);
+        if (work.checkpoint() case final pause?) await pause;
+      }
+    }
+    final missing = <int>{};
+    for (final bookmark in bookmarks) {
+      if (!members.contains(bookmark.id)) missing.add(bookmark.id);
+      if (work.checkpoint() case final pause?) await pause;
+    }
     if (missing.isNotEmpty) {
       try {
         await groupRepository.replaceMemberships(

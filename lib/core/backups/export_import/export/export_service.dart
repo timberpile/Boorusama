@@ -78,6 +78,7 @@ class ExportService {
             itemRecommendedActions:
                 request.itemRecommendedActions[payload.id] ?? const {},
             parts: payload.parts,
+            prepareParts: payload.prepareParts,
           );
         }).toList(),
       ),

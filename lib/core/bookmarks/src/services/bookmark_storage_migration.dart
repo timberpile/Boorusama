@@ -467,20 +467,11 @@ final class BookmarkStorageMigration {
       groupBox,
       organizationBox: organization,
     );
-    final groups = await reader.getGroups();
+    final groups = (await reader.getGroups())
+        .map(bookmarks.groupWithMirroredBuckets)
+        .toList();
     BookmarkGroupTree(groups);
-    final ids = (await bookmarks.readAll()).map((record) => record.id).toSet();
-    if (groups.any(
-      (group) =>
-          !ids.containsAll(group.bookmarkIds) ||
-          !const SetEquality<int>().equals(
-            group.bookmarkIds,
-            group.addedAt.keys.toSet(),
-          ) ||
-          (group.isDefault && group.name != 'Default'),
-    )) {
-      throw const FormatException('Invalid hierarchy membership authority');
-    }
+    await bookmarks.validateActiveMemberships(groups);
     if (metadata.containsKey(pendingKey)) {
       final (plan, records) = await _validatePending(metadata.get(pendingKey));
       if (active['hierarchyPlanHash'] != _hash(plan)) {

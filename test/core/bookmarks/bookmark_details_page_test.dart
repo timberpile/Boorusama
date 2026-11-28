@@ -3,9 +3,9 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart
 import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
-import 'package:boorusama/core/bookmarks/src/services/bookmark_read_projection.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_seen_projection.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
@@ -132,7 +132,7 @@ void main() {
         bookmarkIds: records.map((r) => r.id).toSet(),
       );
       final reading =
-          SyncGroupReadingState.empty(
+          SyncGroupSeenState.empty(
             SyncCollectionId(
               publisher: publisher,
               kind: 'bookmarks',
@@ -142,7 +142,7 @@ void main() {
             revision: 1,
             members: records.map(syncBookmarkMemberKey).toSet(),
           );
-      BookmarkLibraryState snapshot(SyncGroupReadingState read) =>
+      BookmarkLibraryState snapshot(SyncGroupSeenState read) =>
           BookmarkLibraryState(
             bookmarks: records,
             groups: [group],
@@ -204,7 +204,7 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('bookmark-unseen-dot')).first),
         const Size(14, 14),
       );
-      var mixed = reading.markRead({
+      var mixed = reading.markSeen({
         syncBookmarkMemberKey(records.first),
         syncBookmarkMemberKey(records.last),
       });
@@ -236,7 +236,7 @@ void main() {
         findsNothing,
         reason: 'Preview owns the top-right during selection',
       );
-      mixed = mixed.markRead({syncBookmarkMemberKey(records[1])});
+      mixed = mixed.markSeen({syncBookmarkMemberKey(records[1])});
       notifier.publish(snapshot(mixed));
       // The normal empty-state Lottie loops. Rebuild the provider, then drain
       // the selection reconciliation notification instead of waiting for it.

@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 SyncCollectionId group({
@@ -13,8 +14,49 @@ SyncCollectionId group({
 );
 
 void main() {
+  test('validates 7000 targets against one decoded owner snapshot', () {
+    final collection = group();
+    const localId = '10000000-0000-4000-8000-000000000010';
+    final keys = {for (var i = 0; i < 7000; i++) 'post-$i'};
+    final state = SyncGroupSeenState.empty(collection).applyMembership(
+      revision: 1,
+      members: keys,
+    );
+    final resolver = BookmarkSeenTargetResolver(
+      BookmarkMirrorState(
+        epoch: 1,
+        owners: {
+          localId: BookmarkMirrorOwner(
+            publisher: collection.publisher,
+            source: collection.source,
+            revision: 1,
+            payloadDigest: syncDigest(const []),
+            groupDigest: syncDigest(const []),
+            reading: state.toJson(),
+          ),
+        },
+      ),
+    );
+    final seen = resolver.forGroup(localId)!;
+    for (final key in keys) {
+      expect(
+        resolver.contains(
+          BookmarkSeenTarget(
+            groupId: localId,
+            publisher: collection.publisher,
+            source: collection.source,
+            member: key,
+          ),
+        ),
+        isTrue,
+      );
+    }
+    expect(resolver.forGroup(localId), same(seen));
+    expect(seen.markSeen(keys).unseenMembers, isEmpty);
+  });
+
   test('legacy arrival receipts never change persistent Unseen members', () {
-    final received = SyncGroupReadingState.empty(group()).applyMembership(
+    final received = SyncGroupSeenState.empty(group()).applyMembership(
       revision: 1,
       members: {'post-a', 'post-b'},
     );
@@ -22,32 +64,32 @@ void main() {
     final opened = received.acknowledgeArrival(renderedRevision: 1);
     expect(opened.arrivals, isEmpty);
     expect(opened.hasUnseenChange, isFalse);
-    expect(opened.unreadMembers, {'post-a', 'post-b'});
+    expect(opened.unseenMembers, {'post-a', 'post-b'});
   });
 
   test(
-    'Mark Read changes selected current members while retaining legacy arrival data',
+    'Mark Seen changes selected current members while retaining legacy arrival data',
     () {
-      final state = SyncGroupReadingState.empty(group()).applyMembership(
+      final state = SyncGroupSeenState.empty(group()).applyMembership(
         revision: 1,
         members: {'post-a', 'post-b'},
       );
-      expect(state.canMarkRead({}), isFalse);
-      expect(state.canMarkRead({'other'}), isFalse);
-      expect(state.canMarkRead({'post-a'}), isTrue);
-      final read = state.markRead({'post-a', 'other'});
-      expect(read.readMembers, {'post-a'});
-      expect(read.unreadMembers, {'post-b'});
+      expect(state.canMarkSeen({}), isFalse);
+      expect(state.canMarkSeen({'other'}), isFalse);
+      expect(state.canMarkSeen({'post-a'}), isTrue);
+      final read = state.markSeen({'post-a', 'other'});
+      expect(read.seenMembers, {'post-a'});
+      expect(read.unseenMembers, {'post-b'});
       expect(read.arrivals, state.arrivals);
-      expect(read.canMarkRead({'post-a'}), isFalse);
-      expect(read.canMarkRead({'post-a', 'post-b'}), isTrue);
+      expect(read.canMarkSeen({'post-a'}), isFalse);
+      expect(read.canMarkSeen({'post-a', 'post-b'}), isTrue);
     },
   );
 
   test(
     'multiple revisions accumulate arrivals and subtract removed additions',
     () {
-      final first = SyncGroupReadingState.empty(group()).applyMembership(
+      final first = SyncGroupSeenState.empty(group()).applyMembership(
         revision: 1,
         members: {'post-a', 'post-b'},
       );
@@ -65,7 +107,7 @@ void main() {
   );
 
   test('legacy receipt validation rejects a different membership revision', () {
-    final state = SyncGroupReadingState.empty(group())
+    final state = SyncGroupSeenState.empty(group())
         .applyMembership(revision: 1, members: {'post-a'})
         .applyMembership(revision: 2, members: {'post-a', 'post-b'});
     expect(state.acknowledgeArrival(renderedRevision: 1).arrivals, {
@@ -81,44 +123,44 @@ void main() {
   test(
     'metadata-only revisions and removal/rearrival retain local reading',
     () {
-      final read = SyncGroupReadingState.empty(group())
+      final read = SyncGroupSeenState.empty(group())
           .applyMembership(revision: 1, members: {'post-a'})
           .acknowledgeArrival(renderedRevision: 1)
-          .markRead({'post-a'});
+          .markSeen({'post-a'});
       final renamed = read.applyMembership(revision: 2, members: {'post-a'});
       expect(renamed.hasUnseenChange, isFalse);
       expect(renamed.arrivals, isEmpty);
       final restored = renamed
           .applyMembership(revision: 3, members: {})
           .applyMembership(revision: 4, members: {'post-a'});
-      expect(restored.unreadMembers, isEmpty);
+      expect(restored.unseenMembers, isEmpty);
       expect(restored.arrivals, {'post-a'});
     },
   );
 
   test('identity and all independent state survive JSON round trip', () {
-    final state = SyncGroupReadingState.empty(group())
+    final state = SyncGroupSeenState.empty(group())
         .applyMembership(revision: 3, members: {'post-a', 'post-b'})
-        .markRead({'post-a'});
-    final restored = SyncGroupReadingState.fromJson(
+        .markSeen({'post-a'});
+    final restored = SyncGroupSeenState.fromJson(
       jsonDecode(jsonEncode(state.toJson())) as Map<String, dynamic>,
     );
     expect(restored.group, state.group);
     expect(restored.revision, 3);
-    expect(restored.readMembers, {'post-a'});
+    expect(restored.seenMembers, {'post-a'});
     expect(restored.arrivals, {'post-a', 'post-b'});
-    final other = SyncGroupReadingState.empty(
+    final other = SyncGroupSeenState.empty(
       group(
         source: '10000000-0000-4000-8000-000000000003',
       ),
     ).applyMembership(revision: 3, members: {'post-a'});
-    expect(other.unreadMembers, {'post-a'});
+    expect(other.unseenMembers, {'post-a'});
   });
 
   test(
     'rollback or changed content under same revision cannot replace state',
     () {
-      final state = SyncGroupReadingState.empty(group()).applyMembership(
+      final state = SyncGroupSeenState.empty(group()).applyMembership(
         revision: 3,
         members: {'post-a'},
       );

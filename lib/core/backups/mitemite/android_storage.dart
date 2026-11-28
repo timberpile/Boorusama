@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'storage.dart';
 
 /// Uses persisted SAF document-tree grants; content URIs never become paths.
-final class AndroidMiteMiteStorage implements MiteMiteStorage {
+final class AndroidMiteMiteStorage implements MiteMitePayloadStorage {
   AndroidMiteMiteStorage(
     this.location, {
     this.channel = const MethodChannel('boorusama/mitemite'),
@@ -37,15 +37,22 @@ final class AndroidMiteMiteStorage implements MiteMiteStorage {
     String method,
     String path, [
     Map<String, Object?> args = const {},
-  ]) {
+  ]) async {
     if (!isSafeSyncPath(path, root: true)) {
       throw const FormatException('Unsafe sync path');
     }
-    return channel.invokeMethod<T>(method, {
-      'location': location,
-      'path': path,
-      ...args,
-    });
+    try {
+      return await channel.invokeMethod<T>(method, {
+        'location': location,
+        'path': path,
+        ...args,
+      });
+    } on PlatformException catch (error) {
+      if (error.code == 'sync_invalid_payload') {
+        throw const FormatException('Sync payload verification failed');
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -84,6 +91,40 @@ final class AndroidMiteMiteStorage implements MiteMiteStorage {
       throw const FormatException('SAF write exceeds limit');
     }
     if (await _call<bool>('writeImmutable', path, {'bytes': bytes}) != true) {
+      throw StateError('SAF publication failed');
+    }
+  }
+
+  @override
+  Future<bool> copyPayload(
+    String path, {
+    String? destination,
+    required int length,
+    required String sha256,
+  }) async {
+    validateMiteMitePayload(path, length, sha256);
+    return await _call<bool>('copyPayload', path, {
+          'destination': destination,
+          'length': length,
+          'sha256': sha256,
+        }) ??
+        (throw StateError('SAF payload verification failed'));
+  }
+
+  @override
+  Future<void> writePayload(
+    String path, {
+    required String sourcePath,
+    required int length,
+    required String sha256,
+  }) async {
+    validateMiteMitePayload(path, length, sha256);
+    if (await _call<bool>('writePayload', path, {
+          'sourcePath': sourcePath,
+          'length': length,
+          'sha256': sha256,
+        }) !=
+        true) {
       throw StateError('SAF publication failed');
     }
   }

@@ -26,6 +26,52 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets(
+    'bulk selection checks unknown favorites together and waits for the result',
+    (
+      tester,
+    ) async {
+      final ids = List.generate(128, (index) => index + 101);
+      final lookups = <List<int>>[];
+      final response = Completer<List<int>?>();
+      final flow = await _MenuFlow.mount(
+        tester,
+        add: (_) => fail('Opening the menu must not change favorites'),
+        postIds: ids,
+        lookup: (unknownIds) {
+          lookups.add(unknownIds);
+          return response.future;
+        },
+      );
+      final favorites = flow.container.read(
+        favoritesProvider(flow.profile.auth).notifier,
+      );
+      favorites.observeFavorites({ids.first: true}, favorites.beginRead());
+      await flow.open(tester);
+      await flow.harness.pumpUntil(tester, () => lookups.isNotEmpty);
+      expect(lookups, [ids.skip(1).toList()]);
+      expect(
+        tester
+            .widget<KurumiContextMenuTile>(
+              find.widgetWithText(KurumiContextMenuTile, 'Favorite'),
+            )
+            .enabled,
+        isFalse,
+      );
+      response.complete(ids.skip(1).toList());
+      await flow.harness.pumpUntilFound(tester, find.text('Unfavorite'));
+      expect(
+        tester
+            .widget<KurumiContextMenuTile>(
+              find.widgetWithText(KurumiContextMenuTile, 'Unfavorite'),
+            )
+            .enabled,
+        isTrue,
+      );
+      expect(lookups, hasLength(1));
+    },
+  );
+
   testWidgets('bulk Favorites finish after the access-bound menu closes', (
     tester,
   ) async {
@@ -197,6 +243,7 @@ class _MenuFlow {
     WidgetTester tester, {
     required Future<AddFavoriteStatus> Function(int) add,
     List<int> postIds = const [101, 102],
+    Future<List<int>?> Function(List<int>)? lookup,
     bool accessBound = false,
   }) async {
     final backend = FakeBooruBackend();
@@ -229,6 +276,7 @@ class _MenuFlow {
         favoriteRepoProvider(profile.auth).overrideWithValue(
           FavoriteRepositoryBuilder(
             canFavorite: () => true,
+            filter: lookup,
             add: (id) {
               adds.add(id);
               return add(id);

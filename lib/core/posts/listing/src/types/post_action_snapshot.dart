@@ -20,16 +20,12 @@ class PostActionSnapshot {
       for (final post in this.posts)
         (
           post: post,
-          config: accessRequired
-              ? _boundConfig(post, access)
-              : switch (const PostOriginResolver().resolve(
-                  post.origin,
-                  profiles,
-                  allowProfileHintFallback: false,
-                )) {
-                  ResolvedPostOrigin(:final config) => config,
-                  _ => null,
-                },
+          config: _configsByOrigin.putIfAbsent(
+            post.origin,
+            () => accessRequired
+                ? _boundConfig(post, access)
+                : _resolveConfig(post.origin, profiles),
+          ),
         ),
     ]);
   }
@@ -47,6 +43,18 @@ class PostActionSnapshot {
       access: access,
     );
   }
+
+  static BooruConfig? _resolveConfig(
+    PostOrigin origin,
+    Iterable<BooruConfig> profiles,
+  ) => switch (const PostOriginResolver().resolve(
+    origin,
+    profiles,
+    allowProfileHintFallback: false,
+  )) {
+    ResolvedPostOrigin(:final config) => config,
+    _ => null,
+  };
 
   static BooruConfig? _boundConfig(Post post, ContentAccessContext? access) {
     if (access == null ||
@@ -78,6 +86,7 @@ class PostActionSnapshot {
 
   final List<Post> posts;
   late final List<({Post post, BooruConfig? config})> targets;
+  final _configsByOrigin = <PostOrigin, BooruConfig?>{};
   bool get isSingle => posts.length == 1;
   bool get hasTargets => posts.isNotEmpty;
   bool get allResolved => hasTargets && targets.every((t) => t.config != null);
@@ -108,16 +117,8 @@ class PostActionSnapshot {
           (captured.key.profileId == null ||
               captured.matchesProfiles(profiles));
     }
-    return targets.every((target) {
-      final resolved = const PostOriginResolver().resolve(
-        target.post.origin,
-        profiles,
-        allowProfileHintFallback: false,
-      );
-      return switch (resolved) {
-        ResolvedPostOrigin(:final config) => config == target.config,
-        _ => target.config == null,
-      };
-    });
+    return _configsByOrigin.entries.every(
+      (entry) => _resolveConfig(entry.key, profiles) == entry.value,
+    );
   }
 }

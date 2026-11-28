@@ -133,7 +133,7 @@ void main() {
                 child: ListenableBuilder(
                   listenable: selection,
                   builder: (context, _) => BooruLocalization(
-                    child: BookmarkReadIndicator(
+                    child: BookmarkSeenIndicator(
                       unseen: true,
                       selecting: selection.isActive,
                       child: PostGridItem(

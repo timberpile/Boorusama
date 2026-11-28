@@ -15,6 +15,7 @@ import 'package:shelf/shelf.dart' as shelf;
 // Project imports:
 import '../../../foundation/clipboard.dart';
 import '../../../foundation/filesystem.dart';
+import '../export_import/import/import_progress.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
@@ -217,6 +218,7 @@ abstract class JsonBackupSource<T>
     BuildContext? uiContext,
   ) async {
     final content = await readFile(path);
+    ImportProgress.current?.show(ImportProgressPhase.decoding);
 
     if (uiContext == null || !uiContext.mounted) {
       return _noContextPrepare(content);
@@ -291,8 +293,25 @@ abstract class JsonBackupSource<T>
     }
   }
 
-  Future<String> readFile(String path) {
+  Future<String> readFile(String path) async {
     final fs = ref.read(appFileSystemProvider);
-    return fs.readString(path);
+    final progress = ImportProgress.current;
+    if (progress == null) return fs.readString(path);
+    final total = await fs.fileSize(path);
+    var read = 0;
+    progress.show(ImportProgressPhase.reading, total: total);
+    return utf8.decoder
+        .bind(
+          fs.openRead(path).map((chunk) {
+            read += chunk.length;
+            progress.show(
+              ImportProgressPhase.reading,
+              completed: read,
+              total: total,
+            );
+            return chunk;
+          }),
+        )
+        .join();
   }
 }

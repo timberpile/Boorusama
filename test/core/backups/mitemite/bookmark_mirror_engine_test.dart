@@ -21,7 +21,6 @@ import 'package:boorusama/core/navigation/navigation_controller.dart';
 import 'package:boorusama/core/backups/mitemite/notification_outbox.dart';
 import 'package:boorusama/core/backups/mitemite/notification_intent.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
-import 'package:boorusama/core/settings/src/pages/backup_and_restore_page.dart';
 
 import '../../../application/support/headless_app_harness.dart';
 import '../../../application/support/fake_image_dio.dart';
@@ -70,7 +69,7 @@ import 'package:boorusama/core/backups/mitemite/catalog.dart';
 import 'package:boorusama/core/backups/mitemite/catalog_gate.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:boorusama/core/backups/mitemite/publication.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/mitemite/receive_preparation.dart';
 import 'package:boorusama/core/backups/mitemite/storage.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
@@ -88,7 +87,7 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.d
 import 'package:boorusama/core/backups/mitemite/service.dart';
 import 'package:boorusama/core/backups/mitemite/local_events.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
-import 'package:boorusama/core/bookmarks/src/services/bookmark_read_projection.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_seen_projection.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_record_fields.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
@@ -106,6 +105,7 @@ import 'package:i18n/i18n.dart';
 import 'package:boorusama/core/backups/mitemite/page.dart';
 import 'package:boorusama/core/backups/mitemite/providers.dart';
 import 'package:boorusama/core/backups/mitemite/notifications.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_profile_availability.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:hive_ce/hive.dart';
@@ -308,7 +308,9 @@ void main() {
     final guard = Stopwatch()..start();
     while (guard.elapsed < const Duration(seconds: 30)) {
       await tester.runAsync(() => Future<void>(() {}));
-      await tester.pump();
+      // A busy host can trigger cooperative yields even for this small library.
+      // Advance the widget clock so its queued timers can finish the reload.
+      await tester.pump(const Duration(milliseconds: 1));
       if (done()) {
         if (settle) await tester.pumpAndSettle();
         return;
@@ -676,7 +678,7 @@ void main() {
                 root = state.localIdFor(identity.id, parent)!;
                 leaf = state.localIdFor(identity.id, child)!;
                 if (kind == 'Works' && !nested) {
-                  await engine.markRead(root, {
+                  await engine.markSeen(root, {
                     syncBookmarkMemberKey(records.first),
                   });
                 }
@@ -741,9 +743,9 @@ void main() {
               await tester.runAsync(() async {
                 final owner =
                     (await repository.readMirrorState()).owners[root]!;
-                await engine.markRead(
+                await engine.markSeen(
                   root,
-                  SyncGroupReadingState.fromJson(owner.reading).members,
+                  SyncGroupSeenState.fromJson(owner.reading).members,
                 );
               });
               var reloaded = false;
@@ -875,13 +877,13 @@ void main() {
               final actions = tester.widget<DefaultMultiSelectionActions>(
                 find.byType(DefaultMultiSelectionActions),
               );
-              final markRead = actions.extraActions!(const <Post>[])
+              final markSeen = actions.extraActions!(const <Post>[])
                   .whereType<MultiSelectButton>()
                   .singleWhere(
                     (button) =>
-                        button.name == Translations().mitemite.mark_read,
+                        button.name == Translations().mitemite.mark_seen,
                   );
-              markRead.onPressed!();
+              markSeen.onPressed!();
               await pumpIO(tester, () => !selection.isActive);
               expect(selection.isActive, isFalse);
               expect(selection.selection, isEmpty);
@@ -1149,7 +1151,7 @@ void main() {
     },
   );
 
-  test('publishes and receives an overlapping subtree with large Bookmark snapshots', () async {
+  test('receives overlapping legacy snapshots beyond the former aggregate memory budget', () async {
     final random = Random(192);
     final records = [
       for (var id = 1; id <= 192; id++)
@@ -1176,21 +1178,47 @@ void main() {
           metadata: const {},
         ),
     ];
-    final a = await publish(parent, records);
-    final b = await publish(child, records);
-    final archive = (await shared.read(a.payloadPath))!;
+    final revisions = [
+      for (final id in [
+        parent,
+        child,
+        '33333333-2222-4333-8444-555555555555',
+        '44444444-2222-4333-8444-555555555555',
+      ])
+        await publish(id, records),
+    ];
+    final root = revisions.first.collection;
+    final archive = (await shared.read(revisions.first.payloadPath))!;
     await expectLater(
       SyncBookmarkPackageValidator(
         fs: const IoFileSystem(),
         codec: codec,
       ).validate(
-        collection: a.collection,
+        collection: root,
         bytes: archive,
         maxPreparedBytes: 64 * 1024 * 1024,
       ),
       throwsA(isA<ExportPackageLimitException>()),
     );
-    final ticket = await advertise(a, b, direct: {parent});
+    final catalog = await writer.publishCatalog(
+      name: 'Publisher',
+      publicationRoots: {root},
+      entries: [
+        for (final revision in revisions)
+          SyncCatalogEntry(
+            id: revision.collection,
+            name: revision.collection.source,
+            parent: revision.collection == root ? null : parent,
+            state: SyncPublicationState.active,
+            revision: revision,
+          ),
+      ],
+    );
+    final ticket = await gate.verifyAndCheckpoint(
+      publisher: identity.id,
+      expectedSequence: catalog.sequence,
+      bytes: (await shared.read(catalog.path))!,
+    );
     await engine.receive(
       ticket: ticket,
       publisherKey: identity.publicKey,
@@ -1200,9 +1228,12 @@ void main() {
     final mirrors = (await groups.getGroups())
         .where((group) => state.isReceived(group.id))
         .toList();
-    expect(mirrors, hasLength(2));
+    expect(mirrors, hasLength(revisions.length));
     expect(mirrors.first.bookmarkIds, hasLength(records.length));
-    expect(mirrors.last.bookmarkIds, mirrors.first.bookmarkIds);
+    for (final group in mirrors) {
+      expect(group.bookmarkIds, mirrors.first.bookmarkIds);
+      expect(group.addedAt.values, everyElement(at));
+    }
     expect(await repository.readAll(), hasLength(records.length));
   }, timeout: const Timeout(Duration(minutes: 3)));
 
@@ -1335,6 +1366,138 @@ void main() {
       syncBookmarkMemberKey(workRecord),
     });
   });
+
+  testManagementWidgets(
+    'Bookmark Subscribe shares a cancellable placeholder across Settings and home',
+    (tester) async {
+      final preferences = _Store();
+      late MiteMiteService service;
+      late ProviderContainer container;
+      late _PausedImportStorage transport;
+      await tester.runAsync(() async {
+        final a = await publish(parent, [workRecord]);
+        final b = await publish(child, [pageRecord]);
+        await advertise(a, b, direct: {parent});
+        transport = _PausedImportStorage(shared, a.payloadPath, b.payloadPath);
+        final sharedContainer = realContainer(preferences);
+        addTearDown(sharedContainer.dispose);
+        container = ProviderContainer(
+          parent: sharedContainer,
+          overrides: [
+            bookmarkProfileAvailabilityProvider.overrideWithValue(null),
+          ],
+        );
+        final notifier = container.read(bookmarkProvider.notifier);
+        await container.read(bookmarkProvider.future);
+        service = MiteMiteService(
+          preferences: preferences,
+          store: repository,
+          groups: groups,
+          fs: const IoFileSystem(),
+          codec: codec,
+          identity: await SyncSigningIdentity.create(),
+          mutations: repository.coordinator,
+          storageFor: (_) async => transport,
+          onApplied: notifier.refreshWithProgress,
+        );
+        await service.configure('${directory.path}/shared');
+        await service.approve(
+          service.devices.singleWhere((device) => device.id == identity.id),
+        );
+      });
+      addTearDown(container.dispose);
+      addTearDown(service.dispose);
+      final home = ValueNotifier(false);
+      addTearDown(home.dispose);
+      await tester.pumpWidget(
+        managementApp(
+          container,
+          service,
+          ValueListenableBuilder<bool>(
+            valueListenable: home,
+            builder: (_, showHome, _) => showHome
+                ? const BookmarkGroupBrowserPage()
+                : const MiteMitePage(section: 'receive'),
+          ),
+        ),
+      );
+      await pumpIO(tester, () => find.text('Subscribe').evaluate().isNotEmpty);
+      await tester.tap(find.text('Subscribe'));
+      await pumpIO(tester, () => transport.entered.isCompleted, settle: false);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('0 of 2 groups checked'), findsOneWidget);
+      final operation = service.bookmarkImports.values.single;
+
+      home.value = true;
+      final placeholder = find.byKey(
+        ValueKey(('bookmark-import', operation.collection.key)),
+      );
+      await pumpIO(
+        tester,
+        () => placeholder.evaluate().isNotEmpty,
+        settle: false,
+      );
+      expect(
+        find.descendant(
+          of: placeholder,
+          matching: find.text('0 of 2 groups checked'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.descendant(of: placeholder, matching: find.text('Cancel')),
+      );
+      await tester.pump();
+      expect(operation.value.cancelling, isTrue);
+      transport.resume.complete();
+      await pumpIO(tester, () => service.bookmarkImports.isEmpty);
+      expect(placeholder, findsNothing);
+      expect(service.failure, isNull);
+      expect(service.receiverMirrors?.subscriptions, isEmpty);
+
+      home.value = false;
+      await pumpIO(tester, () => find.text('Subscribe').evaluate().isNotEmpty);
+      await tester.tap(find.text('Subscribe'));
+      var sawSaving = false;
+      final retry = service.bookmarkImports.values.single;
+      retry.addListener(() {
+        if (retry.value.saving) {
+          sawSaving = true;
+          expect(retry.value.groups, (checked: 2, total: 2));
+          retry.cancel();
+          expect(retry.value.cancelling, isFalse);
+        }
+      });
+      await pumpIO(
+        tester,
+        () => transport.childEntered.isCompleted,
+        settle: false,
+      );
+      try {
+        expect(find.text('1 of 2 groups checked'), findsOneWidget);
+        expect(
+          tester
+              .widgetList<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator),
+              )
+              .map((bar) => bar.value),
+          contains(0.5),
+        );
+      } finally {
+        transport.resumeChild.complete();
+      }
+      await pumpIO(tester, () => service.bookmarkImports.isEmpty);
+      expect(sawSaving, isTrue);
+      expect(service.receiverMirrors!.subscriptions[identity.id], {parent});
+      home.value = true;
+      await pumpIO(
+        tester,
+        () => find.byType(BookmarkGroupBrowserPage).evaluate().isNotEmpty,
+      );
+      expect(placeholder, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testManagementWidgets(
     'Subscriptions NEW stays through its first visit and late offers survive successful exit at 320dp enlarged text',
@@ -1694,15 +1857,15 @@ void main() {
     final nested = state.mirrors.localIdFor(identity.id, child)!;
     expect(syncBookmarkUnseenMembers(state, root), hasLength(5));
     expect(syncBookmarkUnseenMembers(state, nested), hasLength(2));
-    await engine.markRead(root, {syncBookmarkMemberKey(records.first)});
+    await engine.markSeen(root, {syncBookmarkMemberKey(records.first)});
     state = await library.load();
     expect(
       syncBookmarkUnseenMembers(state, root),
       hasLength(5),
       reason: 'The child still considers that identity Unseen.',
     );
-    await engine.markRead(nested, {syncBookmarkMemberKey(records.first)});
-    await engine.markRead(root, {
+    await engine.markSeen(nested, {syncBookmarkMemberKey(records.first)});
+    await engine.markSeen(root, {
       syncBookmarkMemberKey(records[1]),
       syncBookmarkMemberKey(records[2]),
     });
@@ -1721,8 +1884,8 @@ void main() {
       publisherKey: identity.publicKey,
     );
     expect(syncBookmarkUnseenMembers(await library.load(), root), hasLength(2));
-    await engine.markRead(root, records.map(syncBookmarkMemberKey).toSet());
-    await engine.markRead(nested, records.map(syncBookmarkMemberKey).toSet());
+    await engine.markSeen(root, records.map(syncBookmarkMemberKey).toSet());
+    await engine.markSeen(nested, records.map(syncBookmarkMemberKey).toSet());
     expect(syncBookmarkUnseenMembers(await library.load(), root), isEmpty);
     expect(
       syncBookmarkUnseenMembers(await library.load(), 'unowned-local'),
@@ -1805,7 +1968,7 @@ void main() {
 
     final root = state.mirrors.localIdFor(identity.id, parent)!;
     final nested = state.mirrors.localIdFor(identity.id, child)!;
-    var projection = BookmarkReadProjection(state, BookmarkView.group(root));
+    var projection = BookmarkSeenProjection(state, BookmarkView.group(root));
     expect(projection.showFilter(BookmarkSeenFilter.all), isFalse);
     final entries = selectBookmarkGridEntries(
       state: state,
@@ -1815,12 +1978,12 @@ void main() {
     );
     expect(entries.whereType<BookmarkNativeGroupEntry>(), hasLength(1));
     expect(entries.every(projection.isUnseen), isTrue);
-    await engine.markRead(root, {
+    await engine.markSeen(root, {
       syncBookmarkMemberKey(records.first),
       syncBookmarkMemberKey(workRecord),
     });
     state = await library.load();
-    projection = BookmarkReadProjection(state, BookmarkView.group(root));
+    projection = BookmarkSeenProjection(state, BookmarkView.group(root));
     expect(projection.showFilter(BookmarkSeenFilter.all), isTrue);
     final visible = visibleBookmarkGridEntries(
       entries,
@@ -1848,13 +2011,13 @@ void main() {
     );
     final firstEntry = BookmarkPostEntry(firstLocal);
     expect(
-      BookmarkReadProjection(
+      BookmarkSeenProjection(
         state,
         BookmarkView.group(nested),
       ).isUnseen(firstEntry),
       isTrue,
     );
-    final collapsed = BookmarkReadProjection(state, BookmarkView.subtree(root));
+    final collapsed = BookmarkSeenProjection(state, BookmarkView.subtree(root));
     expect(
       collapsed.isUnseen(firstEntry),
       isTrue,
@@ -1870,7 +2033,7 @@ void main() {
     expect(collapsed.includes(firstEntry, BookmarkSeenFilter.unseen), isTrue);
     expect(captured.allTargets.map((t) => t.groupId).toSet(), {root, nested});
     final beforeReadEpoch = state.mirrors.epoch;
-    await engine.markReadTargets([captured]);
+    await engine.markSeenTargets([captured]);
     state = await library.load();
     expect(
       state.mirrors.owners[foreignId],
@@ -1885,13 +2048,13 @@ void main() {
     );
     for (final id in [root, nested]) {
       expect(
-        SyncGroupReadingState.fromJson(state.mirrors.owners[id]!.reading)
-            .unreadMembers,
+        SyncGroupSeenState.fromJson(state.mirrors.owners[id]!.reading)
+            .unseenMembers,
         isNot(contains(captured.member)),
       );
     }
     expect(
-      BookmarkReadProjection(
+      BookmarkSeenProjection(
         state,
         BookmarkView.subtree(root),
       ).isUnseen(firstEntry),
@@ -1899,7 +2062,7 @@ void main() {
     );
 
     expect(
-      BookmarkReadProjection(state, const BookmarkView.all()).targets,
+      BookmarkSeenProjection(state, const BookmarkView.all()).targets,
       isEmpty,
     );
     final search = selectBookmarkGridEntries(
@@ -1921,7 +2084,7 @@ void main() {
       mirrors: BookmarkMirrorState.fromJson(state.mirrors.toJson()),
     );
     expect(
-      BookmarkReadProjection(restored, BookmarkView.group(root)).unseenIds,
+      BookmarkSeenProjection(restored, BookmarkView.group(root)).unseenIds,
       projection.unseenIds,
     );
     await engine.unsubscribe(identity.id, child);
@@ -1944,22 +2107,22 @@ void main() {
       final root = state.mirrors.localIdFor(identity.id, parent)!;
       final nested = state.mirrors.localIdFor(identity.id, child)!;
       final key = syncBookmarkMemberKey(pageRecord);
-      await engine.markRead(root, {key});
+      await engine.markSeen(root, {key});
       state = await library.load();
       final entry = BookmarkPostEntry(state.items.single);
-      final captured = BookmarkReadProjection(
+      final captured = BookmarkSeenProjection(
         state,
         BookmarkView.subtree(root),
       ).target(entry)!;
       expect(
-        BookmarkReadProjection(
+        BookmarkSeenProjection(
           state,
           BookmarkView.subtree(root),
         ).isUnseen(entry),
         isTrue,
       );
       expect(
-        BookmarkReadProjection(state, BookmarkView.group(root)).isUnseen(entry),
+        BookmarkSeenProjection(state, BookmarkView.group(root)).isUnseen(entry),
         isFalse,
       );
       await engine.receive(
@@ -1967,15 +2130,15 @@ void main() {
         publisherKey: identity.publicKey,
       );
       final before = await repository.readMirrorState();
-      await engine.markReadTargets([
+      await engine.markSeenTargets([
         captured,
-        BookmarkReadTarget(
+        BookmarkSeenTarget(
           groupId: nested,
           publisher: parent,
           source: child,
           member: key,
         ),
-        BookmarkReadTarget(
+        BookmarkSeenTarget(
           groupId: nested,
           publisher: identity.id,
           source: parent,
@@ -1984,8 +2147,8 @@ void main() {
       ]);
       expect(await repository.readMirrorState(), before);
       expect(
-        SyncGroupReadingState.fromJson(before.owners[nested]!.reading)
-            .unreadMembers,
+        SyncGroupSeenState.fromJson(before.owners[nested]!.reading)
+            .unseenMembers,
         contains(key),
       );
     },
@@ -2082,7 +2245,7 @@ void main() {
       expect(tester.widget<BookmarkLocalGroupCard>(card).unseenCount, 5);
       var seen = false;
       final marking = service
-          .markRead(root, {syncBookmarkMemberKey(fivePosts().first)})
+          .markSeen(root, {syncBookmarkMemberKey(fivePosts().first)})
           .whenComplete(() => seen = true);
       await pumpIO(tester, () => seen);
       await marking;
@@ -2340,10 +2503,9 @@ void main() {
     final before = await library.load();
     await engine.setAlias(identity.id, 'My sender');
     final root = before.mirrors.localIdFor(identity.id, parent)!;
-    await engine.markRead(
+    await engine.markSeen(
       root,
-      SyncGroupReadingState.fromJson(before.mirrors.owners[root]!.reading)
-          .members,
+      SyncGroupSeenState.fromJson(before.mirrors.owners[root]!.reading).members,
     );
     final after = await library.load();
     expect(after.mirrors.aliases[identity.id], 'My sender');
@@ -2388,11 +2550,8 @@ void main() {
         }
         await tester.tap(find.text('Settings').last);
         await harness.settle(tester);
-        await tester.ensureVisible(find.text('Export and Import').first);
-        await tester.tap(find.text('Export and Import').first);
-        await harness.settle(tester);
-        await tester.ensureVisible(find.text('MiteMite'));
-        await tester.tap(find.text('MiteMite'));
+        await tester.ensureVisible(find.text('MiteMite').first);
+        await tester.tap(find.text('MiteMite').first);
         await harness.settle(tester);
         for (final section in [
           'Published',
@@ -2426,7 +2585,6 @@ void main() {
         await tester.binding.handlePopRoute();
         await harness.settle(tester);
         expect(find.byType(MiteMitePage), findsNothing);
-        expect(find.byType(BackupAndRestorePage), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
@@ -2728,10 +2886,13 @@ void main() {
         const [],
         drafts: [pageRecord],
       )).group;
+      var seenProjections = 0;
+      var fullProjections = 0;
       Future<MiteMiteService> device(
         BookmarkHiveRepository store,
-        UnifiedBookmarkGroupRepository organization,
-      ) async => MiteMiteService(
+        UnifiedBookmarkGroupRepository organization, {
+        bool measureSeen = false,
+      }) async => MiteMiteService(
         preferences: _Store(),
         store: store,
         groups: organization,
@@ -2740,9 +2901,18 @@ void main() {
         storageFor: (location) async => DirectoryMiteMiteStorage(location),
         identity: await SyncSigningIdentity.create(),
         mutations: store.coordinator,
+        onApplied: measureSeen ? () async => fullProjections++ : null,
+        onBookmarkSeenApplied: measureSeen
+            ? (source, before, revision, snapshot) async {
+                expect(source, same(store));
+                expect(revision, before + 1);
+                expect(snapshot, await store.readMirrorState());
+                seenProjections++;
+              }
+            : null,
       );
       final a = await device(repository, groups);
-      final b = await device(other, otherGroups);
+      final b = await device(other, otherGroups, measureSeen: true);
       addTearDown(a.dispose);
       addTearDown(b.dispose);
       final path = '${directory.path}/two_devices';
@@ -2773,20 +2943,65 @@ void main() {
       expect(await storage.list('devices/${a.identity.id}/catalog'), ca);
       expect(await storage.list('devices/${b.identity.id}/catalog'), cb);
       final received = sb.mirrors.localIdFor(a.identity.id, ga.id)!;
-      final reading = SyncGroupReadingState.fromJson(
+      final reading = SyncGroupSeenState.fromJson(
         sb.mirrors.owners[received]!.reading,
       );
-      await b.markRead(received, reading.members);
+      final owner = sb.mirrors.owners[received]!;
+      expect(owner.bookmarkBucketManifest, isNotNull);
+      fullProjections = 0;
+      final targets = [
+        for (final key in reading.members)
+          BookmarkSeenTarget(
+            groupId: received,
+            publisher: a.identity.id,
+            source: ga.id,
+            member: key,
+          ),
+      ];
+      await b.markSeenTargets(targets);
+      await b.markSeenTargets(targets);
+      final seen = (await other.readMirrorState()).owners[received]!;
+      expect(seen.bookmarkBucketManifest, owner.bookmarkBucketManifest);
+      expect(seen.descriptorDigest, owner.descriptorDigest);
+      expect(seenProjections, 1);
+      expect(fullProjections, 0);
+      await b.synchronize();
+      expect(fullProjections, 0);
       await groups.renameGroup(ga.id, 'A renamed');
       await a.synchronize(trigger: SyncTrigger.localChange);
       await b.synchronize();
       sb = await otherLibrary.load();
       expect(sb.groupsById[received]!.name, 'A renamed');
       expect(
-        SyncGroupReadingState.fromJson(sb.mirrors.owners[received]!.reading)
-            .readMembers,
+        SyncGroupSeenState.fromJson(sb.mirrors.owners[received]!.reading)
+            .seenMembers,
         reading.members,
       );
+      final extra = (await library.createGroupWithSavedRecords(
+        'Second root',
+        const [],
+        drafts: [workRecord],
+      )).group;
+      await repository.commitOrganization(
+        groups: [
+          (await groups.getGroup(ga.id))!.copyWith(parentGroupId: extra.id),
+        ],
+      );
+      await a.publishRoots({ga.id, extra.id});
+      await b.synchronize();
+      await b.subscribe(a.identity.id, {extra.id});
+      expect((await otherGroups.getGroup(received))!.parentGroupId, isNotNull);
+      await b.unsubscribe(a.identity.id, extra.id);
+      expect((await otherGroups.getGroup(received))!.parentGroupId, isNull);
+      final retained = (await other.readMirrorState()).owners[received]!;
+      expect(retained.bookmarkBucketManifest, owner.bookmarkBucketManifest);
+      final cache = Directory(
+        '${other.bookmarkPublicationIndexPath}.received/${a.identity.id}',
+      );
+      expect(Directory('${cache.path}/${extra.id}').existsSync(), isFalse);
+      expect(Directory('${cache.path}/${ga.id}').existsSync(), isTrue);
+      await b.forget(a.identity.id);
+      expect(cache.existsSync(), isFalse);
     },
   );
 
@@ -3378,11 +3593,11 @@ void main() {
         await pumpIO(tester, () => button(parent).evaluate().isNotEmpty);
         await tester.ensureVisible(button(parent));
         await tester.tap(button(parent));
-        await pumpIO(tester, () => entered[0].isCompleted);
-        expect(tester.widget<TextButton>(button(parent)).onPressed, isNull);
+        await pumpIO(tester, () => entered[0].isCompleted, settle: false);
+        expect(tester.widget<TextButton>(button(parent)).onPressed, isNotNull);
         expect(
           tester.widget<TextButton>(button(parent)).child,
-          isA<Text>().having((t) => t.data, 'label', 'Updating…'),
+          isA<Text>().having((t) => t.data, 'label', 'Cancel'),
         );
         expect(tester.widget<TextButton>(button(child)).onPressed, isNotNull);
         expect(
@@ -3392,16 +3607,16 @@ void main() {
         await tester.ensureVisible(button(child));
         await tester.tap(button(child));
         await tester.pump();
-        expect(tester.widget<TextButton>(button(child)).onPressed, isNull);
+        expect(tester.widget<TextButton>(button(child)).onPressed, isNotNull);
         expect(
           entered[1].isCompleted,
           isFalse,
           reason: 'The second click queues behind the existing write lock',
         );
         resume[0].complete();
-        await pumpIO(tester, () => entered[1].isCompleted);
+        await pumpIO(tester, () => entered[1].isCompleted, settle: false);
         expect(tester.widget<TextButton>(button(parent)).onPressed, isNotNull);
-        expect(tester.widget<TextButton>(button(child)).onPressed, isNull);
+        expect(tester.widget<TextButton>(button(child)).onPressed, isNotNull);
         resume[1].complete();
         await pumpIO(tester, () => !service.hasPendingActions);
         final state = (await tester.runAsync(repository.readMirrorState))!;
@@ -3811,24 +4026,24 @@ void main() {
     expect(state.records, hasLength(2));
     expect(state.groupsById[bId]!.parentGroupId, aId);
     expect(state.mirrors.subscriptions[identity.id], {parent, child});
-    final before = SyncGroupReadingState.fromJson(
+    final before = SyncGroupSeenState.fromJson(
       state.mirrors.owners[bId]!.reading,
     );
     await engine.acknowledgeArrival(bId, before.revision);
-    var reading = SyncGroupReadingState.fromJson(
+    var reading = SyncGroupSeenState.fromJson(
       (await repository.readMirrorState()).owners[bId]!.reading,
     );
     expect(reading.arrivals, isEmpty);
-    expect(reading.unreadMembers, hasLength(2));
-    await engine.markRead(bId, {reading.members.first});
-    reading = SyncGroupReadingState.fromJson(
+    expect(reading.unseenMembers, hasLength(2));
+    await engine.markSeen(bId, {reading.members.first});
+    reading = SyncGroupSeenState.fromJson(
       (await repository.readMirrorState()).owners[bId]!.reading,
     );
-    expect(reading.unreadMembers, hasLength(1));
+    expect(reading.unseenMembers, hasLength(1));
     expect(
-      SyncGroupReadingState.fromJson(
+      SyncGroupSeenState.fromJson(
         (await repository.readMirrorState()).owners[aId]!.reading,
-      ).unreadMembers,
+      ).unseenMembers,
       hasLength(1),
     );
     await engine.unsubscribe(identity.id, child);
@@ -4229,6 +4444,32 @@ class _PausedStorage implements MiteMiteStorage {
   @override
   Future<void> deleteOwnedDirectory(String path, {required String owner}) =>
       delegate.deleteOwnedDirectory(path, owner: owner);
+}
+
+class _PausedImportStorage extends _PausedStorage {
+  _PausedImportStorage(super.delegate, this.payload, this.childPayload);
+  final String payload;
+  final String childPayload;
+  final childEntered = Completer<void>();
+  final resumeChild = Completer<void>();
+
+  @override
+  Future<List<String>> list(String path) => delegate.list(path);
+
+  @override
+  Future<Uint8List?> read(
+    String path, {
+    int maxBytes = miteMiteMaxBytes,
+  }) async {
+    if (path == payload && !entered.isCompleted) {
+      entered.complete();
+      await resume.future;
+    } else if (path == childPayload && !childEntered.isCompleted) {
+      childEntered.complete();
+      await resumeChild.future;
+    }
+    return delegate.read(path, maxBytes: maxBytes);
+  }
 }
 
 class _SnapshotLibrary extends BookmarkLibraryNotifier {

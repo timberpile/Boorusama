@@ -5,7 +5,7 @@ import 'dart:async';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../backups/mitemite/providers.dart';
 import '../../../backups/mitemite/actions.dart';
-import '../../../backups/mitemite/reading_state.dart';
+import '../../../backups/mitemite/seen_state.dart';
 import '../types/bookmark_view.dart';
 
 // Package imports:
@@ -41,7 +41,7 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
     required this.initialThumbnailUrl,
     required PostGridController<Post> controller,
     this.entries,
-    this.readingTargets,
+    this.seenTargets,
     this.sourceView = const BookmarkView.all(),
     super.key,
   }) : posts = List.unmodifiable(controller.items);
@@ -50,7 +50,7 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
   final String? initialThumbnailUrl;
   final List<Post> posts;
   final List<ViewerEntry>? entries;
-  final Map<Object, BookmarkReadTarget>? readingTargets;
+  final Map<Object, BookmarkSeenTarget>? seenTargets;
   final BookmarkView sourceView;
 
   @override
@@ -65,8 +65,8 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
   void _onDisplayed(ViewerEntry entry) {
     final library = ref.read(bookmarkProvider).valueOrNull;
     if (library == null) return;
-    final captured = widget.readingTargets?[entry.occurrenceId];
-    if (widget.readingTargets != null &&
+    final captured = widget.seenTargets?[entry.occurrenceId];
+    if (widget.seenTargets != null &&
         (captured == null || !captured.isCurrent(library))) {
       return;
     }
@@ -89,9 +89,9 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
           _displayed.remove(entry.occurrenceId);
           return;
         }
-        await service.markReadTargets([
+        await service.markSeenTargets([
           captured ??
-              BookmarkReadTarget(
+              BookmarkSeenTarget(
                 groupId: groupId,
                 publisher: library.mirrors.owners[groupId]!.publisher,
                 source: library.mirrors.owners[groupId]!.source,
@@ -99,7 +99,7 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
               ),
         ]);
       } catch (_) {
-        // Failed local acknowledgement leaves the entry unread for retry.
+        // Failed local acknowledgement leaves the entry unseen for retry.
         _displayed.remove(entry.occurrenceId);
       }
     }());

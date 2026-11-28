@@ -19,6 +19,8 @@ final class ImportSourceIntegrityValidator {
     required ExportNodeSelection selection,
     required Map<String, ImportAction> itemRecommendations,
     required Object? data,
+    Map<String, int>? bookmarkMembershipCounts,
+    bool? bookmarkHasUngrouped,
   }) {
     final validatedData = data is BookmarkBackupData
         ? data.asHierarchy()
@@ -33,7 +35,10 @@ final class ImportSourceIntegrityValidator {
       );
     }
 
-    final itemIds = importedItemIds(validatedData);
+    final itemIds = importedItemIds(
+      validatedData,
+      bookmarkHasUngrouped: bookmarkHasUngrouped,
+    );
     final selectableItemIds = {
       ...itemIds,
       if (validatedData is BookmarkBackupData) ...[
@@ -71,6 +76,9 @@ final class ImportSourceIntegrityValidator {
           ]);
           final selected = <String>{};
           for (final key in selection.childIds) {
+            if (key == 'ungrouped' && bookmarkMembershipCounts != null) {
+              selected.add(defaultBookmarkGroupId);
+            }
             final direct = ExportSelectionIds.bookmarkGroupDirectId(key);
             if (direct != null) {
               selected.add(direct);
@@ -87,7 +95,9 @@ final class ImportSourceIntegrityValidator {
           allowedIds.addAll(selected.map((id) => 'group:$id'));
           for (final id in selected) {
             for (final ancestor in tree.ancestors(id)) {
-              if (ancestor.bookmarkIds.isEmpty) {
+              if (bookmarkMembershipCounts == null
+                  ? ancestor.bookmarkIds.isEmpty
+                  : (bookmarkMembershipCounts[ancestor.id] ?? 0) == 0) {
                 allowedIds.add('group:${ancestor.id}');
               }
             }
@@ -187,26 +197,28 @@ final class ImportSourceIntegrityValidator {
   }
 }
 
-Set<String> importedItemIds(Object? data) => switch (data) {
-  final List<BooruConfig> profiles => {
-    for (final profile in profiles) 'profile:${profile.id}',
-  },
-  final BookmarkBackupData bookmarks => {
-    if (bookmarks.records.any(
-      (bookmark) => !bookmarks.groups.any(
-        (group) => group.bookmarkIds.contains(bookmark.id),
-      ),
-    ))
-      'ungrouped',
-    for (final group in bookmarks.groups)
-      if (group.id case final id?) 'group:$id',
-  },
-  final FollowingTopicBackupData searches => {
-    for (final folder in searches.folders) 'folder:${folder.id}',
-    for (final record in searches.records) 'search:${record.id}',
-  },
-  final TopicFeedBackupData feeds => {
-    for (final feed in feeds.feeds) 'feed:${feed.id}',
-  },
-  _ => const <String>{},
-};
+Set<String> importedItemIds(Object? data, {bool? bookmarkHasUngrouped}) =>
+    switch (data) {
+      final List<BooruConfig> profiles => {
+        for (final profile in profiles) 'profile:${profile.id}',
+      },
+      final BookmarkBackupData bookmarks => {
+        if (bookmarkHasUngrouped ??
+            bookmarks.records.any(
+              (bookmark) => !bookmarks.groups.any(
+                (group) => group.bookmarkIds.contains(bookmark.id),
+              ),
+            ))
+          'ungrouped',
+        for (final group in bookmarks.groups)
+          if (group.id case final id?) 'group:$id',
+      },
+      final FollowingTopicBackupData searches => {
+        for (final folder in searches.folders) 'folder:${folder.id}',
+        for (final record in searches.records) 'search:${record.id}',
+      },
+      final TopicFeedBackupData feeds => {
+        for (final feed in feeds.feeds) 'feed:${feed.id}',
+      },
+      _ => const <String>{},
+    };

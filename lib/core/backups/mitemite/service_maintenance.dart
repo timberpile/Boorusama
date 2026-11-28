@@ -124,12 +124,12 @@ extension MiteMiteMaintenance on MiteMiteService {
               final repair = await _operations.runExclusive(() async {
                 sameCatalog();
                 try {
-                  final payload = await SyncRevisionTransport(storage).read(
+                  final verified = await SyncRevisionTransport(storage).verify(
                     expected: revision,
                     publisherKey: identity.publicKey,
                   );
                   sameCatalog();
-                  return payload == null;
+                  return !verified;
                 } on FormatException {
                   sameCatalog();
                   return true;

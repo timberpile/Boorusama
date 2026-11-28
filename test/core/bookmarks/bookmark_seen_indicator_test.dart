@@ -33,7 +33,7 @@ void main() {
                       body: GridView.count(
                         crossAxisCount: columns,
                         children: [
-                          BookmarkReadIndicator(
+                          BookmarkSeenIndicator(
                             unseen: unseen,
                             selecting: selecting,
                             child: InkWell(
@@ -49,7 +49,7 @@ void main() {
               );
           await pump();
           final badge = find.byKey(const ValueKey('bookmark-unseen-dot'));
-          final indicator = find.byType(BookmarkReadIndicator);
+          final indicator = find.byType(BookmarkSeenIndicator);
           expect(
             tester.getSize(badge),
             const Size.square(14),

@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 
+import '../../../../foundation/cooperative_work.dart';
 import '../../../content/types.dart';
 import 'bookmark.dart';
 import 'bookmark_group.dart';
@@ -22,41 +23,74 @@ final class BookmarkRecordIndex {
     required List<BookmarkGroup> groups,
     int revision = 0,
     bool strict = true,
-  }) {
+  }) => _build(records, groups, revision, strict).last!;
+
+  static Future<BookmarkRecordIndex> buildCooperatively({
+    required List<Bookmark> records,
+    required List<BookmarkGroup> groups,
+    required int revision,
+    void Function(int completed)? onProgress,
+  }) async {
+    final work = CooperativeWork();
+    var completed = 0;
+    for (final index in _build(records, groups, revision, true)) {
+      if (index != null) return index;
+      completed++;
+      if (work.checkpoint() case final pause?) {
+        onProgress?.call(completed);
+        await pause;
+      }
+    }
+    throw StateError('Bookmark index build did not finish');
+  }
+
+  static Iterable<BookmarkRecordIndex?> _build(
+    List<Bookmark> records,
+    List<BookmarkGroup> groups,
+    int revision,
+    bool strict,
+  ) sync* {
     if (revision < 0) throw const FormatException('Invalid library revision');
     final byId = <int, Bookmark>{};
     final byContent = <ContentIdentity, int>{};
+    final memberships = <int, Set<String>>{};
+    final ordered = <Bookmark>[];
+    var alreadyOrdered = true;
     for (final record in records) {
       bookmarkCreatedAt(record);
       if (strict && (record.id < 0 || byId.containsKey(record.id))) {
         throw const FormatException('Duplicate or invalid local Bookmark ID');
       }
       byId[record.id] = record;
-      final identity = bookmarkContentIdentity(record);
-      if (identity == null) continue;
-      if (strict && byContent.containsKey(identity)) {
-        throw const FormatException('Duplicate Bookmark content identity');
+      memberships[record.id] = <String>{};
+      if (ordered.isNotEmpty && ordered.last.id > record.id) {
+        alreadyOrdered = false;
       }
-      byContent[identity] = record.id;
+      ordered.add(record);
+      if (bookmarkContentIdentity(record) case final identity?) {
+        if (strict && byContent.containsKey(identity)) {
+          throw const FormatException('Duplicate Bookmark content identity');
+        }
+        byContent[identity] = record.id;
+      }
+      yield null;
     }
-    final memberships = <int, Set<String>>{
-      for (final id in byId.keys) id: <String>{},
-    };
     for (final group in groups) {
       for (final id in group.bookmarkIds) {
         memberships[id]?.add(group.id);
+        yield null;
       }
     }
-    final ordered = List<Bookmark>.of(records);
-    if (strict) ordered.sort((a, b) => a.id.compareTo(b.id));
-    return BookmarkRecordIndex._(
-      records: List.unmodifiable(ordered),
-      byId: Map.unmodifiable(byId),
-      idByContent: Map.unmodifiable(byContent),
-      membershipsByBookmarkId: Map.unmodifiable({
-        for (final entry in memberships.entries)
-          entry.key: Set<String>.unmodifiable(entry.value),
-      }),
+    for (final id in memberships.keys) {
+      memberships[id] = UnmodifiableSetView(memberships[id]!);
+      yield null;
+    }
+    if (strict && !alreadyOrdered) ordered.sort((a, b) => a.id.compareTo(b.id));
+    yield BookmarkRecordIndex._(
+      records: UnmodifiableListView(ordered),
+      byId: UnmodifiableMapView(byId),
+      idByContent: UnmodifiableMapView(byContent),
+      membershipsByBookmarkId: UnmodifiableMapView(memberships),
       revision: revision,
       strict: strict,
     );

@@ -12,12 +12,15 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_name_dialog.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 import 'package:boorusama/core/posts/post/src/types/image_url_resolver.dart';
 import 'package:boorusama/core/selection/collection_selection.dart';
 import 'package:boorusama/core/selection/collection_selection_bar.dart';
 import 'package:boorusama/core/widgets/multi_selection_action_bar.dart';
+import 'package:boorusama/core/widgets/multi_select_button.dart';
 
 import 'support/app_flow_finders.dart';
 import 'support/fake_booru_backend.dart';
@@ -168,6 +171,100 @@ void main() {
     expect(find.byType(CollectionSelectionBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Select All keeps 4,000 saved records while naming a nested group',
+    (
+      tester,
+    ) async {
+      final scenario = await _mount(
+        tester,
+        childBookmarks: 3998,
+        phone: const TestPhone(
+          name: 'Bookmarked posts',
+          size: Size(390, 844),
+          keyboardHeight: 300,
+        ),
+      );
+      await scenario.harness.pumpUntilFound(tester, postTile(101));
+      Navigator.of(tester.element(postTile(101))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const BookmarkGroupBrowserPage(groupId: _parentId),
+        ),
+      );
+      await scenario.harness.pumpUntilFound(
+        tester,
+        find.byKey(const Key('bookmark-group-view-mode')),
+      );
+      await scenario.harness.settle(tester);
+      await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
+      await scenario.harness.settle(tester);
+
+      expect(
+        tester.widget<BookmarkScrollView>(find.byType(BookmarkScrollView)).view,
+        BookmarkView.subtree(_parentId),
+      );
+      final tile = find
+          .descendant(
+            of: find.byType(BookmarkScrollView),
+            matching: find.byType(SelectableBuilder),
+          )
+          .first;
+      await tester.longPress(tile);
+      await scenario.harness.settle(tester);
+      await tester.tap(find.byTooltip(appStrings(tester).select.select_all));
+      await scenario.harness.settle(tester);
+      final selection = SelectionMode.of(tester.element(tile));
+      expect(selection.selection, hasLength(4000));
+
+      await tester.tap(find.byType(MultiSelectPopupButton).first);
+      final menuFinder = find.byType(BookmarkMultiSelectionMenu);
+      await scenario.harness.pumpUntilFound(tester, menuFinder);
+      final captured = tester
+          .widget<BookmarkMultiSelectionMenu>(menuFinder)
+          .records;
+      expect(
+        captured.map((record) => record.id).toSet(),
+        scenario.initial.byId.keys.toSet(),
+      );
+      await scenario.harness.settle(tester);
+      await tester.tap(find.text(appStrings(tester).bookmark.bulk.add));
+      final parentRow = find.byKey(
+        const ValueKey(('bookmark-picker-group', _parentId)),
+      );
+      await scenario.harness.pumpUntilFound(tester, parentRow);
+      await scenario.harness.settle(tester);
+      await tester.tap(
+        find.descendant(
+          of: parentRow,
+          matching: find.byIcon(Icons.chevron_right),
+        ),
+      );
+      await scenario.harness.settle(tester);
+      expect(
+        find.byKey(const ValueKey(('bookmark-picker-group', _betaId))),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('bookmark-picker-create-group')),
+      );
+      await scenario.harness.pumpUntilFound(
+        tester,
+        find.byType(BookmarkGroupNameDialog),
+      );
+      await scenario.harness.settle(tester);
+
+      expect(scenario.harness.keyboard.isShown, isTrue);
+      final name = find.descendant(
+        of: find.byType(BookmarkGroupNameDialog),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(name, 'New subgroup');
+      expect(name.hitTestable(), findsOneWidget);
+      expect(selection.selection, hasLength(4000));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 final class _Scenario {
@@ -182,14 +279,19 @@ final class _Scenario {
   final BookmarkLibraryState Function() currentState;
 }
 
-Future<_Scenario> _mount(WidgetTester tester) async {
+Future<_Scenario> _mount(
+  WidgetTester tester, {
+  int childBookmarks = 0,
+  TestPhone? phone,
+}) async {
   final backend = FakeBooruBackend();
-  final initial = _libraryState(backend.config);
+  final initial = _libraryState(backend.config, childBookmarks: childBookmarks);
   late _MutableBookmarks notifier;
   final harness = await HeadlessAppHarness.mount(
     tester,
     booruBackend: backend,
     viewportSize: const Size(390, 1100),
+    phone: phone,
     additionalOverrides: [
       bookmarkProvider.overrideWith(
         () => notifier = _MutableBookmarks(initial),
@@ -220,7 +322,10 @@ Future<void> _openParent(
   expect(postTile(102), findsOneWidget);
 }
 
-BookmarkLibraryState _libraryState(BooruConfig config) {
+BookmarkLibraryState _libraryState(
+  BooruConfig config, {
+  required int childBookmarks,
+}) {
   PostBookmark record(int id, Set<String> tags) => PostBookmark(
     id: id,
     booruId: config.booruId,
@@ -244,6 +349,7 @@ BookmarkLibraryState _libraryState(BooruConfig config) {
   final records = [
     record(101, const {'cat'}),
     record(102, const {'landscape'}),
+    for (var i = 0; i < childBookmarks; i++) record(103 + i, const {'cat'}),
   ];
   return BookmarkLibraryState(
     bookmarks: records,
@@ -272,6 +378,17 @@ BookmarkLibraryState _libraryState(BooruConfig config) {
         parentGroupId: _parentId,
         position: 1,
       ),
+      if (childBookmarks > 0)
+        for (var child = 0; child < 8; child++)
+          BookmarkGroup(
+            id: '30000000-0000-4000-8000-00000000000$child',
+            name: 'Child $child',
+            parentGroupId: _parentId,
+            position: child + 2,
+            bookmarkIds: {
+              for (var i = child; i < childBookmarks; i += 8) 103 + i,
+            },
+          ),
     ],
   );
 }

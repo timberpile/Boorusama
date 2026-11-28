@@ -13,6 +13,7 @@ import '../widgets/import_change_preview.dart';
 import 'import_flow_notifier.dart';
 import 'import_issue_message.dart';
 import 'import_preflight.dart';
+import 'import_progress.dart';
 import 'profile_dependency_planner.dart';
 import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
@@ -51,24 +52,15 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
       appBar: KurumiAppBar(title: Text(strings.review_import)),
       body: SafeArea(
         child: switch (state.status) {
-          ImportFlowStatus.idle || ImportFlowStatus.checking => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 12),
-                Text(strings.review_import),
-              ],
-            ),
-          ),
+          ImportFlowStatus.idle ||
+          ImportFlowStatus.checking ||
           ImportFlowStatus.importing => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 12),
-                Text(strings.importing),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: ImportProgressIndicator(progress: state.progress),
+              ),
             ),
           ),
           ImportFlowStatus.complete => ImportCompletionView(
@@ -223,6 +215,7 @@ class _ReviewImport extends ConsumerWidget {
           ),
         ImportReviewValidation(
           previewPending: state.previewPending,
+          progress: state.progress,
           preflight: preflight,
           profileSelectors: {
             for (final mapping in state.profileMappings)
@@ -252,6 +245,7 @@ class ImportReviewValidation extends StatelessWidget {
     required this.onApply,
     required this.onDone,
     this.previewPending = false,
+    this.progress,
   });
 
   final ImportPreflightResult preflight;
@@ -262,6 +256,7 @@ class ImportReviewValidation extends StatelessWidget {
   final VoidCallback onApply;
   final VoidCallback onDone;
   final bool previewPending;
+  final ImportProgressValue? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -283,13 +278,8 @@ class ImportReviewValidation extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (previewPending) ...[
-          LinearProgressIndicator(
-            semanticsLabel: context.t.settings.data_and_storage.loading,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(context.t.settings.data_and_storage.loading),
-          ),
+          ImportProgressIndicator(progress: progress),
+          const SizedBox(height: 8),
         ],
         if (preflight.warnings.isNotEmpty) ...[
           Text(
@@ -665,6 +655,71 @@ class _ProfileMappingTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ImportProgressIndicator extends StatelessWidget {
+  const ImportProgressIndicator({super.key, required this.progress});
+
+  final ImportProgressValue? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings =
+        context.t.settings.backup_and_restore.export_import.progress;
+    final phase = progress?.phase ?? ImportProgressPhase.opening;
+    final label = switch (phase) {
+      ImportProgressPhase.opening => strings.opening,
+      ImportProgressPhase.extracting => strings.extracting,
+      ImportProgressPhase.verifying => strings.verifying,
+      ImportProgressPhase.reading => strings.reading,
+      ImportProgressPhase.decoding => strings.decoding,
+      ImportProgressPhase.preparing => strings.preparing,
+      ImportProgressPhase.checkpoint => strings.checkpoint,
+      ImportProgressPhase.verifyingCheckpoint => strings.verifying_checkpoint,
+      ImportProgressPhase.saving => strings.saving,
+      ImportProgressPhase.removing => strings.removing,
+      ImportProgressPhase.memberships => strings.memberships,
+      ImportProgressPhase.writingGroup => strings.writing_group,
+      ImportProgressPhase.committing => strings.committing,
+      ImportProgressPhase.loadingLibrary => strings.loading_library,
+      ImportProgressPhase.preparingLibrary => strings.preparing_library,
+      ImportProgressPhase.indexingLibrary => strings.indexing_library,
+      ImportProgressPhase.publishingLibrary => strings.publishing_library,
+      ImportProgressPhase.restoring => strings.restoring,
+    };
+    final completed = progress?.completed ?? 0;
+    final total = progress?.total;
+    final fraction = total == null || total == 0 ? null : completed / total;
+    final detail = switch (phase) {
+      ImportProgressPhase.saving ||
+      ImportProgressPhase.removing ||
+      ImportProgressPhase.memberships ||
+      ImportProgressPhase.loadingLibrary when total != null => strings.count(
+        completed: completed,
+        total: total,
+      ),
+      _ =>
+        fraction == null
+            ? null
+            : strings.percent(percent: (fraction * 100).floor()),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: total == 0 ? 1 : fraction,
+          semanticsLabel: label,
+        ),
+        if (detail != null) ...[
+          const SizedBox(height: 6),
+          Text(detail, textAlign: TextAlign.end),
+        ],
+      ],
     );
   }
 }

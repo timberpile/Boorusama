@@ -127,6 +127,7 @@ class SettingEntryIcon extends StatelessWidget {
     return switch (icon) {
       final FaIconData faIcon => FaIcon(faIcon),
       final IconData iconData => Icon(iconData),
+      final Widget widget => widget,
       _ => const SizedBox.shrink(),
     };
   }

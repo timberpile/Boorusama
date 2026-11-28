@@ -20,7 +20,8 @@ final class ExportSourceSnapshot {
   const ExportSourceSnapshot({
     required this.sourceId,
     required this.schemaVersion,
-    required this.parts,
+    this.parts = const {},
+    this.prepareParts,
   });
 
   factory ExportSourceSnapshot.json({
@@ -39,10 +40,12 @@ final class ExportSourceSnapshot {
   final String sourceId;
   final int schemaVersion;
   final Map<String, ExportPartWriter> parts;
+  final ExportPartsPreparer? prepareParts;
 
   ExportPackageSourceBuild toPackageBuild() => ExportPackageSourceBuild(
     id: sourceId,
     schemaVersion: schemaVersion,
+    prepareParts: prepareParts,
     parts: [
       for (final entry in parts.entries)
         ExportPackagePartBuild(path: entry.key, write: entry.value),

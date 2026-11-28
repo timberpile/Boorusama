@@ -1,4 +1,4 @@
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
@@ -178,7 +178,7 @@ void main() {
                     revision: 1,
                     payloadDigest: 'a' * 64,
                     groupDigest: 'b' * 64,
-                    reading: SyncGroupReadingState.empty(
+                    reading: SyncGroupSeenState.empty(
                       SyncCollectionId(
                         publisher: _grandchildId,
                         kind: 'bookmarks',

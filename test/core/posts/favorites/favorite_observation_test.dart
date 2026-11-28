@@ -146,6 +146,34 @@ void main() {
     expect(status(8), false);
   });
 
+  test(
+    'overlapping lookups share pending IDs and wait for both responses',
+    () async {
+      final first = Completer<List<int>?>();
+      final second = Completer<List<int>?>();
+      final requests = <List<int>>[];
+      lookup = (ids) {
+        requests.add(ids);
+        return requests.length == 1 ? first.future : second.future;
+      };
+      final older = notifier().checkFavorites([1, 2]);
+      var finished = false;
+      final newer = notifier()
+          .checkFavorites([2, 3])
+          .then((_) => finished = true);
+      expect(requests, [
+        [1, 2],
+        [3],
+      ]);
+      second.complete([3]);
+      await notifier().checkFavorites([3]);
+      expect(finished, isFalse);
+      first.complete([2]);
+      await Future.wait([older, newer]);
+      expect([status(1), status(2), status(3)], [false, true, true]);
+    },
+  );
+
   test('unsupported and inconclusive lookups leave unknown; confirmed negatives work', () async {
     expect(notifier().repo.supportsFavoriteLookup, false);
     await notifier().checkFavorites([7]);
@@ -168,6 +196,27 @@ void main() {
     expect(status(7), false);
     expect(status(8), true);
     expect(status(9), isNull);
+  });
+
+  test('a retry after a failed mutation uses a fresh lookup', () async {
+    final stale = Completer<List<int>?>();
+    final fresh = Completer<List<int>?>();
+    var calls = 0;
+    lookup = (_) => ++calls == 1 ? stale.future : fresh.future;
+    add = (_) async => AddFavoriteStatus.failure;
+    final observer = notifier();
+    final original = observer.checkFavorites([7]);
+    expect(await observer.add(7), AddFavoriteStatus.failure);
+    final retry = observer.checkFavorites([7]);
+    expect(calls, 2);
+    stale.complete([7]);
+    await original;
+    expect(status(7), isNull);
+    final overlapping = observer.checkFavorites([7]);
+    expect(calls, 2);
+    fresh.complete([]);
+    await Future.wait([retry, overlapping]);
+    expect(status(7), false);
   });
 
   test(

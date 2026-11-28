@@ -1,3 +1,6 @@
+import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
+
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
 
@@ -12,12 +15,15 @@ import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
+import 'package:boorusama/core/backups/mitemite/bookmark_buckets.dart';
 import 'package:boorusama/core/backups/mitemite/bookmark_package.dart';
 import 'package:boorusama/core/backups/mitemite/catalog.dart';
 import 'package:boorusama/core/backups/mitemite/catalog_gate.dart';
 import 'package:boorusama/core/backups/mitemite/protocol.dart';
 import 'package:boorusama/core/backups/mitemite/publication.dart';
-import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/streamed_bookmark_publication.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/backups/mitemite/seen_state.dart';
 import 'package:boorusama/core/backups/mitemite/receive_preparation.dart';
 import 'package:boorusama/core/backups/mitemite/storage.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
@@ -30,6 +36,7 @@ import 'package:boorusama/core/local_media/local_media_models.dart';
 import 'package:boorusama/core/local_media/local_media_reference.dart';
 import 'package:boorusama/core/posts/post/types.dart' show StoredPostCodec;
 import 'package:boorusama/core/posts/sources/types.dart' show NoSource;
+import 'package:boorusama/core/backups/export_import/package/export_package_exception.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/foundation/filesystem.dart';
@@ -359,6 +366,186 @@ void main() {
     },
   );
 
+  test(
+    'streamed receive stages complete direct memberships for one source',
+    () async {
+      final snapshot = data(offset: 5, reverse: true);
+      final group = snapshot.groups.single;
+      final at = DateTime.utc(2026, 9, 30, 12);
+      final dates = {5: group.addedAt[5]!, 6: at};
+      final outgoing =
+          await SyncBookmarkStreamedPackageBuilder(fs: fs, codec: codec).stage(
+            collection: collection,
+            group: BookmarkGroup(
+              id: group.id!,
+              name: group.name,
+              bookmarkIds: group.bookmarkIds.toSet(),
+              addedAt: dates,
+            ),
+            records: Stream.fromIterable(snapshot.records),
+          );
+      addTearDown(outgoing.dispose);
+      final archive = await outgoing.buildArchive(
+        appVersion: '4.6.1',
+        createdAt: at,
+      );
+      final revision = SyncRevision(
+        collection: collection,
+        revision: 1,
+        schema: kBookmarksBackupVersion,
+        bookmarkTables: true,
+        length: archive.length,
+        sha256: archive.sha256,
+        semanticHash: outgoing.semanticHash,
+      );
+      await storage.writeImmutable(
+        revision.payloadPath,
+        await fs.readBytes(archive.path),
+      );
+      await storage.writeImmutable(
+        revision.descriptorPath,
+        await identity.sign(revision.toJson()),
+      );
+      final ticket = await accept(
+        await writer.publishCatalog(
+          name: 'Publisher',
+          entries: [active(revision)],
+        ),
+      );
+      final receive = SyncReceivePreparation(
+        storage: storage,
+        fs: fs,
+        codec: codec,
+      );
+
+      await expectLater(
+        receive.stageBookmark(
+          catalog: ticket,
+          collection: collection,
+          publisherKey: identity.publicKey,
+          maxStagedBytes: 1,
+        ),
+        throwsA(isA<ExportPackageLimitException>()),
+      );
+      final incoming = (await receive.stageBookmark(
+        catalog: ticket,
+        collection: collection,
+        publisherKey: identity.publicKey,
+        maxStagedBytes: 1024 * 1024,
+      ))!;
+      addTearDown(incoming.dispose);
+      expect(incoming.recordCount, 2);
+      expect(incoming.stagedBytes, greaterThan(0));
+      expect(
+        outgoing.semanticHash,
+        (await build(snapshot: snapshot)).semanticHash,
+      );
+      final received = <int, (String, DateTime?)>{};
+      await incoming.visitRecords((record, date) async {
+        received[record.id] = (syncBookmarkMemberKey(record), date);
+      });
+      expect(received, {
+        for (final record in snapshot.records)
+          record.id: (syncBookmarkMemberKey(record), dates[record.id]),
+      });
+    },
+  );
+
+  test('background receive installs cached chunks only after commit and budgets replaced rows', () async {
+    final directory = await Directory.systemTemp.createTemp('sync-cache-test');
+    addTearDown(() => directory.delete(recursive: true));
+    final cache = Directory('${directory.path}/chunks');
+    final record = data().records.first;
+    final receive = SyncReceivePreparation(
+      storage: storage,
+      fs: fs,
+      codec: codec,
+    );
+
+    Future<(VerifiedSyncCatalog, SyncBookmarkManifest)> advertise(
+      int number,
+    ) async {
+      final chunk = encodeSyncBookmarkBucket(
+        members: [
+          (
+            key: syncBookmarkMemberKey(record),
+            addedAt: DateTime.utc(2026, 1, number),
+            record: record,
+          ),
+        ],
+        codec: codec,
+        bucket: 0,
+        revision: number,
+      ).single;
+      final manifest = SyncBookmarkManifest(
+        collection: collection,
+        revision: number,
+        bucketCount: 1,
+        chunks: [chunk.reference],
+      );
+      final bytes = manifest.encode();
+      final revision = SyncRevision(
+        collection: collection,
+        revision: number,
+        length: bytes.length,
+        sha256: syncDigest(bytes),
+        semanticHash: manifest.semanticHash,
+        schema: kBookmarksBackupVersion,
+        bookmarkManifest: true,
+      );
+      await storage.writeImmutable(
+        chunk.reference.path(collection),
+        chunk.bytes,
+      );
+      await storage.writeImmutable(revision.payloadPath, bytes);
+      final catalog = await writer.publishCatalog(
+        name: 'Publisher',
+        entries: [active(revision)],
+        completeSnapshot: true,
+        publicationRoots: {collection},
+      );
+      return (await accept(catalog), manifest);
+    }
+
+    final (firstTicket, first) = await advertise(1);
+    final staged = (await receive.stageBookmark(
+      catalog: firstTicket,
+      collection: collection,
+      publisherKey: identity.publicKey,
+      maxStagedBytes: first.expandedBytes,
+      privateChunkCache: cache.path,
+    ))!;
+    addTearDown(staged.dispose);
+    final oldFile = File('${cache.path}/${first.chunks.single.sha256}');
+    expect(oldFile.existsSync(), isFalse);
+    await staged.pruneCommittedCache();
+    expect(oldFile.existsSync(), isTrue);
+
+    final (secondTicket, second) = await advertise(2);
+    Future<StagedSyncBookmarkRevision> update(int budget) async =>
+        (await receive.stageBookmark(
+          catalog: secondTicket,
+          collection: collection,
+          publisherKey: identity.publicKey,
+          maxStagedBytes: budget,
+          privateChunkCache: cache.path,
+          previousManifest: canonicalSyncJson(first.toJson()),
+        ))!;
+    final both = first.expandedBytes + second.expandedBytes;
+    final incremental = await update(both);
+    addTearDown(incremental.dispose);
+    expect(incremental.partialBuckets, isTrue);
+    expect(incremental.stagedBytes, both);
+    final full = await update(second.expandedBytes);
+    addTearDown(full.dispose);
+    expect(full.partialBuckets, isFalse);
+    expect(full.stagedBytes, second.expandedBytes);
+    expect(
+      File('${cache.path}/${second.chunks.single.sha256}').existsSync(),
+      isFalse,
+    );
+  });
+
   test('package expansion is bounded before decoding its payload', () async {
     final package = await build();
     await expectLater(
@@ -467,14 +654,15 @@ void main() {
     () async {
       final publisher = SyncBookmarkPublisher(
         writer: writer,
-        builder: SyncBookmarkPackageBuilder(fs: fs, codec: codec),
+        builder: SyncBookmarkStreamedPackageBuilder(fs: fs, codec: codec),
         workQueue: DataMutationCoordinator(),
       );
       var validations = 0;
       await expectLater(
         publisher.publishIfChanged(
           collection: collection,
-          data: data(),
+          group: _publicationGroup(data()),
+          records: Stream.fromIterable(data().records),
           appVersion: '4.6.1',
           createdAt: DateTime.utc(2026),
           validateSnapshot: () async {
@@ -495,25 +683,31 @@ void main() {
       final queue = DataMutationCoordinator();
       SyncBookmarkPublisher publisher() => SyncBookmarkPublisher(
         writer: writer,
-        builder: SyncBookmarkPackageBuilder(fs: counting, codec: codec),
+        builder: SyncBookmarkStreamedPackageBuilder(fs: counting, codec: codec),
         workQueue: queue,
       );
       final first = await publisher().publishIfChanged(
         collection: collection,
-        data: data(),
+        group: _publicationGroup(data()),
+        records: Stream.fromIterable(data().records),
         appVersion: '4.6.1',
         createdAt: DateTime.utc(2026),
       );
-      final builds = counting.directories;
+      expect(first.schema, kBookmarksBackupVersion);
+      expect(first.bookmarkTables, isTrue);
+      expect(first.semanticHash, syncBookmarkSemanticHash(data(), codec));
+      final builds = counting.archives;
       final writes = storage.writes.length;
+      final renamed = data(name: 'Renamed', offset: 900, reverse: true);
       final second = await publisher().publishIfChanged(
         collection: collection,
-        data: data(name: 'Renamed', offset: 900, reverse: true),
+        group: _publicationGroup(renamed),
+        records: Stream.fromIterable(renamed.records),
         appVersion: '4.6.2',
         createdAt: DateTime.utc(2027),
       );
       expect(second.revision, first.revision);
-      expect(counting.directories, builds);
+      expect(counting.archives, builds);
       expect(storage.writes, hasLength(writes));
       await writer.publishCatalog(
         name: 'Publisher',
@@ -528,7 +722,8 @@ void main() {
       );
       final fresh = await publisher().publishIfChanged(
         collection: collection,
-        data: data(),
+        group: _publicationGroup(data()),
+        records: Stream.fromIterable(data().records),
         appVersion: '4.6.1',
         createdAt: DateTime.utc(2027),
       );
@@ -542,7 +737,7 @@ void main() {
       expect(
         () => SyncBookmarkPublisher(
           writer: writer,
-          builder: SyncBookmarkPackageBuilder(fs: fs, codec: codec),
+          builder: SyncBookmarkStreamedPackageBuilder(fs: fs, codec: codec),
           workQueue: mutations,
         ),
         throwsArgumentError,
@@ -739,11 +934,21 @@ final class _Storage implements MiteMiteStorage {
       throw UnsupportedError('Directory cleanup');
 }
 
+BookmarkGroup _publicationGroup(BookmarkBackupData data) {
+  final group = data.groups.single;
+  return BookmarkGroup(
+    id: group.id!,
+    name: group.name,
+    addedAt: group.addedAt,
+    bookmarkIds: group.bookmarkIds.toSet(),
+  );
+}
+
 final class _CountingFileSystem extends IoFileSystem {
-  var directories = 0;
+  var archives = 0;
   @override
   Future<String> createTempDirectory(String prefix) {
-    directories++;
+    if (prefix == 'boorusama_export_') archives++;
     return super.createTempDirectory(prefix);
   }
 }

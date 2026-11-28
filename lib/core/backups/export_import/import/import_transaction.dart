@@ -6,6 +6,7 @@ import '../../../../foundation/filesystem.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_preflight.dart';
+import 'import_progress.dart';
 import '../models/import_action.dart';
 
 abstract interface class ImportTransactionSource {
@@ -59,9 +60,12 @@ final class ImportTransaction {
     var journal = await store.create(transactionId, plan);
     try {
       final rollbackHashes = <String, String>{};
+      final progress = ImportProgress.current;
       for (final sourcePlan in selectedPlans) {
+        progress?.show(ImportProgressPhase.checkpoint);
         final path = '${store.rollbackPath(transactionId, sourcePlan.id)}.data';
         await sources[sourcePlan.id]!.captureRollback(path);
+        progress?.show(ImportProgressPhase.verifyingCheckpoint);
         await fs.syncFile(path);
         rollbackHashes[sourcePlan.id] = await _digest(path);
       }
@@ -100,7 +104,9 @@ final class ImportTransaction {
           currentSourceId: sourcePlan.id,
         );
         await store.write(journal);
+        progress?.show(ImportProgressPhase.preparing);
         await sources[sourcePlan.id]!.apply(sourcePlan);
+        progress?.show(ImportProgressPhase.committing);
         await sources[sourcePlan.id]!.durableSync();
         journal = journal.copyWith(
           state: ImportJournalState.applied,
@@ -140,6 +146,7 @@ final class ImportTransaction {
     ImportJournal journal,
     Map<String, ImportTransactionSource> sources,
   ) async {
+    ImportProgress.current?.show(ImportProgressPhase.restoring);
     final errors = <Object>[];
     var current = journal.copyWith(state: ImportJournalState.rollingBack);
     await store.write(current);

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../cache/misc_data_store.dart';
 import 'bookmark_mirror_engine.dart' show SyncRevisionUnavailable;
+import 'bookmark_buckets.dart';
 import 'catalog.dart';
 import 'protocol.dart';
 import 'revision_transport.dart';
@@ -132,9 +133,10 @@ final class SyncOwnedRetention {
           final revision = entry.revision!;
           final key = canonicalSyncJson(revision.toJson());
           if (verified.contains(key)) continue;
-          if (await SyncRevisionTransport(storage)
-                  .read(expected: revision, publisherKey: identity.publicKey) ==
-              null) {
+          if (!await SyncRevisionTransport(storage).verify(
+            expected: revision,
+            publisherKey: identity.publicKey,
+          )) {
             throw const SyncRevisionUnavailable();
           }
           verified.add(key);
@@ -180,6 +182,23 @@ final class SyncOwnedRetention {
             revision.descriptorPath,
           ],
     };
+    Future<void> protectChunks(SyncRevision revision) async {
+      if (!revision.bookmarkManifest) return;
+      if (await SyncBookmarkManifest.read(storage, revision)
+          case final manifest?) {
+        protected.addAll(
+          manifest.chunks.map((chunk) => chunk.path(revision.collection)),
+        );
+      } else {
+        throw const SyncRevisionUnavailable();
+      }
+    }
+
+    for (final catalog in kept.values) {
+      for (final entry in catalog.entries) {
+        if (entry.revision case final revision?) await protectChunks(revision);
+      }
+    }
     final candidates = <String>[];
     final retiredDirectories = <String>{};
     final remaining = maxDeletes - deleted;
@@ -228,6 +247,7 @@ final class SyncOwnedRetention {
             throw const SyncConflict();
           }
           protected.addAll([revision.payloadPath, revision.descriptorPath]);
+          await protectChunks(revision);
         }
         final files =
             (await storage.list(path))
@@ -253,6 +273,39 @@ final class SyncOwnedRetention {
           }
           candidates.add('$path/$file');
           if (candidates.length > remaining) break;
+        }
+        if (kind != 'bookmarks') continue;
+        for (final file in await storage.list('$path/manifests')) {
+          final manifestPath = '$path/manifests/$file';
+          if (candidates.length > remaining) break;
+          if (!isOwnedSyncRevisionPath(manifestPath, identity.id) ||
+              int.parse(file.split('.').first) >= highWater - 1 ||
+              protected.contains(manifestPath)) {
+            continue;
+          }
+          candidates.add(manifestPath);
+        }
+        for (final revision in await storage.list('$path/chunks')) {
+          if (candidates.length > remaining) break;
+          final createdAt = int.tryParse(revision);
+          if (createdAt == null || createdAt >= highWater - 1) continue;
+          final revisionPath = '$path/chunks/$revision';
+          if (!isOwnedSyncDirectoryPath(revisionPath, identity.id)) continue;
+          final paths = (await storage.list(revisionPath))
+              .map((file) => '$revisionPath/$file');
+          if (paths.isEmpty) {
+            retiredDirectories.add(revisionPath);
+            candidates.add(revisionPath);
+            continue;
+          }
+          for (final chunkPath in paths) {
+            if (!isOwnedSyncRevisionPath(chunkPath, identity.id) ||
+                protected.contains(chunkPath)) {
+              continue;
+            }
+            candidates.add(chunkPath);
+            if (candidates.length > remaining) break;
+          }
         }
       }
     }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../bookmarks/providers.dart';
+import '../../bookmarks/src/data/hive/repository.dart';
 import '../../configs/config/providers.dart';
 import '../../search/following_topics/providers.dart';
 import '../export_import/models/export_selection.dart';
@@ -15,6 +16,8 @@ import '../types/backup_registry.dart';
 import '../types/backup_data_source.dart';
 import 'blacklisted_tags_source.dart';
 import 'bookmark_backup_data.dart';
+import 'bookmark_backup_codec.dart';
+import 'bookmark_transfer_export.dart';
 import '../export_import/import/import_item_labels.dart';
 import 'bookmarks_source.dart';
 import 'booru_configs_source.dart';
@@ -159,22 +162,42 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
     LegacyJsonSourceAdapter(
       source: ref.watch(blacklistedTagsBackupSourceProvider),
     ),
-    LegacyJsonSourceAdapter(
+    BookmarkPackageSource(
       source: ref.watch(bookmarksBackupSourceProvider),
       descriptor: ExportSelectionDescriptor.collection(
         id: 'bookmarks',
-        children: bookmarkExportNodes(
-          buildBookmarkBackupData(
-            records: bookmarks?.hasUnifiedRecords ?? false
-                ? bookmarks!.records
-                : null,
-            bookmarks: bookmarks?.items ?? [],
-            pools: bookmarks?.pools ?? [],
-            groups: bookmarks?.groups ?? [],
-            folders: bookmarks?.folders ?? [],
-            scope: const BookmarkExportScope.all(),
-          ),
-        ),
+        children: bookmarks != null && bookmarks.hasUnifiedRecords
+            ? bookmarkExportNodes(
+                BookmarkBackupData.unified(
+                  records: const [],
+                  groups: [
+                    for (final group in bookmarks.groups)
+                      BookmarkGroupBackup(
+                        id: group.id,
+                        name: group.name,
+                        parentGroupId: group.parentGroupId,
+                        position: group.position,
+                        bookmarkIds: const [],
+                      ),
+                  ],
+                ),
+                hasUngrouped: bookmarks.records.any(
+                  (record) =>
+                      bookmarks
+                          .membershipsByBookmarkId[record.id]
+                          ?.isNotEmpty !=
+                      true,
+                ),
+              )
+            : bookmarkExportNodes(
+                buildBookmarkBackupData(
+                  bookmarks: bookmarks?.items ?? [],
+                  pools: bookmarks?.pools ?? [],
+                  groups: bookmarks?.groups ?? [],
+                  folders: bookmarks?.folders ?? [],
+                  scope: const BookmarkExportScope.all(),
+                ),
+              ),
       ),
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const BookmarkExportScope.all(),
@@ -240,6 +263,33 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       ),
   ];
 });
+
+final class BookmarkPackageSource
+    extends LegacyJsonSourceAdapter<BookmarkBackupData> {
+  const BookmarkPackageSource({
+    required BookmarksBackupSource source,
+    required super.descriptor,
+    required super.scopeBuilder,
+  }) : super(source: source);
+
+  @override
+  Future<ExportSourceSnapshot> capture(ExportSourceRequest request) async {
+    final store = await source.ref.read(bookmarkRepoProvider.future);
+    if (store is! BookmarkHiveRepository) return super.capture(request);
+    final scope = scopeBuilder!(request.selection)! as BookmarkExportScope;
+    final codec = (source.handler as BookmarkBackupCodec).records;
+    return ExportSourceSnapshot(
+      sourceId: id,
+      schemaVersion: schemaVersion,
+      prepareParts: (directory) => writeBookmarkTransfer(
+        store: store,
+        directory: directory,
+        scope: scope,
+        codec: codec,
+      ),
+    );
+  }
+}
 
 // Full exports and automatic backups must select the sources that the package
 // writer can capture, including the conditional legacy feed adapter.

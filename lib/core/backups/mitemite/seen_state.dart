@@ -8,8 +8,8 @@ import 'protocol.dart';
 /// Frozen receiver-local targets for one displayed occurrence. Combined views
 /// include every represented canonical Group; stale callbacks cannot follow a
 /// moved source outside the captured subtree or borrow another owner's identity.
-final class BookmarkReadTarget {
-  const BookmarkReadTarget({
+final class BookmarkSeenTarget {
+  const BookmarkSeenTarget({
     required this.groupId,
     required this.publisher,
     required this.source,
@@ -24,40 +24,65 @@ final class BookmarkReadTarget {
   final String member;
   final String? scopeGroupId;
   final String? scopeSource;
-  final List<BookmarkReadTarget> additionalTargets;
-  Iterable<BookmarkReadTarget> get allTargets => [this, ...additionalTargets];
+  final List<BookmarkSeenTarget> additionalTargets;
+  Iterable<BookmarkSeenTarget> get allTargets sync* {
+    yield this;
+    yield* additionalTargets;
+  }
 
-  bool isCurrent(BookmarkLibraryState state) =>
-      allTargets.any((target) => target.isCurrentMirrors(state.mirrors));
+  bool isCurrent(BookmarkLibraryState state) {
+    final resolver = BookmarkSeenTargetResolver(state.mirrors);
+    return allTargets.any(resolver.contains);
+  }
+}
 
-  bool isCurrentMirrors(BookmarkMirrorState state) {
-    final owner = state.owners[groupId];
+/// Validate immutable owner data once for each group and captured scope.
+final class BookmarkSeenTargetResolver {
+  BookmarkSeenTargetResolver(this.state);
+
+  final BookmarkMirrorState state;
+  final _seen = <String, SyncGroupSeenState?>{};
+  final _scopes = <(String, String, String, String), bool>{};
+  late final _parents = {
+    for (final owner in state.owners.values)
+      (owner.publisher, owner.source): owner.parentSource,
+  };
+
+  SyncGroupSeenState? forGroup(String id) => _seen.putIfAbsent(id, () {
+    final data = state.owners[id]?.reading;
+    return data == null || data.isEmpty
+        ? null
+        : SyncGroupSeenState.fromJson(data);
+  });
+
+  bool contains(BookmarkSeenTarget target) {
+    final owner = state.owners[target.groupId];
     if (owner == null ||
-        owner.publisher != publisher ||
-        owner.source != source ||
-        owner.reading.isEmpty ||
-        !SyncGroupReadingState.fromJson(owner.reading).members
-            .contains(member)) {
+        owner.publisher != target.publisher ||
+        owner.source != target.source ||
+        !(forGroup(target.groupId)?.members.contains(target.member) ?? false)) {
       return false;
     }
-    if (scopeGroupId == null) return true;
-    final root = state.owners[scopeGroupId];
+    final rootId = target.scopeGroupId;
+    if (rootId == null) return true;
+    final root = state.owners[rootId];
     if (root == null ||
-        root.publisher != publisher ||
-        root.source != scopeSource) {
+        root.publisher != target.publisher ||
+        root.source != target.scopeSource) {
       return false;
     }
-    final bySource = {
-      for (final item in state.owners.values)
-        if (item.publisher == publisher) item.source: item,
-    };
-    final visited = <String>{};
-    String? cursor = source;
-    while (cursor != null && visited.add(cursor)) {
-      if (cursor == scopeSource) return true;
-      cursor = bySource[cursor]?.parentSource;
-    }
-    return false;
+    return _scopes.putIfAbsent(
+      (target.publisher, target.source, rootId, root.source),
+      () {
+        final visited = <String>{};
+        String? cursor = target.source;
+        while (cursor != null && visited.add(cursor)) {
+          if (cursor == root.source) return true;
+          cursor = _parents[(target.publisher, cursor)];
+        }
+        return false;
+      },
+    );
   }
 }
 
@@ -81,33 +106,33 @@ String syncBookmarkMemberKey(Bookmark bookmark) {
 /// and nested links. Never export it or reuse it for Following post NEW state.
 /// Persist this JSON with the mirror transaction; UI wiring is intentionally
 /// outside this pure model and must supply actual rendered/visible identities.
-final class SyncGroupReadingState {
-  SyncGroupReadingState._({
+final class SyncGroupSeenState {
+  SyncGroupSeenState._({
     required this.group,
     required this.revision,
     required Set<String> members,
-    required Set<String> readMembers,
+    required Set<String> seenMembers,
     required Set<String> arrivals,
     required this.hasUnseenChange,
   }) : members = Set.unmodifiable(members),
-       readMembers = Set.unmodifiable(readMembers),
+       seenMembers = Set.unmodifiable(seenMembers),
        arrivals = Set.unmodifiable(arrivals);
 
-  factory SyncGroupReadingState.empty(SyncCollectionId group) {
+  factory SyncGroupSeenState.empty(SyncCollectionId group) {
     if (group.kind != 'bookmarks') {
       throw const FormatException('Not a Bookmark Group');
     }
-    return SyncGroupReadingState._(
+    return SyncGroupSeenState._(
       group: group,
       revision: 0,
       members: {},
-      readMembers: {},
+      seenMembers: {},
       arrivals: {},
       hasUnseenChange: false,
     );
   }
 
-  factory SyncGroupReadingState.fromJson(Map<String, dynamic> json) {
+  factory SyncGroupSeenState.fromJson(Map<String, dynamic> json) {
     if (json['version'] != 1) throw const SyncUpdateRequired();
     final rawGroup = json['group'];
     final revision = json['revision'];
@@ -129,11 +154,11 @@ final class SyncGroupReadingState {
         (revision == 0 && (members.isNotEmpty || read.isNotEmpty || changed))) {
       throw const FormatException('Inconsistent local reading state');
     }
-    return SyncGroupReadingState._(
+    return SyncGroupSeenState._(
       group: group,
       revision: revision,
       members: members,
-      readMembers: read,
+      seenMembers: read,
       arrivals: arrivals,
       hasUnseenChange: changed,
     );
@@ -147,13 +172,13 @@ final class SyncGroupReadingState {
 
   /// Retain previously read identities through removal/rearrival. No other
   /// Group's state, root-link ID, Page sibling or aggregate can populate this.
-  final Set<String> readMembers;
+  final Set<String> seenMembers;
   final Set<String> arrivals;
   final bool hasUnseenChange;
-  Set<String> get unreadMembers =>
-      Set.unmodifiable(members.difference(readMembers));
+  Set<String> get unseenMembers =>
+      Set.unmodifiable(members.difference(seenMembers));
 
-  SyncGroupReadingState applyMembership({
+  SyncGroupSeenState applyMembership({
     required int revision,
     required Set<String> members,
   }) {
@@ -164,11 +189,11 @@ final class SyncGroupReadingState {
       throw const SyncConflict();
     }
     if (revision == this.revision) return this;
-    return SyncGroupReadingState._(
+    return SyncGroupSeenState._(
       group: group,
       revision: revision,
       members: next,
-      readMembers: readMembers,
+      seenMembers: seenMembers,
       arrivals: arrivals
           .intersection(next)
           .union(next.difference(this.members)),
@@ -178,32 +203,32 @@ final class SyncGroupReadingState {
 
   /// A delayed render of an older revision must not clear newer arrivals.
   /// Calling this does not mark a single Post read or acknowledge child Groups.
-  SyncGroupReadingState acknowledgeArrival({required int renderedRevision}) =>
+  SyncGroupSeenState acknowledgeArrival({required int renderedRevision}) =>
       renderedRevision != revision
       ? this
-      : SyncGroupReadingState._(
+      : SyncGroupSeenState._(
           group: group,
           revision: revision,
           members: members,
-          readMembers: readMembers,
+          seenMembers: seenMembers,
           arrivals: {},
           hasUnseenChange: false,
         );
 
-  bool canMarkRead(Set<String> selection) => selection.any(
-    (key) => members.contains(key) && !readMembers.contains(key),
+  bool canMarkSeen(Set<String> selection) => selection.any(
+    (key) => members.contains(key) && !seenMembers.contains(key),
   );
 
-  /// Invoke for actually displayed full-Viewer Posts or explicit Mark Read.
+  /// Invoke for actually displayed full-Viewer Posts or explicit Mark Seen.
   /// A Work card alone is not proof that all of its Pages have been displayed.
-  SyncGroupReadingState markRead(Set<String> selection) {
-    final newlyRead = selection.intersection(members).difference(readMembers);
-    if (newlyRead.isEmpty) return this;
-    return SyncGroupReadingState._(
+  SyncGroupSeenState markSeen(Set<String> selection) {
+    final newlySeen = selection.intersection(members).difference(seenMembers);
+    if (newlySeen.isEmpty) return this;
+    return SyncGroupSeenState._(
       group: group,
       revision: revision,
       members: members,
-      readMembers: readMembers.union(newlyRead),
+      seenMembers: seenMembers.union(newlySeen),
       arrivals: arrivals,
       hasUnseenChange: hasUnseenChange,
     );
@@ -214,7 +239,7 @@ final class SyncGroupReadingState {
     'group': group.toJson(),
     'revision': revision,
     'members': members.toList()..sort(),
-    'read': readMembers.toList()..sort(),
+    'read': seenMembers.toList()..sort(),
     'arrivals': arrivals.toList()..sort(),
     'changed': hasUnseenChange,
   };
@@ -251,6 +276,6 @@ Set<String> syncBookmarkUnseenMembers(BookmarkLibraryState state, String root) {
     for (final id in state.groupTree.subtreeIds(root))
       if (state.mirrors.owners[id] case final child?
           when child.publisher == owner.publisher)
-        ...SyncGroupReadingState.fromJson(child.reading).unreadMembers,
+        ...SyncGroupSeenState.fromJson(child.reading).unseenMembers,
   });
 }

@@ -36,25 +36,47 @@ final favoriteStatusProvider = Provider.autoDispose
     );
 
 final _favoriteStatusLoaderProvider = FutureProvider.autoDispose
-    .family<void, (BooruConfigAuth, int)>((ref, params) async {
-      final (config, postId) = params;
-      final status = ref.watch(favoriteStatusProvider(params));
+    .family<void, (BooruConfigAuth, IList<int>)>(
+      (ref, params) {
+        ref.watch(favoriteRepoProvider(params.$1));
+        return ref
+            .watch(favoritesProvider(params.$1).notifier)
+            .checkFavorites(params.$2);
+      },
+    );
 
-      if (status != null ||
-          !ref.watch(favoriteRepoProvider(config)).supportsFavoriteLookup) {
-        return;
-      }
-
-      await ref.read(favoritesProvider(config).notifier).checkFavorites([
-        postId,
-      ]);
-    });
+final favoriteSelectionStatusProvider = Provider.autoDispose
+    .family<({bool allFavorited, bool pending}), (BooruConfigAuth, IList<int>)>(
+      (ref, params) {
+        final (auth, ids) = params;
+        final cache = ref.watch(favoritesProvider(auth));
+        final missing = <int>[];
+        var allFavorited = ids.isNotEmpty;
+        for (final id in ids) {
+          final status = cache[id];
+          if (status == null) missing.add(id);
+          if (status != true) allFavorited = false;
+        }
+        final pending =
+            missing.isNotEmpty &&
+            ref.watch(favoriteRepoProvider(auth)).supportsFavoriteLookup &&
+            ref
+                .watch(_favoriteStatusLoaderProvider((auth, missing.lock)))
+                .isLoading;
+        return (
+          allFavorited: allFavorited,
+          pending: pending,
+        );
+      },
+    );
 
 final favoriteLookupPendingProvider = Provider.autoDispose
     .family<bool, (BooruConfigAuth, int)>((ref, params) {
-      return ref.watch(favoriteStatusProvider(params)) == null &&
-          ref.watch(favoriteRepoProvider(params.$1)).supportsFavoriteLookup &&
-          ref.watch(_favoriteStatusLoaderProvider(params)).isLoading;
+      return ref
+          .watch(
+            favoriteSelectionStatusProvider((params.$1, IList([params.$2]))),
+          )
+          .pending;
     });
 
 final canFavoriteProvider = Provider.family<bool, BooruConfigAuth>((
@@ -84,6 +106,7 @@ class FavoritesNotifier
   IMap<int, bool> build(BooruConfigAuth arg) {
     _lifetime = Object();
     _mutations = FavoriteMutationTracker<int>();
+    _pendingLookups = {};
     _observedAt.clear();
     _mutatedAt.clear();
     ref.onDispose(() => _lifetime = null);
@@ -92,6 +115,7 @@ class FavoritesNotifier
 
   Object? _lifetime;
   late FavoriteMutationTracker<int> _mutations;
+  late Map<int, Future<void>> _pendingLookups;
   final _observedAt = <int, int>{};
   final _mutatedAt = <int, int>{};
   var _mutationRevision = 0;
@@ -127,7 +151,7 @@ class FavoritesNotifier
   void observeFavorites(Map<int, bool> observations, FavoriteRead read) {
     if (!_accepts(read)) return;
 
-    var cache = state;
+    final changed = <int, bool>{};
     for (final MapEntry(key: id, value: favorited) in observations.entries) {
       if (_mutations.isPending(id) ||
           (_mutatedAt[id] ?? 0) > read._mutationRevision ||
@@ -135,9 +159,9 @@ class FavoritesNotifier
         continue;
       }
       _observedAt[id] = read._sequence;
-      if (cache[id] != favorited) cache = cache.add(id, favorited);
+      if (state[id] != favorited) changed[id] = favorited;
     }
-    if (!identical(cache, state)) state = cache;
+    if (changed.isNotEmpty) state = state.addMap(changed);
   }
 
   bool _accepts(FavoriteRead read) =>
@@ -145,31 +169,52 @@ class FavoritesNotifier
       identical(_lifetime, read._lifetime) &&
       arg.anonymousReadScope == null;
 
-  Future<void> checkFavorites(List<int> postIds) async {
+  Future<void> checkFavorites(Iterable<int> postIds) async {
     final repository = repo;
     if (!repository.supportsFavoriteLookup || arg.anonymousReadScope != null) {
       return;
     }
-    // Filter postIds not in cache
-    final postIdsToCheck = postIds
-        .where(
-          (postId) =>
-              !state.containsKey(postId) && !_mutations.isPending(postId),
-        )
-        .toSet()
-        .toList();
+    // A changed selection and visible hearts can need the same in-flight read.
+    final lookups = _pendingLookups;
+    final missing = <int>{};
+    final pending = <Future<void>>{};
+    for (final id in postIds) {
+      if (state.containsKey(id) || _mutations.isPending(id)) continue;
+      final lookup = lookups[id];
+      if (lookup == null) {
+        missing.add(id);
+      } else {
+        pending.add(lookup);
+      }
+    }
+    if (missing.isNotEmpty) {
+      late final Future<void> lookup;
+      lookup = _lookupFavorites(repository, missing).whenComplete(() {
+        for (final id in missing) {
+          if (identical(lookups[id], lookup)) lookups.remove(id);
+        }
+      });
+      for (final id in missing) {
+        lookups[id] = lookup;
+      }
+      pending.add(lookup);
+    }
+    await Future.wait(pending);
+  }
 
-    if (postIdsToCheck.isEmpty) return;
-
+  Future<void> _lookupFavorites(
+    FavoriteRepository repository,
+    Set<int> ids,
+  ) async {
     final read = beginRead();
     final favoritedPosts = await repository.filterFavoritedPosts(
-      postIdsToCheck,
+      ids.toList(),
     );
     if (favoritedPosts == null) return;
     final favoritedIds = favoritedPosts.toSet();
-    if (favoritedIds.any((id) => !postIdsToCheck.contains(id))) return;
+    if (!ids.containsAll(favoritedIds)) return;
     observeFavorites({
-      for (final id in postIdsToCheck) id: favoritedIds.contains(id),
+      for (final id in ids) id: favoritedIds.contains(id),
     }, read);
   }
 
@@ -247,6 +292,7 @@ class FavoritesNotifier
     if (_lifetime == null || !identical(lifetime, _lifetime)) return;
     // A read can also start while the server mutation is pending.
     _mutatedAt[postId] = ++_mutationRevision;
+    _pendingLookups.remove(postId);
     final result = _mutations.finish(
       postId,
       operation,

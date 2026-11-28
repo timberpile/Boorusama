@@ -9,6 +9,7 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../post/types.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -119,7 +120,8 @@ List<PostActionDefinition> postActionDefinitions(
       stored.every((p) => p != null);
   final fallbackAuth = ref.watchConfigAuth;
   final fallbackDownload = ref.watchConfigDownload;
-  final groups = <BooruConfig, List<Post>>{};
+  // All targets refer to profile objects from the same captured snapshot.
+  final groups = Map<BooruConfig, List<Post>>.identity();
   for (final target in snapshot.targets) {
     if (target.config case final source?) {
       groups.putIfAbsent(source, () => []).add(target.post);
@@ -139,27 +141,28 @@ List<PostActionDefinition> postActionDefinitions(
       snapshot.allResolved && normalDownloadParams.length == groups.length;
   final canFavorite =
       snapshot.allResolved &&
-      snapshot.targets.every((target) {
-        final auth = target.config!.auth;
+      groups.keys.every((config) {
+        final auth = config.auth;
         return ref.watch(booruLoginDetailsProvider(auth)).hasLogin() &&
             ref.watch(canFavoriteProvider(auth));
       });
-  final favoriteTargets = [
-    if (canFavorite)
-      for (final target in snapshot.targets)
-        (target.config!.auth, target.post.id),
-  ];
-  final favoriteLookups = [
-    for (final target in favoriteTargets)
-      ref.watch(favoriteLookupPendingProvider(target)),
-  ];
+  final favoriteIds = <BooruConfigAuth, List<int>>{};
+  if (canFavorite) {
+    for (final entry in groups.entries) {
+      favoriteIds
+          .putIfAbsent(entry.key.auth, () => [])
+          .addAll(
+            entry.value.map((post) => post.id),
+          );
+    }
+  }
   final favoriteStatuses = [
-    for (final target in favoriteTargets)
-      ref.watch(favoriteStatusProvider(target)),
+    for (final entry in favoriteIds.entries)
+      ref.watch(favoriteSelectionStatusProvider((entry.key, entry.value.lock))),
   ];
-  final favoriteReady = canFavorite && !favoriteLookups.contains(true);
+  final favoriteReady = canFavorite && !favoriteStatuses.any((s) => s.pending);
   final removeFavorites =
-      favoriteReady && favoriteStatuses.every((value) => value ?? false);
+      favoriteReady && favoriteStatuses.every((s) => s.allFavorited);
   final single = snapshot.isSingle ? snapshot.targets.single : null;
   final config = single?.config;
   final post = single?.post;

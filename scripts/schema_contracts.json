@@ -87,12 +87,19 @@
     },
     {
       "id": "mitemite-bookmark-payload",
-      "path": "lib/core/backups/mitemite/bookmark_package.dart",
-      "pattern": "\\bfinal schemaVersion\\s*=\\s*(?P<version>bookmarkTransferVersion)\\(data\\.records\\)",
+      "path": "lib/core/backups/mitemite/publication.dart",
+      "pattern": "\\bschema:\\s*(?P<version>kBookmarksBackupVersion)\\s*,\\s*bookmarkTables:\\s*true\\s*,",
       "same_as": "bookmark-export",
       "baseline_pattern": "\\bstatic const schema\\s*=\\s*(?P<version>kBookmarksBackupVersion)\\s*;",
-      "shared_symbol": "bookmarkTransferVersion",
-      "baseline_shared_symbol": "kBookmarksBackupVersion"
+      "shared_symbol": "kBookmarksBackupVersion",
+      "baseline_shared_symbol": "kBookmarksBackupVersion",
+      "baseline_path": "lib/core/backups/mitemite/bookmark_package.dart"
+    },
+    {
+      "id": "mitemite-bookmark-manifest-format",
+      "path": "lib/core/backups/mitemite/limits.dart",
+      "pattern": "\\bconst\\s+miteMiteBookmarkManifestVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_absent": true
     },
     {
       "id": "mitemite-following-payload",

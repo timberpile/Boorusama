@@ -73,6 +73,7 @@ final class BookmarkMirrorOwner extends Equatable {
     String? parentSource,
     this.position = 0,
     this.descriptorDigest,
+    this.bookmarkBucketManifest,
     this.retired = false,
     Map<String, dynamic> reading = const {},
   }) : publisher = _uuid(publisher),
@@ -88,6 +89,28 @@ final class BookmarkMirrorOwner extends Equatable {
       throw const FormatException('Invalid Bookmark mirror owner');
     }
   }
+  BookmarkMirrorOwner.advanceBucketHead(
+    BookmarkMirrorOwner previous, {
+    required this.revision,
+    required String descriptorDigest,
+    required this.payloadDigest,
+    required String bookmarkBucketManifest,
+  }) : publisher = previous.publisher,
+       source = previous.source,
+       parentSource = previous.parentSource,
+       position = previous.position,
+       groupDigest = previous.groupDigest,
+       retired = false,
+       descriptorDigest = _digest(descriptorDigest),
+       bookmarkBucketManifest = bookmarkBucketManifest,
+       _reading = previous._reading {
+    _number(revision);
+    if (previous.retired || revision <= previous.revision) {
+      throw const FormatException('Invalid Bookmark bucket head');
+    }
+    _digest(payloadDigest);
+  }
+
   factory BookmarkMirrorOwner.fromJson(Object? value) {
     final map = _map(value);
     return BookmarkMirrorOwner(
@@ -95,6 +118,7 @@ final class BookmarkMirrorOwner extends Equatable {
       source: _uuid(map['source']),
       revision: _number(map['revision']),
       descriptorDigest: map['descriptorDigest'] as String?,
+      bookmarkBucketManifest: map['bookmarkBucketManifest'] as String?,
       retired: map['retired'] as bool? ?? false,
       payloadDigest: _digest(map['payloadDigest']),
       groupDigest: _digest(map['groupDigest']),
@@ -109,24 +133,44 @@ final class BookmarkMirrorOwner extends Equatable {
   final int position;
   final int revision;
   final String? descriptorDigest;
+  final String? bookmarkBucketManifest;
   final bool retired;
   final String payloadDigest;
   final String groupDigest;
   final String _reading;
+
   Map<String, dynamic> get reading => _map(jsonDecode(_reading));
+  bool hasSameReading(BookmarkMirrorOwner other) => _reading == other._reading;
   String get sourceKey => '$publisher/$source';
-  Map<String, Object?> toJson() => {
+  Map<String, Object?> toJson({Map<String, Object?>? storedReading}) => {
     'publisher': publisher,
     'source': source,
     'parent': parentSource,
     'position': position,
     'revision': revision,
     'descriptorDigest': descriptorDigest,
+    if (bookmarkBucketManifest != null)
+      'bookmarkBucketManifest': bookmarkBucketManifest,
     'retired': retired,
     'payloadDigest': payloadDigest,
     'groupDigest': groupDigest,
-    'reading': reading,
+    'reading': storedReading ?? reading,
   };
+  BookmarkMirrorOwner withSeenState(Map<String, dynamic> value) =>
+      BookmarkMirrorOwner(
+        publisher: publisher,
+        source: source,
+        revision: revision,
+        payloadDigest: payloadDigest,
+        groupDigest: groupDigest,
+        descriptorDigest: descriptorDigest,
+        bookmarkBucketManifest: bookmarkBucketManifest,
+        parentSource: parentSource,
+        position: position,
+        retired: retired,
+        reading: value,
+      );
+
   BookmarkMirrorOwner retire({
     int? revision,
     String? payloadDigest,
@@ -138,6 +182,7 @@ final class BookmarkMirrorOwner extends Equatable {
     payloadDigest: payloadDigest ?? this.payloadDigest,
     groupDigest: groupDigest,
     descriptorDigest: descriptorDigest ?? this.descriptorDigest,
+    bookmarkBucketManifest: bookmarkBucketManifest,
     parentSource: parentSource,
     position: position,
     reading: reading,
@@ -151,6 +196,7 @@ final class BookmarkMirrorOwner extends Equatable {
     position,
     revision,
     descriptorDigest,
+    bookmarkBucketManifest,
     retired,
     payloadDigest,
     groupDigest,
@@ -265,21 +311,33 @@ final class BookmarkMirrorState extends Equatable {
       )
       .firstOrNull
       ?.key;
-  Map<String, Object?> toJson() => {
-    'version': 1,
-    'epoch': epoch,
-    'activity': activity.toJson(),
-    'owners': owners.map((key, value) => MapEntry(key, value.toJson())),
-    'checkpoints': checkpoints.map(
-      (key, value) => MapEntry(key, value.toJson()),
-    ),
-    'subscriptions': subscriptions.map(
-      (key, value) => MapEntry(key, value.toList()..sort()),
-    ),
-    'forgotten': forgotten.toList()..sort(),
-    'publisherNames': publisherNames,
-    'aliases': aliases,
-  };
+  Map<String, Object?> toJson({
+    bool compact = false,
+    Map<String, Object?> Function(BookmarkMirrorOwner)? encodeOwner,
+  }) {
+    Map<String, Object?> encode(BookmarkMirrorOwner owner) =>
+        encodeOwner?.call(owner) ?? owner.toJson();
+    final active = compact
+        ? {for (final owner in owners.values) owner.sourceKey}
+        : const <String>{};
+    return {
+      'version': 1,
+      'epoch': epoch,
+      'activity': activity.toJson(),
+      'owners': owners.map((key, value) => MapEntry(key, encode(value))),
+      'checkpoints': {
+        for (final entry in checkpoints.entries)
+          if (!active.contains(entry.key)) entry.key: encode(entry.value),
+      },
+      'subscriptions': subscriptions.map(
+        (key, value) => MapEntry(key, value.toList()..sort()),
+      ),
+      'forgotten': forgotten.toList()..sort(),
+      'publisherNames': publisherNames,
+      'aliases': aliases,
+    };
+  }
+
   @override
   List<Object?> get props => [
     epoch,
@@ -299,6 +357,14 @@ abstract interface class BookmarkMirrorReader {
   Future<BookmarkMirrorState> readMirrorState();
 }
 
+/// A source-owned membership patch. Bucket ordinals are private index keys
+/// here. The receive protocol verifies that portable members belong to them.
+final class BookmarkMirrorMembershipPatch {
+  const BookmarkMirrorMembershipPatch(this.buckets);
+
+  final Map<int, Map<int, DateTime?>> buckets;
+}
+
 /// Narrow repository boundary for trusted receive orchestration. It can alter
 /// received Groups, plus explicit fresh Local Copies without changing source
 /// authority. Existing local Group ownership is never captured by an import.
@@ -315,6 +381,8 @@ abstract interface class BookmarkMirrorStore implements BookmarkMirrorReader {
     /// Explicit Local Copy: only fresh Local Groups, with unchanged source authority.
     bool localCopy = false,
     Set<String> purgedSources = const {},
+    bool streamRecords = false,
+    Map<String, BookmarkMirrorMembershipPatch> membershipPatches = const {},
   });
 }
 

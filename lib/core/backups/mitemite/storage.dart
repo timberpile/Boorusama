@@ -4,6 +4,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
@@ -36,6 +37,23 @@ bool isOwnedSyncRevisionPath(String path, String owner) {
   if (parts.length < 4 || parts[0] != 'devices' || parts[1] != owner) {
     return false;
   }
+  if (parts.length >= 7 &&
+      parts[2] == 'collections' &&
+      parts[3] == 'bookmarks' &&
+      parts[4] == parts[4].toLowerCase() &&
+      Uuid.isValidUUID(fromString: parts[4])) {
+    if (parts.length == 7 && parts[5] == 'manifests') {
+      return _validSyncNumber(parts[6].split('.').first) &&
+          parts[6].endsWith('.json') &&
+          parts[6].split('.').length == 2;
+    }
+    if (parts.length == 8 && parts[5] == 'chunks') {
+      return _validSyncNumber(parts[6]) &&
+          RegExp(
+            r'^[0-9a-f]{2}-(?:0|[1-9][0-9]{0,3})-[0-9a-f]{64}\.ndjson\.gz$',
+          ).hasMatch(parts[7]);
+    }
+  }
   final String file;
   if (parts.length == 4 && parts[2] == 'catalog') {
     file = parts[3];
@@ -56,11 +74,18 @@ bool isOwnedSyncRevisionPath(String path, String owner) {
   return revision != null && revision <= miteMiteMaxSequence;
 }
 
+bool _validSyncNumber(String value) =>
+    RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(value) &&
+    int.parse(value) <= miteMiteMaxSequence;
+
 bool isOwnedSyncDirectoryPath(String path, String owner) =>
     path == 'devices/$owner'
     ? isOwnedSyncRevisionPath('$path/catalog/1.json', owner)
-    : path.split('/').length == 5 &&
-          isOwnedSyncRevisionPath('$path/1.json', owner);
+    : switch (path.split('/').length) {
+        5 => isOwnedSyncRevisionPath('$path/1.json', owner),
+        7 => isOwnedSyncRevisionPath('$path/00-0-${'0' * 64}.ndjson.gz', owner),
+        _ => false,
+      };
 
 abstract interface class MiteMiteStorage {
   Future<List<String>> list(String path);
@@ -74,9 +99,154 @@ abstract interface class MiteMiteStorage {
   Future<void> deleteOwnedDirectory(String path, {required String owner});
 }
 
+/// File transport keeps large Bookmark archives out of Dart and SAF byte arrays.
+abstract interface class MiteMitePayloadStorage implements MiteMiteStorage {
+  /// Verify the named payload and optionally copy it to a new private file.
+  Future<bool> copyPayload(
+    String path, {
+    String? destination,
+    required int length,
+    required String sha256,
+  });
+
+  /// Publish a private file immutably only when its length and hash match.
+  Future<void> writePayload(
+    String path, {
+    required String sourcePath,
+    required int length,
+    required String sha256,
+  });
+}
+
+void validateMiteMitePayload(String path, int length, String sha256) {
+  final parts = path.split('/');
+  if (parts.length != 6 ||
+      parts[3] != 'bookmarks' ||
+      !path.endsWith('.bsexport') ||
+      !isOwnedSyncRevisionPath(path, parts[1]) ||
+      length <= 0 ||
+      length > miteMiteMaxBookmarkArchiveBytes ||
+      !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256)) {
+    throw const FormatException('Invalid Bookmark revision file');
+  }
+}
+
+Future<bool> copyMiteMitePayloadFromStorage(
+  MiteMiteStorage storage,
+  String path, {
+  String? destination,
+  required int length,
+  required String sha256,
+}) async {
+  validateMiteMitePayload(path, length, sha256);
+  if (storage case final MiteMitePayloadStorage files) {
+    return files.copyPayload(
+      path,
+      destination: destination,
+      length: length,
+      sha256: sha256,
+    );
+  }
+  if (length > miteMiteMaxBytes) {
+    throw UnsupportedError('Storage does not support large Bookmark files');
+  }
+  final bytes = await storage.read(path, maxBytes: length);
+  if (bytes == null) return false;
+  if (bytes.length != length ||
+      crypto.sha256.convert(bytes).toString() != sha256) {
+    throw const FormatException('Sync payload verification failed');
+  }
+  if (destination != null) {
+    final file = await File(destination).create(exclusive: true);
+    try {
+      await file.writeAsBytes(bytes, flush: true);
+    } catch (_) {
+      await file.delete();
+      rethrow;
+    }
+  }
+  return true;
+}
+
+Future<void> writeMiteMitePayloadToStorage(
+  MiteMiteStorage storage,
+  String path, {
+  required String sourcePath,
+  required int length,
+  required String sha256,
+}) async {
+  validateMiteMitePayload(path, length, sha256);
+  if (storage case final MiteMitePayloadStorage files) {
+    return files.writePayload(
+      path,
+      sourcePath: sourcePath,
+      length: length,
+      sha256: sha256,
+    );
+  }
+  if (length > miteMiteMaxBytes) {
+    throw UnsupportedError('Storage does not support large Bookmark files');
+  }
+  final bytes = BytesBuilder(copy: false);
+  await _verifyFilePayload(File(sourcePath), length, sha256, (chunk) async {
+    bytes.add(chunk);
+  });
+  await storage.writeImmutable(path, bytes.takeBytes());
+}
+
+Future<void> _verifyFilePayload(
+  File file,
+  int length,
+  String sha256, [
+  Future<void> Function(List<int>)? onChunk,
+]) async {
+  if (await file.length() != length) {
+    throw const FormatException('Sync payload verification failed');
+  }
+  var count = 0;
+  Stream<List<int>> boundedChunks() async* {
+    await for (final chunk in file.openRead()) {
+      count += chunk.length;
+      if (count > length) {
+        throw const FormatException('Sync payload verification failed');
+      }
+      await onChunk?.call(chunk);
+      yield chunk;
+    }
+  }
+
+  final digest = await crypto.sha256.bind(boundedChunks()).single;
+  if (count != length || digest.toString() != sha256) {
+    throw const FormatException('Sync payload verification failed');
+  }
+}
+
+Future<void> _copyVerifiedFilePayload(
+  File source,
+  File destination,
+  int length,
+  String sha256,
+) async {
+  await destination.create(exclusive: true);
+  try {
+    final sink = await destination.open(mode: FileMode.writeOnly);
+    try {
+      await _verifyFilePayload(source, length, sha256, (chunk) async {
+        await sink.writeFrom(chunk);
+      });
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
+  } catch (_) {
+    await destination.delete();
+    rethrow;
+  }
+}
+
 /// Mounted desktop/filesystem directories only. Android SAF needs its own
 /// persisted-permission adapter; a content URI is deliberately not a path.
-final class DirectoryMiteMiteStorage implements MiteMiteStorage {
+final class DirectoryMiteMiteStorage implements MiteMitePayloadStorage {
   DirectoryMiteMiteStorage(String directory) : root = _root(directory);
   final Directory root;
 
@@ -156,6 +326,53 @@ final class DirectoryMiteMiteStorage implements MiteMiteStorage {
   }
 
   @override
+  Future<bool> copyPayload(
+    String path, {
+    String? destination,
+    required int length,
+    required String sha256,
+  }) async {
+    validateMiteMitePayload(path, length, sha256);
+    final source = File(await _path(path));
+    if (!await source.exists()) return false;
+    if (destination == null) {
+      await _verifyFilePayload(source, length, sha256);
+    } else {
+      await _copyVerifiedFilePayload(source, File(destination), length, sha256);
+    }
+    return true;
+  }
+
+  @override
+  Future<void> writePayload(
+    String path, {
+    required String sourcePath,
+    required int length,
+    required String sha256,
+  }) async {
+    validateMiteMitePayload(path, length, sha256);
+    final source = File(sourcePath);
+    final destination = File(await _path(path, createParents: true));
+    if (await destination.exists()) {
+      await _verifyFilePayload(source, length, sha256);
+      await _verifyFilePayload(destination, length, sha256);
+      return;
+    }
+    final scratch = File('${destination.path}.${const Uuid().v4()}.partial');
+    await _copyVerifiedFilePayload(source, scratch, length, sha256);
+    try {
+      if (!await atomic.publishFileIfAbsentAsync(
+        scratch.path,
+        destination.path,
+      )) {
+        await _verifyFilePayload(destination, length, sha256);
+      }
+    } finally {
+      if (await scratch.exists()) await scratch.delete();
+    }
+  }
+
+  @override
   Future<void> deleteOwnedRevision(String path, {required String owner}) async {
     if (!isOwnedSyncRevisionPath(path, owner)) {
       throw const FormatException('Unsafe retention path');
@@ -180,6 +397,11 @@ final class DirectoryMiteMiteStorage implements MiteMiteStorage {
     if (type == FileSystemEntityType.notFound) return;
     if (type != FileSystemEntityType.directory) {
       throw const FormatException('Expected a sync directory');
+    }
+    if (path.split('/').length == 7) {
+      // Do not recurse through an unexpected document at a chunk path.
+      await directory.delete();
+      return;
     }
     try {
       await directory.delete(recursive: true);

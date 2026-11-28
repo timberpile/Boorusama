@@ -2043,6 +2043,8 @@
     "download_incomplete": "Einige Seiten konnten nicht vorbereitet werden. Erneut versuchen oder die fehlenden Seiten öffnen."
   },
   "mitemite": {
+    "subscription_cancelling": "Wird abgebrochen…",
+    "subscription_groups_checked": "$checked von $total Gruppen geprüft",
     "not_configured_status": "Nicht eingerichtet",
     "discovery_notifications": "Gerätebenachrichtigungen",
     "device_notifications_channel": "MiteMite-Geräte",
@@ -2051,7 +2053,7 @@
     "devices": "Geräte",
     "published_page": "Veröffentlicht",
     "device_details": "Gerätedetails",
-    "read_filter_all": "Alle",
+    "seen_filter_all": "Alle",
     "unseen": "Ungesehen",
     "seen": "Gesehen",
     "unseen_posts": "$count ungesehene Posts",
@@ -2095,7 +2097,7 @@
     "last_sync": "Zuletzt synchronisiert",
     "update_required": "Aktualisierung erforderlich",
     "unavailable": "Nicht verfügbar",
-    "mark_read": "Als gelesen markieren",
+    "mark_seen": "Als gesehen markieren",
     "new_arrivals": "Neue Einträge",
     "name_saved": "Gerätename gespeichert",
     "remove_count": "Zu entfernende empfangene Gruppen: $count",

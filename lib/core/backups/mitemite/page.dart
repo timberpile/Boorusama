@@ -19,6 +19,7 @@ import '../../bookmarks/src/types/bookmark_library_state.dart';
 import '../../bookmarks/src/types/bookmark_group_tree.dart';
 import '../../bookmarks/src/types/bookmark_view.dart';
 import 'actions.dart';
+import 'bookmark_subscription_progress.dart';
 import 'catalog.dart';
 import 'local_events.dart';
 import 'protocol.dart';
@@ -40,22 +41,48 @@ export 'actions.dart'
 /// All management surfaces observe the same service and durable library. No
 /// screen-local Subscribe toggle can claim a write that has not committed.
 class MiteMitePage extends ConsumerWidget {
-  const MiteMitePage({this.section, this.focusPublisher, super.key});
+  const MiteMitePage({
+    this.section,
+    this.focusPublisher,
+    this.embedded = false,
+    super.key,
+  });
   final String? section;
   final String? focusPublisher;
+  final bool embedded;
+
+  Widget _frame(
+    String title,
+    Widget body, {
+    List<Widget> actions = const [],
+  }) => embedded
+      ? Column(
+          children: [
+            if (actions.isNotEmpty)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: actions,
+              ),
+            Expanded(child: body),
+          ],
+        )
+      : Scaffold(
+          appBar: KurumiAppBar(title: Text(title), actions: actions),
+          body: body,
+        );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ref
       .watch(miteMiteServiceProvider)
       .unwrapPrevious()
       .when(
-        loading: () => Scaffold(
-          appBar: KurumiAppBar(title: Text(context.t.mitemite.title)),
-          body: const Center(child: CircularProgressIndicator()),
+        loading: () => _frame(
+          context.t.mitemite.title,
+          const Center(child: CircularProgressIndicator()),
         ),
-        error: (error, _) => Scaffold(
-          appBar: KurumiAppBar(title: Text(context.t.mitemite.title)),
-          body: Center(child: Text(syncErrorMessage(context, error))),
+        error: (error, _) => _frame(
+          context.t.mitemite.title,
+          Center(child: Text(syncErrorMessage(context, error))),
         ),
         data: (service) {
           ref.watch(miteMiteManagementViewProvider(section));
@@ -377,51 +404,49 @@ class MiteMitePage extends ConsumerWidget {
     } else {
       children.addAll(_activity(context, ref, service, library));
     }
-    return Scaffold(
-      appBar: KurumiAppBar(
-        title: Text(title),
-        actions: [
-          if (section == null)
-            Tooltip(
-              message: t.sync_enabled,
-              child: Semantics(
-                label: t.sync_enabled,
-                child: Switch(
-                  value: service.enabled,
-                  onChanged: service.isActionPending('enabled')
-                      ? null
-                      : (enabled) =>
-                            changeMiteMiteEnabled(context, service, enabled),
-                ),
-              ),
-            ),
-          if (section == null)
-            IconButton(
-              tooltip: t.sync_now,
-              icon: service.isReconciling
-                  ? SizedBox.square(
-                      dimension: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        semanticsLabel: t.working,
-                      ),
-                    )
-                  : const Icon(Icons.sync),
-              onPressed:
-                  !service.cleanupPending &&
-                      (!service.configured || !service.enabled)
-                  ? null
-                  : () => runCurrentSyncAction(
-                      context,
-                      service,
-                      service.synchronize,
-                    ),
-            ),
-        ],
-      ),
-      body: SafeArea(
+    return _frame(
+      title,
+      SafeArea(
         child: ListView(padding: const EdgeInsets.all(12), children: children),
       ),
+      actions: [
+        if (section == null)
+          Tooltip(
+            message: t.sync_enabled,
+            child: Semantics(
+              label: t.sync_enabled,
+              child: Switch(
+                value: service.enabled,
+                onChanged: service.isActionPending('enabled')
+                    ? null
+                    : (enabled) =>
+                          changeMiteMiteEnabled(context, service, enabled),
+              ),
+            ),
+          ),
+        if (section == null)
+          IconButton(
+            tooltip: t.sync_now,
+            icon: service.isReconciling
+                ? SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      semanticsLabel: t.working,
+                    ),
+                  )
+                : const Icon(Icons.sync),
+            onPressed:
+                !service.cleanupPending &&
+                    (!service.configured || !service.enabled)
+                ? null
+                : () => runCurrentSyncAction(
+                    context,
+                    service,
+                    service.synchronize,
+                  ),
+          ),
+      ],
     );
   }
 
@@ -872,9 +897,16 @@ class MiteMitePage extends ConsumerWidget {
     bool isNew = false,
   }) {
     final t = context.t.mitemite;
-    final pending = service.isSubscriptionPending(
-      SyncCollectionId(publisher: publisher, kind: sourceKind, source: source),
+    final collection = SyncCollectionId(
+      publisher: publisher,
+      kind: sourceKind,
+      source: source,
     );
+    final pending = service.isSubscriptionPending(collection);
+    final activeImport = service.bookmarkImports[collection];
+    final operation = activeImport?.waitingForProjection ?? false
+        ? null
+        : activeImport;
     final button = TextButton(
       onPressed:
           pending ||
@@ -910,7 +942,7 @@ class MiteMitePage extends ConsumerWidget {
               } else {
                 // The service unions additions under its operation lock; no
                 // stale full root set is round-tripped from this screen.
-                await service.subscribe(publisher, {source});
+                await service.importBookmarkSubscription(collection);
               }
             }),
       child: Text(
@@ -943,10 +975,12 @@ class MiteMitePage extends ConsumerWidget {
                 ),
             ],
           ),
-          subtitle: narrow
+          subtitle: operation != null
+              ? BookmarkSubscriptionProgress(operation: operation)
+              : narrow
               ? Align(alignment: AlignmentDirectional.centerEnd, child: button)
               : null,
-          trailing: narrow ? null : button,
+          trailing: narrow || operation != null ? null : button,
         );
       },
     );

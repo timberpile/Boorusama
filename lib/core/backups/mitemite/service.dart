@@ -1,6 +1,6 @@
 import 'retention.dart';
 import 'collection_aliases.dart';
-import 'reading_state.dart';
+import 'seen_state.dart';
 import 'failure.dart';
 import 'receive_units.dart';
 import 'identity_file.dart';
@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../foundation/data_mutation_coordinator.dart';
 import '../../../foundation/filesystem.dart';
+import '../../bookmarks/src/data/hive/unified_bookmark_repository.dart';
 import '../../bookmarks/src/types/bookmark_group.dart';
 import '../../bookmarks/src/types/bookmark.dart';
 import '../../bookmarks/src/types/bookmark_group_repository.dart';
@@ -24,9 +25,11 @@ import '../../content/anonymous_source_policy.dart';
 import '../../search/following_topics/src/types/following_mirror_state.dart';
 import '../sources/search_backup_profile.dart';
 import '../sources/bookmark_backup_codec.dart';
-import '../sources/bookmark_backup_data.dart';
+import '../export_import/import/import_progress.dart';
+import 'bookmark_subscription_import.dart';
 import 'bookmark_mirror_engine.dart';
-import 'bookmark_package.dart';
+import 'indexed_bookmark_publication.dart';
+import 'streamed_bookmark_publication.dart';
 import 'catalog.dart';
 import 'catalog_gate.dart';
 import 'local_events.dart';
@@ -76,6 +79,7 @@ final class MiteMiteService extends ChangeNotifier {
     required this.mutations,
     this.onApplied,
     this.onDomainsApplied,
+    this.onBookmarkSeenApplied,
     this.followingStore,
     this.profiles,
     this.anonymousPolicy = _defaultAnonymousPolicy,
@@ -122,6 +126,13 @@ final class MiteMiteService extends ChangeNotifier {
   final DataMutationCoordinator mutations;
   final Future<void> Function()? onApplied;
   final Future<void> Function(Set<SyncDomain>)? onDomainsApplied;
+  final Future<void> Function(
+    UnifiedBookmarkStore,
+    int previousRevision,
+    int revision,
+    BookmarkMirrorState,
+  )?
+  onBookmarkSeenApplied;
   final Future<FollowingMirrorStore> Function()? followingStore;
   final List<BackupProfileReference> Function()? profiles;
   final AnonymousSourcePolicy Function() anonymousPolicy;
@@ -146,12 +157,17 @@ final class MiteMiteService extends ChangeNotifier {
   // Transport serialization is independent of interactive UI availability.
   var busy = false;
   final _pendingActions = <String, int>{};
+  Map<SyncCollectionId, BookmarkSubscriptionImport> _bookmarkImports = const {};
+  Map<SyncCollectionId, BookmarkSubscriptionImport> get bookmarkImports =>
+      _bookmarkImports;
+
   Future<void>? _updateRequest;
   var _sourceRequested = true;
   var _sourcePass = false;
   var _storageGeneration = 0;
   final _verifiedCatalogs =
       <String, ({Uint8List bytes, VerifiedSyncCatalog ticket})>{};
+  final _appliedBucketCatalogs = <String, (int, int, int)>{};
   ({String intent, Uint8List bytes})? _verifiedOwnCatalog;
   final _pendingProjection = <SyncDomain>{};
   late final _collectionAliases = SyncCollectionAliases(preferences);
@@ -751,6 +767,13 @@ final class MiteMiteService extends ChangeNotifier {
           await onApplied?.call();
         }
         _pendingProjection.remove(domain);
+        if (domain == SyncDomain.bookmarks) {
+          final finished = _bookmarkImports.values
+              .where((operation) => operation.waitingForProjection)
+              .map((operation) => operation.collection)
+              .toList();
+          finished.forEach(_removeBookmarkImport);
+        }
       } catch (error) {
         pending ??= error;
       }
@@ -805,33 +828,100 @@ final class MiteMiteService extends ChangeNotifier {
       await _sync(storage);
     },
   );
+  Future<void> importBookmarkSubscription(SyncCollectionId collection) async {
+    _ensureCurrent();
+    if (collection.kind != 'bookmarks') throw const SyncConflict();
+    if (_bookmarkImports.containsKey(collection) ||
+        isSubscriptionPending(collection)) {
+      return;
+    }
+    final device = devices.firstWhere(
+      (item) => item.id == collection.publisher,
+    );
+    final offer = device.catalog?.offeredEntries
+        .where((entry) => entry.id == collection)
+        .firstOrNull;
+    if (offer == null) throw const SyncConflict();
+    final operation = BookmarkSubscriptionImport(
+      collection: collection,
+      name: offer.name,
+      publisherName: device.name,
+    );
+    _bookmarkImports = Map.unmodifiable({
+      ..._bookmarkImports,
+      collection: operation,
+    });
+    _notify();
+    try {
+      await _subscribe(collection.publisher, {
+        collection.source,
+      }, transfer: operation);
+    } finally {
+      final subscribed =
+          _receiverMirrors?.subscriptions[collection.publisher]?.contains(
+            collection.source,
+          ) ??
+          false;
+      if (!_disposed &&
+          operation.value.saving &&
+          subscribed &&
+          reloadFailure != null) {
+        operation.deferProjection();
+      } else {
+        _removeBookmarkImport(collection);
+      }
+    }
+  }
+
+  void _removeBookmarkImport(SyncCollectionId collection) {
+    final operation = _bookmarkImports[collection];
+    if (operation == null) return;
+    _bookmarkImports = Map.unmodifiable(
+      Map<SyncCollectionId, BookmarkSubscriptionImport>.of(_bookmarkImports)
+        ..remove(collection),
+    );
+    _notify();
+    operation.dispose();
+  }
+
   Future<void> subscribe(String publisher, Set<String> roots) =>
-      _subscriptionAction(publisher, 'bookmarks', roots, (roots) async {
-        if (!enabled) throw const SyncPublisherUnavailable();
-        final storage = await _open(location!);
-        final device = devices.singleWhere((device) => device.id == publisher);
-        final ticket = await _ticket(storage, device);
-        final prior =
-            (await mirrors.readMirrorState()).subscriptions[publisher] ??
-            const <String>{};
-        final additions = roots.difference(prior);
-        if (additions.isNotEmpty) {
-          final offers = SyncCatalog.fromJson(ticket.content).publicationRoots;
-          if (offers == null) throw const SyncUpdateRequired();
-          if (additions.any(
-            (source) => !offers.contains(
-              SyncCollectionId(
-                publisher: publisher,
-                kind: 'bookmarks',
-                source: source,
-              ),
+      _subscribe(publisher, roots);
+
+  Future<void> _subscribe(
+    String publisher,
+    Set<String> roots, {
+    BookmarkSubscriptionImport? transfer,
+  }) => _subscriptionAction(publisher, 'bookmarks', roots, (roots) async {
+    try {
+      transfer?.checkCancelled();
+      if (!enabled) throw const SyncPublisherUnavailable();
+      final storage = await _open(location!);
+      final device = devices.singleWhere((device) => device.id == publisher);
+      final ticket = await _ticket(storage, device);
+      final prior =
+          (await mirrors.readMirrorState()).subscriptions[publisher] ??
+          const <String>{};
+      final additions = roots.difference(prior);
+      if (additions.isNotEmpty) {
+        final offers = SyncCatalog.fromJson(ticket.content).publicationRoots;
+        if (offers == null) throw const SyncUpdateRequired();
+        if (additions.any(
+          (source) => !offers.contains(
+            SyncCollectionId(
+              publisher: publisher,
+              kind: 'bookmarks',
+              source: source,
             ),
-          )) {
-            throw const SyncConflict();
-          }
+          ),
+        )) {
+          throw const SyncConflict();
         }
-        await _receive(storage, device, ticket, roots: roots);
-      });
+      }
+      await _receive(storage, device, ticket, roots: roots, transfer: transfer);
+    } on BookmarkSubscriptionCancelled {
+      if (transfer == null) rethrow;
+    }
+  });
   Future<void> unsubscribe(String publisher, String source) =>
       _subscriptionAction(publisher, 'bookmarks', {source}, (_) async {
         // Management requires no working shared directory.
@@ -861,33 +951,63 @@ final class MiteMiteService extends ChangeNotifier {
     return copied;
   });
   Future<void> acknowledge(String groupId, int revision) => _run(
-    () => _applied(
+    () => _applySeen(
       () => _engine(_OfflineStorage()).acknowledgeArrival(groupId, revision),
     ),
   );
-  Future<void> markRead(String groupId, Set<String> identities) => _run(
-    () => _applied(
-      () => _engine(_OfflineStorage()).markRead(groupId, identities),
-    ),
-  );
 
-  Future<void> markReadTargets(Iterable<BookmarkReadTarget> targets) {
-    final captured = List<BookmarkReadTarget>.unmodifiable([
-      for (final item in targets)
-        for (final target in item.allTargets)
-          BookmarkReadTarget(
-            groupId: target.groupId,
-            publisher: target.publisher,
-            source: target.source,
-            member: target.member,
-            scopeGroupId: target.scopeGroupId,
-            scopeSource: target.scopeSource,
-          ),
-    ]);
+  Future<void> markSeen(String groupId, Set<String> identities) {
+    final captured = Set<String>.unmodifiable(identities);
     return _run(
-      () =>
-          _applied(() => _engine(_OfflineStorage()).markReadTargets(captured)),
+      () => _applySeen(
+        () => _engine(_OfflineStorage()).markSeen(groupId, captured),
+      ),
     );
+  }
+
+  Future<void> markSeenTargets(Iterable<BookmarkSeenTarget> targets) {
+    final captured = List<BookmarkSeenTarget>.unmodifiable(targets);
+    return _run(
+      () => _applySeen(
+        () => _engine(_OfflineStorage()).markSeenTargets(captured),
+      ),
+    );
+  }
+
+  Future<void> _applySeen(Future<void> Function() operation) async {
+    final project = onBookmarkSeenApplied;
+    if (project == null || _pendingProjection.contains(SyncDomain.bookmarks)) {
+      await _applied(operation);
+      return;
+    }
+    final change = await store.runReadWriteScope(() async {
+      final before = await mirrors.readMirrorState();
+      final previousRevision = await store.readRevision();
+      await operation();
+      final after = await mirrors.readMirrorState();
+      if (after.epoch == before.epoch) return null;
+      return (
+        before.epoch,
+        previousRevision,
+        await store.readRevision(),
+        after,
+      );
+    });
+    if (change == null) return;
+    final (previousEpoch, previousRevision, revision, snapshot) = change;
+    _receiverMirrors = snapshot;
+    _appliedBucketCatalogs.updateAll(
+      (_, applied) => applied.$2 == previousEpoch
+          ? (applied.$1, snapshot.epoch, applied.$3)
+          : applied,
+    );
+    try {
+      _ensureCurrent();
+      await project(store, previousRevision, revision, snapshot);
+    } catch (error) {
+      _pendingProjection.add(SyncDomain.bookmarks);
+      reloadFailure = error;
+    }
   }
 
   Future<VerifiedSyncCatalog> _ticket(
@@ -909,10 +1029,39 @@ final class MiteMiteService extends ChangeNotifier {
     DiscoveredSyncDevice device,
     VerifiedSyncCatalog ticket, {
     Set<String>? roots,
-  }) => _applied(
-    () => _engine(storage)
-        .receive(ticket: ticket, publisherKey: device.key, directRoots: roots),
-  );
+    BookmarkSubscriptionImport? transfer,
+  }) async {
+    final bucketed = SyncCatalog.fromJson(ticket.content).usesBookmarkManifests;
+    final epoch = _receiverMirrors?.epoch;
+    if (bucketed &&
+        roots == null &&
+        epoch != null &&
+        _appliedBucketCatalogs[device.id] ==
+            (ticket.sequence, epoch, _storageGeneration)) {
+      if (reloadFailure != null) await _refreshProjection(domains: const {});
+      return;
+    }
+    await _applied(
+      () async {
+        await _engine(storage).receive(
+          ticket: ticket,
+          publisherKey: device.key,
+          directRoots: roots,
+          transfer: transfer,
+        );
+        if (transfer?.value.saving ?? false) {
+          transfer!.progress.show(ImportProgressPhase.loadingLibrary);
+        }
+      },
+    );
+    if (_receiverMirrors case final mirrors? when bucketed) {
+      _appliedBucketCatalogs[device.id] = (
+        ticket.sequence,
+        mirrors.epoch,
+        _storageGeneration,
+      );
+    }
+  }
 
   List<SyncEvent> _failureEvents(
     Object error, {
@@ -1266,6 +1415,47 @@ final class MiteMiteService extends ChangeNotifier {
     MiteMiteStorage storage, {
     bool verifyExisting = false,
   }) async {
+    final writer = SyncPublicationWriter(
+      storage: storage,
+      sequences: SyncPublicationSequences(
+        store: preferences,
+        mutations: mutations,
+        ensureCurrent: _ensureCurrent,
+      ),
+      identity: identity,
+    );
+    final repository = store;
+    final indexed =
+        repository is BookmarkHiveRepository &&
+            publishedRoots.isNotEmpty &&
+            repository.bookmarkPublicationIndexPath != null
+        ? IndexedBookmarkPublication(
+            repository: repository,
+            groups: groups,
+            codec: codec,
+            writer: writer,
+            path: repository.bookmarkPublicationIndexPath!,
+            destination: syncDigest(syncJsonBytes([identity.id, location])),
+          )
+        : null;
+    try {
+      await _publishWithIndex(
+        storage,
+        writer,
+        indexed,
+        verifyExisting: verifyExisting,
+      );
+    } finally {
+      indexed?.close();
+    }
+  }
+
+  Future<void> _publishWithIndex(
+    MiteMiteStorage storage,
+    SyncPublicationWriter writer,
+    IndexedBookmarkPublication? indexed, {
+    required bool verifyExisting,
+  }) async {
     final intent = preferences.get(
       'mitemite.v1.outgoing.${identity.id}.catalog_intent',
     );
@@ -1288,30 +1478,24 @@ final class MiteMiteService extends ChangeNotifier {
       );
     }
     final snapshot = await store.runReadWriteScope(() async {
-      final organization = await groups.getGroups();
-      final ownership = await mirrors.readMirrorState();
+      final organization = indexed == null
+          ? await groups.getGroups()
+          : await indexed.repository.readLocalPublicationDefinitions();
+      final ownership = indexed == null
+          ? await mirrors.readMirrorState()
+          : null;
       final local = {
         for (final group in organization)
-          if (!ownership.isReceived(group.id)) group.id: group,
+          if (!(ownership?.isReceived(group.id) ?? false)) group.id: group,
       };
       final tree = BookmarkGroupTree(local.values);
       final covered = {
         for (final root in publishedRoots)
           if (local.containsKey(root)) ...tree.subtreeIds(root),
       };
-      final ids = {for (final id in covered) ...local[id]!.bookmarkIds};
-      final records = <int, Bookmark>{};
-      var count = 0;
-      for (final id in ids) {
-        final record = await store.read(id);
-        if (record == null) throw const SyncConflict();
-        records[id] = record;
-        if (++count % 64 == 0) await Future<void>.delayed(Duration.zero);
-      }
       return (
         local: local,
         covered: covered,
-        records: records,
         revision: await store.readRevision(),
       );
     });
@@ -1339,54 +1523,65 @@ final class MiteMiteService extends ChangeNotifier {
       }
     }
 
-    final writer = SyncPublicationWriter(
-      storage: storage,
-      sequences: SyncPublicationSequences(
-        store: preferences,
-        mutations: mutations,
-        ensureCurrent: _ensureCurrent,
-      ),
-      identity: identity,
+    await indexed?.prepare(
+      covered,
+      snapshotRevision: snapshot.revision,
+      validateSnapshot: validateSnapshot,
     );
+    final previousBookmarks = {
+      for (final entry in prior?.entries ?? const <SyncCatalogEntry>[])
+        if (entry.id.kind == 'bookmarks' &&
+            entry.state == SyncPublicationState.active)
+          entry.id.source: entry.revision!,
+    };
+    final verifiedBookmarkManifests = <SyncRevision>{};
     final publisher = SyncBookmarkPublisher(
       writer: writer,
-      builder: SyncBookmarkPackageBuilder(fs: fs, codec: codec),
+      builder: SyncBookmarkStreamedPackageBuilder(fs: fs, codec: codec),
       workQueue: _preparation,
     );
+    Stream<Bookmark> seenMembers(BookmarkGroup group) async* {
+      var count = 0;
+      for (final id in group.bookmarkIds) {
+        if (count++ % 256 == 0) {
+          _ensureCurrent();
+          if (generation != _storageGeneration ||
+              await store.readRevision() != snapshot.revision) {
+            throw const SyncConflict();
+          }
+        }
+        final record = await store.read(id);
+        if (record == null) throw const SyncConflict();
+        yield record;
+      }
+    }
+
     final entries = <SyncCatalogEntry>[];
     for (final id in covered) {
       final group = local[id]!;
-      final data = BookmarkBackupData.unified(
-        records: [for (final id in group.bookmarkIds) snapshot.records[id]!],
-        groups: [
-          BookmarkGroupBackup(
-            id: id,
-            name: group.name,
-            bookmarkIds: group.bookmarkIds.toList(),
-            addedAt: group.addedAt,
-          ),
-        ],
+      final collection = SyncCollectionId(
+        publisher: identity.id,
+        kind: 'bookmarks',
+        source: id,
       );
-      final revision = await publisher.publishIfChanged(
-        collection: SyncCollectionId(
-          publisher: identity.id,
-          kind: 'bookmarks',
-          source: id,
-        ),
-        data: data,
-        appVersion: 'Boorusama',
-        createdAt: now(),
-        verifyExisting:
-            verifyExisting ||
-            _repairSources.contains(
-              SyncCollectionId(
-                publisher: identity.id,
-                kind: 'bookmarks',
-                source: id,
-              ).key,
-            ),
-        validateSnapshot: validateSnapshot,
-      );
+      final verify = verifyExisting || _repairSources.contains(collection.key);
+      final revision = indexed == null
+          ? await publisher.publishIfChanged(
+              collection: collection,
+              group: group,
+              records: seenMembers(group),
+              appVersion: 'Boorusama',
+              createdAt: now(),
+              verifyExisting: verify,
+              validateSnapshot: validateSnapshot,
+            )
+          : await indexed.publish(
+              collection: collection,
+              previous: previousBookmarks[id],
+              verifyExisting: verify,
+              validateSnapshot: validateSnapshot,
+            );
+      if (indexed != null) verifiedBookmarkManifests.add(revision);
       entries.add(
         SyncCatalogEntry(
           id: revision.collection,
@@ -1509,6 +1704,7 @@ final class MiteMiteService extends ChangeNotifier {
           if (canonicalSyncJson(verified) ==
               canonicalSyncJson(prior.toJson())) {
             await _completePublication(prior);
+            indexed?.acknowledge();
             _repairSources.clear();
             return;
           }
@@ -1525,9 +1721,11 @@ final class MiteMiteService extends ChangeNotifier {
       entries: entries,
       publicationRoots: roots,
       completeSnapshot: true,
+      verifiedBookmarkManifests: verifiedBookmarkManifests,
     );
     final published = entries.map((entry) => entry.id).toSet();
     await _completePublication(complete);
+    indexed?.acknowledge();
     if (prior?.entries.any((entry) => !published.contains(entry.id)) ?? false) {
       unawaited(_scheduleMaintenance(force: true));
     }
@@ -1537,6 +1735,13 @@ final class MiteMiteService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    for (final operation in _bookmarkImports.values.toList()) {
+      if (operation.waitingForProjection) {
+        _removeBookmarkImport(operation.collection);
+      } else {
+        operation.cancel();
+      }
+    }
     super.dispose();
   }
 }
@@ -1565,7 +1770,7 @@ final class _OfflineStorage implements MiteMiteStorage {
 
 /// Cancellation is checked again after each transport await, before authority
 /// can advance or prepared data can reach a replaced repository generation.
-final class _CurrentStorage implements MiteMiteStorage {
+final class _CurrentStorage implements MiteMitePayloadStorage {
   _CurrentStorage(this.delegate, this.ensureCurrent);
   final MiteMiteStorage delegate;
   final void Function() ensureCurrent;
@@ -1592,6 +1797,43 @@ final class _CurrentStorage implements MiteMiteStorage {
   Future<void> writeImmutable(String path, Uint8List bytes) async {
     ensureCurrent();
     await delegate.writeImmutable(path, bytes);
+    ensureCurrent();
+  }
+
+  @override
+  Future<bool> copyPayload(
+    String path, {
+    String? destination,
+    required int length,
+    required String sha256,
+  }) async {
+    ensureCurrent();
+    final result = await copyMiteMitePayloadFromStorage(
+      delegate,
+      path,
+      destination: destination,
+      length: length,
+      sha256: sha256,
+    );
+    ensureCurrent();
+    return result;
+  }
+
+  @override
+  Future<void> writePayload(
+    String path, {
+    required String sourcePath,
+    required int length,
+    required String sha256,
+  }) async {
+    ensureCurrent();
+    await writeMiteMitePayloadToStorage(
+      delegate,
+      path,
+      sourcePath: sourcePath,
+      length: length,
+      sha256: sha256,
+    );
     ensureCurrent();
   }
 

@@ -112,6 +112,9 @@ final class SyncCatalog {
             ))) {
       throw const FormatException('Invalid complete publication snapshot');
     }
+    if (!completeSnapshot && usesBookmarkManifests) {
+      throw const FormatException('Bookmark manifests require complete scope');
+    }
     if (roots != null) {
       final active = {
         for (final entry in this.entries)
@@ -156,12 +159,15 @@ final class SyncCatalog {
     if (raw is! List || raw.length > miteMiteMaxEntries) {
       throw const FormatException('Invalid sync catalog entries');
     }
-    return SyncCatalog(
+    final roots = _readPublicationRoots(json);
+    final catalog = SyncCatalog(
       publisher: publisher,
       sequence: syncPositiveInteger(json['sequence']),
       name: syncLabel(json['deviceName']),
-      publicationRoots: _readPublicationRoots(json),
-      completeSnapshot: json['publicationScopeVersion'] == 2,
+      publicationRoots: roots,
+      completeSnapshot:
+          json['publicationScopeVersion'] == 2 ||
+          json['publicationScopeVersion'] == 3,
       entries: [
         for (final entry in raw)
           if (entry is Map<String, dynamic>)
@@ -170,6 +176,11 @@ final class SyncCatalog {
             throw const FormatException('Invalid sync catalog entry'),
       ],
     );
+    if (catalog.usesBookmarkManifests !=
+        (json['publicationScopeVersion'] == 3)) {
+      throw const FormatException('Invalid Bookmark manifest catalog scope');
+    }
+    return catalog;
   }
 
   final String publisher;
@@ -177,6 +188,8 @@ final class SyncCatalog {
   final String name;
   final List<SyncCatalogEntry> entries;
   final bool completeSnapshot;
+  bool get usesBookmarkManifests =>
+      entries.any((entry) => entry.revision?.bookmarkManifest ?? false);
 
   /// Null means an older publisher did not advertise directness. It is never
   /// inferred from hierarchy; existing subscriptions may still reconcile.
@@ -195,7 +208,9 @@ final class SyncCatalog {
       return null;
     }
     final version = json['publicationScopeVersion'];
-    if (version != 1 && version != 2) throw const SyncUpdateRequired();
+    if (version is! int || (version != 1 && version != 2 && version != 3)) {
+      throw const SyncUpdateRequired();
+    }
     final raw = json['publicationRoots'];
     if (raw is! List || raw.length > miteMiteMaxEntries) {
       throw const FormatException('Invalid explicit publication roots');
@@ -218,7 +233,11 @@ final class SyncCatalog {
     'deviceName': name,
     'collections': [for (final entry in entries) entry.toJson()],
     if (publicationRoots != null) ...{
-      'publicationScopeVersion': completeSnapshot ? 2 : 1,
+      'publicationScopeVersion': usesBookmarkManifests
+          ? 3
+          : completeSnapshot
+          ? 2
+          : 1,
       'publicationRoots': [
         for (final root
             in publicationRoots!.toList()

@@ -238,6 +238,7 @@ class CatalogPatternTests(unittest.TestCase):
             'history-sqlite': ('_kSearchHistoryVersion', 0, 0),
             'post-common-snapshot': ('commonSchemaVersion', 2, 2),
             'mitemite-protocol': ('miteMiteProtocol', 1, 1),
+            'mitemite-bookmark-manifest-format': ('miteMiteBookmarkManifestVersion', None, 1),
         }
         final_only = {
             'mitemite-following-payload': 'static const schema = 2;',
@@ -258,8 +259,9 @@ class CatalogPatternTests(unittest.TestCase):
             if name in constants:
                 symbol, old, new = constants[name]
                 if old is not None:
-                    before[rule_.get('baseline_path', path)] = f'const {symbol} = {old};'
-                after[path] = f'const {symbol} = {new};'
+                    baseline_path = rule_.get('baseline_path', path)
+                    before[baseline_path] = before.get(baseline_path, '') + f'\nconst {symbol} = {old};'
+                after[path] = after.get(path, '') + f'\nconst {symbol} = {new};'
             elif name in final_only:
                 marker = '\n' + final_only[name]
                 before[path] = before.get(path, '') + marker
@@ -274,8 +276,8 @@ class CatalogPatternTests(unittest.TestCase):
                     'bool isNested(int version) => version == kBookmarksBackupVersion;'
                 )
             elif name == 'mitemite-bookmark-payload':
-                before[path] = 'static const schema = kBookmarksBackupVersion;'
-                after[path] = 'final schemaVersion = bookmarkTransferVersion(data.records);'
+                before[rule_['baseline_path']] = 'static const schema = kBookmarksBackupVersion;'
+                after[path] = 'schema: kBookmarksBackupVersion, bookmarkTables: true,'
             elif name in ('following-export', 'feeds-export'):
                 cls, v = ('FollowingTopicsBackupSource', 2) if name == 'following-export' else ('TopicFeedsBackupSource', 1)
                 before[path] = after[path] = f'class {cls} {{ version: {v}, }}'
@@ -314,7 +316,7 @@ class CatalogPatternTests(unittest.TestCase):
     def test_zero_or_one_increment_passes_for_all_registered_contracts(self):
         rules, before, after = self.samples()
         rows = audit.audit_contracts(rules, before.get, after.get)
-        self.assertEqual(len(rows), 31)
+        self.assertEqual(len(rows), 32)
         self.assertEqual({r['status'] for r in rows}, {'ok'})
 
     def test_bookmark_reader_rejects_dropping_the_published_aliased_version(self):

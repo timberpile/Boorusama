@@ -1,3 +1,5 @@
+import 'bookmark_subscription_import.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -130,9 +132,17 @@ final miteMiteServiceProvider = FutureProvider<MiteMiteService>((
       return DirectoryMiteMiteStorage(location);
     },
     anonymousPolicy: () => ref.read(anonymousSourcePolicyProvider),
+    onBookmarkSeenApplied: (source, before, revision, mirrors) => ref
+        .read(bookmarkProvider.notifier)
+        .applyMirrorSeenState(
+          source,
+          before,
+          revision,
+          mirrors,
+        ),
     onDomainsApplied: (domains) async {
       if (domains.contains(SyncDomain.bookmarks)) {
-        await ref.read(bookmarkProvider.notifier).refresh();
+        await ref.read(bookmarkProvider.notifier).refreshWithProgress();
       }
       if (domains.contains(SyncDomain.following) &&
           ref.exists(followingTopicsProvider)) {
@@ -241,6 +251,24 @@ final syncCollectionAliasesProvider = Provider<Map<SyncCollectionId, String>>((
   );
 }, dependencies: [currentMiteMiteServiceProvider, miteMiteChangesProvider]);
 
+final bookmarkSubscriptionImportsProvider =
+    Provider<Map<SyncCollectionId, BookmarkSubscriptionImport>>(
+      (ref) {
+        if (!ref.exists(miteMiteServiceProvider)) return const {};
+        final service = ref.watch(currentMiteMiteServiceProvider);
+        return ref.watch(
+          miteMiteChangesProvider.select(
+            (_) => service?.bookmarkImports ?? const {},
+          ),
+        );
+      },
+      dependencies: [
+        currentMiteMiteServiceProvider,
+        miteMiteServiceProvider,
+        miteMiteChangesProvider,
+      ],
+    );
+
 // Operational timestamps must not rebuild collection lists on every poll.
 final miteMiteManagementViewProvider = Provider.autoDispose
     .family<_ManagementView, String?>((ref, section) {
@@ -273,6 +301,7 @@ final miteMiteManagementViewProvider = Provider.autoDispose
         service.receiverMirrors?.epoch,
         (following?.structureDigest, following?.mirrors.epoch),
         service.pendingActionKeys,
+        service.bookmarkImports,
         if (section == 'receive') ...[
           service.events.unseenOffers.keys.toSet(),
           service.busy,

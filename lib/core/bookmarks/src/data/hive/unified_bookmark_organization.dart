@@ -1,8 +1,218 @@
 part of 'unified_bookmark_repository.dart';
 
+const _bookmarkPublicationHistory = 4096;
+const _bookmarkPublicationGeneration = 'bookmarkPublicationGeneration';
+
+final class BookmarkPublicationChanges {
+  const BookmarkPublicationChanges(this.records, this.memberships);
+
+  final Set<int> records;
+  final Map<String, Map<int, String?>> memberships;
+}
+
+extension BookmarkPublicationJournal on BookmarkHiveRepository {
+  String? get bookmarkPublicationIndexPath =>
+      _metadata.path == null ? null : '${_metadata.path}.publication.sqlite';
+
+  Future<Map<int, ({int engine, ContentIdentity identity})>>
+  readPublicationMemberKeys(
+    Iterable<int> ids,
+  ) => _ready(() async {
+    final keys = <int, ({int engine, ContentIdentity identity})>{};
+    final work = CooperativeWork();
+    for (final id in ids) {
+      final header = _storedHeader(id);
+      if (header == null || header['kind'] == 'deleted') {
+        throw const FormatException('Published Bookmark membership is missing');
+      }
+      final identity = BookmarkHiveRepository._identity(header);
+      if (identity == null) {
+        throw const FormatException(
+          'Unaddressable content cannot be synchronized',
+        );
+      }
+      keys[id] = (engine: header['engine']! as int, identity: identity);
+      if (work.checkpoint() case final pause?) await pause;
+    }
+    return keys;
+  });
+
+  Future<
+    ({
+      String generation,
+      int revision,
+      List<BookmarkPublicationChanges>? changes,
+    })
+  >
+  bookmarkPublicationChanges(String? generation, int? previous) =>
+      _ready(() async {
+        final revision = _metadata.get(BookmarkHiveRepository._revision) as int;
+        var active = _metadata.get(_bookmarkPublicationGeneration) as String?;
+        if (active == null) {
+          active = const Uuid().v4();
+          await _metadata.put(_bookmarkPublicationGeneration, active);
+          await _sync([_metadata]);
+        }
+        if (generation != active ||
+            previous == null ||
+            previous > revision ||
+            revision - previous > _bookmarkPublicationHistory) {
+          return (generation: active, revision: revision, changes: null);
+        }
+        final changes = <BookmarkPublicationChanges>[];
+        for (var cursor = previous + 1; cursor <= revision; cursor++) {
+          final receipt = _metadata.get('bookmarkPublicationChange.$cursor');
+          if (receipt is! Map || receipt['rebuild'] == true) {
+            return (generation: active, revision: revision, changes: null);
+          }
+          changes.add(
+            BookmarkPublicationChanges(
+              (receipt['records'] as List).cast<int>().toSet(),
+              {
+                for (final entry in contentMap(receipt['memberships']).entries)
+                  entry.key: {
+                    for (final change in contentMap(entry.value).entries)
+                      int.parse(change.key): change.value as String?,
+                  },
+              },
+            ),
+          );
+        }
+        return (generation: active, revision: revision, changes: changes);
+      });
+
+  Future<List<BookmarkGroup>> readLocalPublicationDefinitions() =>
+      _ready(() async {
+        final (groups, _) = await _organizationBoxes();
+        final ownerIds = contentMap(
+          contentMap(
+            _metadata.get(BookmarkHiveRepository._mirrorStateKey),
+          )['owners'],
+        );
+        return [
+          for (final row in groups.values)
+            if (!ownerIds.containsKey(row.id))
+              BookmarkGroup(
+                id: row.id,
+                name: row.name,
+                bookmarkIds: const {},
+                parentGroupId: row.parentGroupId,
+                position: row.position,
+              ),
+        ];
+      });
+
+  Map<String, Object?>? _bookmarkPublicationReceipt(
+    Map<String, Object?> plan,
+    BookmarkMirrorState? mirrors,
+  ) {
+    if (!_metadata.containsKey(_bookmarkPublicationGeneration)) return null;
+    final records = contentMap(plan['previous']).keys.map(int.parse).toList();
+    final memberships = <String, Map<String, Object?>>{};
+    if (plan['organization'] case final org?) {
+      final organization = contentMap(org);
+      final oldGroups = contentMap(organization['previous']);
+      final nextGroups = contentMap(organization['groups']);
+      for (final group in {...oldGroups.keys, ...nextGroups.keys}) {
+        if (mirrors?.isReceived(group) ?? false) continue;
+        Map<String, Object?> dates(Object? group) =>
+            group == null ? const {} : contentMap(contentMap(group)['addedAt']);
+        final before = dates(oldGroups[group]);
+        final after = dates(nextGroups[group]);
+        final change = <String, Object?>{
+          for (final id in {...before.keys, ...after.keys})
+            if (before[id] != after[id]) id: after[id],
+        };
+        if (change.isNotEmpty) memberships[group] = change;
+      }
+    }
+    if (records.length +
+            memberships.values.fold<int>(0, (n, group) => n + group.length) >
+        32768) {
+      return const {'rebuild': true};
+    }
+    return {'records': records, 'memberships': memberships};
+  }
+}
+
 /// Organization writes use the same journal and coordinator as payload writes.
 /// This is a storage implementation detail, not a second membership authority.
 extension BookmarkOrganizationWrites on BookmarkHiveRepository {
+  /// Apply the prevalidated hierarchy under the enclosing package journal.
+  /// A normal Hive mutation journal serializes both sides of each group. Here
+  /// its rollback authority is the verified package preimage on disk.
+  Future<void> writeTransferOrganization({
+    required List<BookmarkGroup> definitions,
+    required Set<String> changed,
+    required Iterable<(int, String)> Function(String groupId) members,
+    void Function(int)? onMembersPrepared,
+    void Function()? onWritingGroup,
+  }) => _ready(() async {
+    final graph = BookmarkGroupTree(definitions);
+    if (!graph.groupsById.containsKey(defaultBookmarkGroupId)) {
+      throw const FormatException('Imported hierarchy is missing Default');
+    }
+    final (box, folderBox) = await _organizationBoxes();
+    final removed = box.keys.cast<String>().toSet().difference(
+      graph.groupsById.keys.toSet(),
+    );
+    final mirrors = _mirrors();
+    if (mirrors.owners.keys.any(
+          (id) => changed.contains(id) || removed.contains(id),
+        ) ||
+        definitions.any(
+          (g) =>
+              changed.contains(g.id) &&
+              mirrors.isReceived(g.parentGroupId ?? ''),
+        )) {
+      throw const BookmarkMirrorReadOnly();
+    }
+    if (changed.isEmpty && removed.isEmpty) return;
+    validateBookmarkCommitGuard();
+    final work = CooperativeWork();
+    var prepared = 0;
+    for (final group in definitions) {
+      if (!changed.contains(group.id)) continue;
+      onMembersPrepared?.call(prepared);
+      final ids = <int>[];
+      final dates = <int, String>{};
+      for (final (id, date) in members(group.id)) {
+        final header = _storedHeader(id);
+        if (header == null ||
+            header['kind'] == 'deleted' ||
+            (ids.isNotEmpty && ids.last >= id)) {
+          throw const FormatException('Invalid imported group membership');
+        }
+        ids.add(id);
+        dates[id] = date;
+        onMembersPrepared?.call(++prepared);
+        if (work.checkpoint() case final pause?) await pause;
+      }
+      onWritingGroup?.call();
+      if (ids.length >= 2048) await work.yieldToEvents();
+      await performanceRecorder.measureAsync(
+        PerfOperation.bookmarkTransferGroupWrite,
+        () => box.put(
+          group.id,
+          BookmarkGroupHiveObject.fromTransfer(
+            id: group.id,
+            name: group.name,
+            bookmarkIds: ids,
+            addedAt: dates,
+            parentGroupId: group.parentGroupId,
+            position: group.position,
+          ),
+        ),
+      );
+    }
+    if (removed.isNotEmpty) await box.deleteAll(removed);
+    await _sync([box, folderBox]);
+    const key = BookmarkHiveRepository._revision;
+    final revision = (_metadata.get(key) as int) + 1;
+    await _metadata.put(key, revision);
+    await _sync([_metadata]);
+  });
+
   Future<T> runOrganizationOperation<T>(Future<T> Function() operation) =>
       _ready(() async {
         await _organizationBoxes();
@@ -111,6 +321,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     required List<CollectionFolder>? folders,
     required Set<int> recordIds,
     required Set<int> removedRecordIds,
+    Map<String, Object?> bucketEdits = const {},
   }) async {
     final detachDeleted =
         removedRecordIds.isNotEmpty &&
@@ -148,10 +359,14 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       // The facade's direct delete API must leave a restartable generation too.
       // Preserve caller-supplied changes; other affected memberships and dates
       // join this same journal, rather than relying on a later library repair.
-      for (final row in groupBox.values) {
-        if (updates.containsKey(row.id) ||
-            removeGroups.contains(row.id) ||
-            !row.bookmarkIds.any(removedRecordIds.contains)) {
+      for (final stored in groupBox.values) {
+        if (updates.containsKey(stored.id) ||
+            removeGroups.contains(stored.id) ||
+            bucketEdits.containsKey(stored.id)) {
+          continue;
+        }
+        final row = _logicalOrganizationRow(stored);
+        if (!row.bookmarkIds.any(removedRecordIds.contains)) {
           continue;
         }
         final wire = _groupWire(row);
@@ -172,7 +387,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         throw const FormatException('Invalid organization deletion');
       }
       final row = groupBox.get(id);
-      previous[id] = row == null ? null : _groupWire(row);
+      previous[id] = row == null
+          ? null
+          : _groupWire(_logicalOrganizationRow(row));
     }
     final desiredFolders = folders?.map((folder) => folder.toJson()).toList();
     final plan = <String, Object?>{
@@ -187,15 +404,21 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         'previousFolders': folderBox.get('folders') ?? const [],
       },
     };
-    await _validateOrganization(plan, recordIds, removedRecordIds);
+    await _validateOrganization(
+      plan,
+      recordIds,
+      removedRecordIds,
+      bucketEdits: bucketEdits,
+    );
     return plan;
   }
 
   Future<void> _validateOrganization(
     Map<String, Object?> plan,
     Set<int> recordIds,
-    Set<int> removedIds,
-  ) async {
+    Set<int> removedIds, {
+    Map<String, Object?> bucketEdits = const {},
+  }) async {
     final (groupBox, folderBox) = await _organizationBoxes();
     if (!BookmarkHiveRepository._same(
       plan['generation'],
@@ -229,10 +452,15 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         throw const FormatException('Invalid Group journal deletion');
       }
       final current = groupBox.get(id);
-      final actual = current == null ? null : _groupWire(current);
+      final actual = current == null
+          ? null
+          : _groupWire(_logicalOrganizationRow(current));
       final desired = updates[id];
       if (!BookmarkHiveRepository._same(actual, previous[id]) &&
-          !BookmarkHiveRepository._same(actual, desired)) {
+          !BookmarkHiveRepository._same(actual, desired) &&
+          !(current != null &&
+              _readMirrorBucketIndex(id).isNotEmpty &&
+              BookmarkHiveRepository._same(_groupWire(current), desired))) {
         throw const FormatException('Group changed after preparation');
       }
     }
@@ -260,13 +488,19 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         BookmarkGroup(
           id: row.id,
           name: row.name,
-          bookmarkIds: row.bookmarkIds.toSet(),
+          bookmarkIds: const {},
           parentGroupId: row.parentGroupId,
           position: row.position,
         ),
     ]);
     for (final row in removedIds.isEmpty ? rows.values : next.values) {
-      for (final id in row.bookmarkIds) {
+      final ids = rows.containsKey(row.id)
+          ? row.bookmarkIds
+          : _applyingMembershipBuckets(
+              groupWithMirroredBuckets(_asOrganizationGroup(row)),
+              bucketEdits[row.id],
+            ).bookmarkIds;
+      for (final id in ids) {
         final header = _storedHeader(id);
         if (removedIds.contains(id) ||
             (!recordIds.contains(id) &&
@@ -290,26 +524,22 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     Map<String, Object?>? organization,
     Set<int> removedIds,
     BookmarkMirrorState? received,
-    List<Bookmark> upserts, {
+    Stream<Bookmark> upserts, {
+    required bool hasUpserts,
     bool localCopy = false,
     Set<String> purgedSources = const {},
+    CooperativeWork? work,
+    Map<String, Object?> bucketEdits = const {},
   }) async {
     final before = _mirrors();
     if (before.owners.isEmpty && received == null) return;
     final (box, _) = await _organizationBoxes();
-    BookmarkGroup group(BookmarkGroupHiveObject row) => BookmarkGroup(
-      id: row.id,
-      name: row.name,
-      bookmarkIds: row.bookmarkIds.toSet(),
-      parentGroupId: row.parentGroupId,
-      folderId: row.folderId,
-      position: row.position,
-      addedAt: {
-        for (final entry in (row.addedAt ?? const <int, String>{}).entries)
-          entry.key: DateTime.parse(entry.value),
-      },
-    );
-    final current = {for (final row in box.values) row.id: group(row)};
+    String digest(BookmarkGroup value) =>
+        _receivedGroupDigests[value] ??= bookmarkMirrorGroupDigest(value);
+    final current = {
+      for (final row in box.values)
+        row.id: groupWithMirroredBuckets(_asOrganizationGroup(row)),
+    };
     final updates = organization == null
         ? const <String, Object?>{}
         : contentMap(organization['groups']);
@@ -318,12 +548,16 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         : (organization['deletes']! as List).cast<String>().toSet();
     final desired = {
       for (final entry in current.entries)
-        if (!removed.contains(entry.key)) entry.key: entry.value,
+        if (!removed.contains(entry.key))
+          entry.key: _applyingMembershipBuckets(
+            entry.value,
+            bucketEdits[entry.key],
+          ),
       for (final entry in updates.entries)
-        entry.key: group(_groupRow(entry.value)),
+        entry.key: _asOrganizationGroup(_groupRow(entry.value)),
     };
     if (received == null) {
-      for (final record in upserts) {
+      await for (final record in upserts) {
         final memberships = current.values.where(
           (group) => group.bookmarkIds.contains(record.id),
         );
@@ -344,9 +578,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         if (removed.contains(id) ||
             (old?.bookmarkIds.any(removedIds.contains) ?? false) ||
             (updates.containsKey(id) &&
-                (old == null ||
-                    bookmarkMirrorGroupDigest(old) !=
-                        bookmarkMirrorGroupDigest(desired[id]!)))) {
+                (old == null || digest(old) != digest(desired[id]!)))) {
           throw const BookmarkMirrorReadOnly();
         }
       }
@@ -366,7 +598,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         ..remove('epoch')
         ..remove('activity');
       if (!BookmarkHiveRepository._same(original, next) ||
-          upserts.isNotEmpty ||
+          hasUpserts ||
           removedIds.isNotEmpty ||
           removed.isNotEmpty ||
           updates.isEmpty ||
@@ -397,7 +629,8 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         throw const FormatException('Source revision history cannot roll back');
       }
     }
-    for (final record in upserts) {
+    await for (final record in upserts) {
+      if (work?.checkpoint() case final pause?) await pause;
       final previous = _read(record.id);
       if (previous != null &&
           current.values.any(
@@ -414,7 +647,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         );
       }
     }
-    for (final id in {...updates.keys, ...removed}) {
+    for (final id in {...updates.keys, ...removed, ...bucketEdits.keys}) {
       if (!before.isReceived(id) &&
           !received.isReceived(id) &&
           !(localCopy && !current.containsKey(id))) {
@@ -422,6 +655,12 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
           'Received transaction cannot edit a local Group',
         );
       }
+    }
+    if (bucketEdits.isNotEmpty &&
+        desired.values.any(
+          (group) => removedIds.any(group.bookmarkIds.contains),
+        )) {
+      throw const FormatException('Removed Bookmark still has a membership');
     }
     for (final entry in before.owners.entries) {
       final next = received.owners[entry.key];
@@ -439,8 +678,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       if ((updates.containsKey(entry.key) ||
               removed.contains(entry.key) ||
               next != entry.value) &&
-          (old == null ||
-              bookmarkMirrorGroupDigest(old) != entry.value.groupDigest)) {
+          (old == null || digest(old) != entry.value.groupDigest)) {
         throw StateError(
           'Received Group changed outside its source transaction',
         );
@@ -451,7 +689,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       if (target == null ||
           entry.value.retired ||
           (!before.isReceived(entry.key) && current.containsKey(entry.key)) ||
-          bookmarkMirrorGroupDigest(target) != entry.value.groupDigest ||
+          digest(target) != entry.value.groupDigest ||
           target.folderId != null) {
         throw const FormatException('Invalid received Group ownership');
       }
