@@ -13,6 +13,7 @@ import '../../../../downloads/downloader/providers.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../widgets/adaptive_button_row.dart';
 import '../../../../widgets/booru_menu_button_row.dart';
+import '../../../cross_profile_lookup/page.dart';
 import '../../../details_parts/src/toolbars/simple_post_action_toolbar.dart';
 import '../../../links/share_group_link_button.dart';
 import '../../../post/types.dart';
@@ -215,13 +216,14 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
       final BooruMediaGroupFavoritePresentation value => value,
       _ => null,
     };
+    final page = InheritedPost.maybeOf<Post>(context);
     final bookmarkData = access == null
         ? null
         : GroupBookmarkPresentationData(
             access: access,
             summary: state.details?.summary ?? widget.entry.summary,
             details: state.details ?? widget.entry.storedDetails,
-            page: InheritedPost.maybeOf<Post>(context),
+            page: page,
           );
     final strings = context.t.content_viewer;
     final download = _downloading
@@ -247,7 +249,7 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         entry: widget.entry,
         wholeGroup: false,
         metadata: bookmarkData,
-        post: InheritedPost.maybeOf<Post>(context),
+        post: page,
       ),
       groupBookmarkButton: GroupScopedBookmarkButton(
         entry: widget.entry,
@@ -259,6 +261,26 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         ],
       ),
       additionalButtons: [
+        if (active &&
+            access != null &&
+            page == null &&
+            state.details != null &&
+            canFindPixivWorkOnOtherProfiles(
+              ref,
+              entry.contentReference,
+              access,
+            ))
+          ButtonData(
+            title: context.t.post.cross_profile.action,
+            icon: const Icon(Icons.travel_explore),
+            widget: const SizedBox.shrink(),
+            onTap: () => findPixivWorkOnOtherProfiles(
+              ref,
+              entry.contentReference,
+              access,
+            ),
+            placement: ButtonPlacement.menuOnly,
+          ),
         if (bookmarks != null && bookmarkData != null)
           ...bookmarks.buildBookmarkMenuButtons(context, bookmarkData),
         if (entry.contentReference.sourceKey.startsWith('work:') ||

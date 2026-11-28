@@ -136,9 +136,19 @@ Uri? iqdbLookupEndpoint(BooruConfig profile) {
   return Uri.https(url.host, '/iqdb_queries.json');
 }
 
+bool supportsPixivArtworkTarget(BooruConfig profile) =>
+    profile.auth.booruType == BooruType.pixiv &&
+    (profile.auth.apiKey?.trim().isNotEmpty ?? false);
+
+int? linkedPixivArtworkId(Post post) {
+  final artwork = PixivArtworkReference.parseSharedText(post.source.url);
+  return artwork == null ? null : int.tryParse(artwork.id);
+}
+
 Set<PostLookupMatchKind> configuredLookupMethods(BooruConfig profile) => {
   if (supportsExactPostLookup(profile)) PostLookupMatchKind.exactFile,
-  if (profile.auth.booruType == BooruType.danbooru)
+  if (profile.auth.booruType == BooruType.danbooru ||
+      supportsPixivArtworkTarget(profile))
     PostLookupMatchKind.pixivSource,
   if (supportsSourceUrlLookup(profile.auth.booruType))
     PostLookupMatchKind.sourceUrl,
@@ -167,7 +177,9 @@ Set<PostLookupMatchKind> remoteLookupMethods(
   if (ExactPostLookup.normalizeMd5(source.md5) != null ||
       source.sitePostId != null)
     PostLookupMatchKind.exactFile,
-  if (pixivArtworkId(source.source.url) != null)
+  if (supportsPixivArtworkTarget(profile)
+      ? linkedPixivArtworkId(source) != null
+      : pixivArtworkId(source.source.url) != null)
     PostLookupMatchKind.pixivSource,
   if (lookupSourceUrl(source.source.url) != null) PostLookupMatchKind.sourceUrl,
   if (supportsIqdbImageFormat(source.format)) PostLookupMatchKind.similarImage,

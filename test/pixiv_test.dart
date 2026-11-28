@@ -149,19 +149,20 @@ void main() {
     }
 
     test('retains the declared count when only a later page is available', () {
-      final result = illustDtoToPosts(
-        illust(
-          pageCount: 4,
-          metaSinglePage: {},
-          metaPages: [
-            {},
-            {
-              'image_urls': {'original': 'https://i.pximg.net/img/100_p1.jpg'},
-            },
-          ],
-        ),
-      ).single;
+      final dto = illust(
+        pageCount: 4,
+        metaSinglePage: {},
+        metaPages: [
+          {},
+          {
+            'image_urls': {'original': 'https://i.pximg.net/img/100_p1.jpg'},
+          },
+        ],
+      );
+      final result = illustDtoToPosts(dto, onlyPage: 1).single;
 
+      expect(illustDtoToPosts(dto, onlyPage: 0), isEmpty);
+      expect(illustDtoToPosts(dto, onlyPage: 2), isEmpty);
       expect(result.pageIndex, 1);
       expect(result.pageCount, 4);
       expect(result.hasMultiplePages, isTrue);

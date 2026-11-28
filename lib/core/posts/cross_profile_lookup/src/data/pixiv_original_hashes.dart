@@ -162,6 +162,7 @@ final class PixivOriginalHashResolver {
     required this.hashOriginal,
     this.loadArtwork,
     this.isSourceCurrent,
+    this.pageIndex,
     this.maxPages = 20,
     this.maxFileBytes = 32 * 1024 * 1024,
     this.maxTotalBytes = 128 * 1024 * 1024,
@@ -171,6 +172,7 @@ final class PixivOriginalHashResolver {
   final Future<PixivIllustDto?> Function()? loadArtwork;
   final PixivOriginalHasher hashOriginal;
   final bool Function()? isSourceCurrent;
+  final int? pageIndex;
   final int maxPages;
   final int maxFileBytes;
   final int maxTotalBytes;
@@ -238,11 +240,20 @@ final class PixivOriginalHashResolver {
       if (count == null || count < 1) {
         throw const FormatException('Missing pages');
       }
-      if (count > maxPages) {
+      final requestedPage = pageIndex;
+      if (requestedPage != null &&
+          (requestedPage < 0 || requestedPage >= count)) {
+        throw const FormatException('Unavailable Pixiv Page');
+      }
+      if (requestedPage == null && count > maxPages) {
         issue = PixivLookupCoverageIssue.originalsUnavailable;
       }
+      final firstPage = requestedPage ?? 0;
+      final end = requestedPage == null
+          ? count.clamp(0, maxPages)
+          : requestedPage + 1;
       var totalBytes = 0;
-      for (var page = 0; page < count && page < maxPages; page++) {
+      for (var page = firstPage; page < end; page++) {
         if (_cancellation.isCancelled || isSourceCurrent?.call() == false) {
           throw const FormatException('Artwork source is no longer available');
         }

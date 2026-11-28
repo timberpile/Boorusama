@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../foundation/url_launcher.dart';
+import '../../../boorus/booru/types.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../premiums/providers.dart';
@@ -59,12 +60,14 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
     );
 
     final commonButtons = [
-      SimpleButtonData(
-        icon: Icons.travel_explore,
-        title: context.t.post.cross_profile.action,
-        placement: ButtonPlacement.menuOnly,
-        onPressed: () => findOnOtherProfiles(ref, post),
-      ),
+      if (post.origin.booruType != BooruType.pixiv ||
+          canFindOnOtherProfiles(ref, post))
+        SimpleButtonData(
+          icon: Icons.travel_explore,
+          title: context.t.post.cross_profile.action,
+          placement: ButtonPlacement.menuOnly,
+          onPressed: () => findOnOtherProfiles(ref, post),
+        ),
       if (postLinkGenerator != null && config != null)
         if (!hasStrictSFW)
           ViewerToolbarSimpleButtonData(

@@ -243,18 +243,21 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                       _controller.viewerEntries[index].occurrenceId,
                 ], scope: _controller);
                 final selectedKeys = _selection.selectedKeys;
-                final selectedPost = selectedKeys.length == 1
+                final selectedEntry = selectedKeys.length == 1
                     ? [
                         for (final (index, entry)
                             in _controller.entries.indexed)
-                          if (entry is PostContentEntry &&
-                              selectedKeys.contains(
-                                _controller.viewerEntries[index].occurrenceId,
-                              ))
-                            entry.post,
+                          if (selectedKeys.contains(
+                            _controller.viewerEntries[index].occurrenceId,
+                          ))
+                            entry,
                       ].firstOrNull
                     : null;
-                if (selectedPost != null) ref.watch(booruConfigProvider);
+                final selectedPost = switch (selectedEntry) {
+                  PostContentEntry(:final post) => post,
+                  _ => null,
+                };
+                if (selectedEntry != null) ref.watch(booruConfigProvider);
                 final columns = calculateGridCount(
                   size.maxWidth,
                   listing.gridSize,
@@ -419,6 +422,23 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                           access: widget.access,
                                         ),
                                       ),
+                                    ),
+                                  if (selectedEntry is GroupContentEntry &&
+                                      canFindPixivWorkOnOtherProfiles(
+                                        ref,
+                                        selectedEntry.reference,
+                                        widget.access,
+                                      ))
+                                    MultiSelectButton(
+                                      icon: const Icon(Icons.travel_explore),
+                                      name: context.t.post.cross_profile.action,
+                                      menuOnly: true,
+                                      onPressed: () =>
+                                          findPixivWorkOnOtherProfiles(
+                                            ref,
+                                            selectedEntry.reference,
+                                            widget.access,
+                                          ),
                                     ),
                                   if (presentation
                                       is BooruGroupSelectionPresentation)

@@ -48,6 +48,27 @@ class _Adapter implements HttpClientAdapter {
 }
 
 void main() {
+  test(
+    'native exact-file matching only hashes the selected Pixiv Page',
+    () async {
+      final originalUrls = <Uri>[];
+      final resolver = PixivOriginalHashResolver(
+        artworkId: '12345',
+        pageIndex: 21,
+        loadArtwork: () async => _artwork(pages: 24),
+        hashOriginal: (uri, maxBytes, consume, cancellation) async {
+          originalUrls.add(uri);
+          return _hash;
+        },
+      );
+      addTearDown(resolver.dispose);
+      final result = await resolver.resolve();
+      expect(result.issue, isNull);
+      expect(result.hashes, [_hash]);
+      expect(originalUrls, [Uri.parse(_url(21))]);
+    },
+  );
+
   testWidgets('an original still making progress after 20 seconds completes', (
     tester,
   ) async {

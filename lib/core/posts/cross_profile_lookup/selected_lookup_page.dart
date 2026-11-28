@@ -9,12 +9,16 @@ import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
 import '../../content/content_access.dart';
 import '../../content/content_access_provider.dart';
+import '../../content/content_entry.dart';
+import '../details/routes.dart';
+import '../details/src/types/viewer_entry.dart';
 import '../post/providers.dart';
 import '../post/types.dart';
 import 'iqdb_lookup.dart';
 import 'iqdb_remote_image.dart';
 import 'iqdb_signature.dart';
 import 'lookup_preferences.dart';
+import 'pixiv_artwork_lookup.dart';
 import 'providers.dart';
 import 'results.dart';
 import 'types.dart';
@@ -25,6 +29,7 @@ class SelectedLookupRequest {
     required this.permission,
     this.source,
     this.access,
+    this.nativePixiv,
     this.md5,
     this.localSignature,
   });
@@ -33,6 +38,7 @@ class SelectedLookupRequest {
   final IqdbPermission permission;
   final Post? source;
   final ContentAccessContext? access;
+  final NativePixivLookupRequest? nativePixiv;
   final String? md5;
   final Future<String?> Function(bool Function() stopped)? localSignature;
 }
@@ -79,7 +85,8 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
     final preferences = ref.read(lookupPreferencesProvider);
     final access = widget.request.access;
     return ref.read(booruConfigProvider).contains(target.profile) &&
-        stillSelected(preferences, target, method) &&
+        (widget.request.nativePixiv != null ||
+            stillSelected(preferences, target, method)) &&
         (access == null ||
             identical(
               ref.read(contentAccessContextProvider(access.key)),
@@ -160,7 +167,27 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
             matchKind: method,
           );
         }
+        if (widget.request.nativePixiv case final request?) {
+          return await ref
+              .read(nativePixivLookupSessionProvider(request))
+              .find(
+                profile,
+                method: method,
+                page: page,
+                cancellation: cancellation,
+              );
+        }
         if (widget.request.source case final source?) {
+          if (method == PostLookupMatchKind.pixivSource &&
+              supportsPixivArtworkTarget(profile)) {
+            final artworkId = linkedPixivArtworkId(source);
+            if (artworkId == null) return const PostLookupInvalidResponse();
+            return await ref.read(pixivArtworkLookupProvider)(
+              profile,
+              artworkId,
+              cancellation,
+            );
+          }
           return await ref
               .read(crossProfileLookupSessionProvider(source))
               .findMethod(
@@ -188,10 +215,13 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
         for (final post in result.posts) post.id: post,
     }.values.toList();
     final status = switch (result) {
-      PostLookupPage(:final hasMore) =>
+      PostLookupPage(:final hasMore, :final coverageIssue) =>
         posts.isEmpty && !hasMore
-            ? CrossProfileResultStatus.noMatch
+            ? coverageIssue == null
+                  ? CrossProfileResultStatus.noMatch
+                  : CrossProfileResultStatus.incomplete
             : CrossProfileResultStatus.success,
+      PixivArtworkMatch() => CrossProfileResultStatus.success,
       PostLookupUnavailable(reason: PostLookupUnavailableReason.missingHash) =>
         CrossProfileResultStatus.missingHash,
       _ => CrossProfileResultStatus.error,
@@ -203,7 +233,9 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
         matchKind: method,
         posts: posts,
         hasMore: result is PostLookupPage && result.hasMore,
+        coverageIssue: result is PostLookupPage ? result.coverageIssue : null,
         scores: scores,
+        artwork: result is PixivArtworkMatch ? result : null,
       );
       if (result is PostLookupPage) _pages[section] = result.page;
     });
@@ -226,6 +258,39 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
     );
   }
 
+  void _openArtwork(_Section section, PixivArtworkMatch artwork) {
+    if (!_available(section) ||
+        ModalRoute.of(context)?.isCurrent == false ||
+        _rows[section]?.artwork != artwork) {
+      return;
+    }
+    final profile = section.$1.profile;
+    final access = ref.read(contentAccessContextProvider(artwork.access));
+    if (access == null || access.config != profile) return;
+    final source = ViewerSourceBinding(profile);
+    final entry = switch (artwork.entry) {
+      GroupContentEntry(:final summary) => GroupViewerEntry(
+        summary: summary,
+        occurrenceId: summary.reference.identity,
+        source: source,
+      ),
+      PostContentEntry(:final post, :final reference) => PostViewerEntry(
+        post: post,
+        occurrenceId: reference.identity,
+        source: source,
+      ),
+    };
+    goToPostDetailsPageCore<Post>(
+      ref: ref,
+      posts: entry is PostViewerEntry ? [entry.post] : const [],
+      entries: [entry],
+      initialIndex: 0,
+      initialThumbnailUrl: null,
+      hero: false,
+      config: profile,
+    );
+  }
+
   void _invalidate() {
     _invalidated.addAll(
       _sections.where(
@@ -237,6 +302,10 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
   @override
   Widget build(BuildContext context) {
     final request = widget.request;
+    final nativePixiv = request.nativePixiv;
+    if (nativePixiv != null) {
+      ref.watch(nativePixivLookupSessionProvider(nativePixiv));
+    }
     if (request.source case final source?) {
       ref.watch(crossProfileLookupSessionProvider(source));
     }
@@ -247,9 +316,13 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
       }
       _invalidate();
     });
-    if (request.access case final access?) {
-      final provider = contentAccessContextProvider(access.key);
-      ref.watch(provider);
+    final access = request.access;
+    final provider = access == null
+        ? null
+        : contentAccessContextProvider(access.key);
+    final sourceAvailable =
+        provider == null || identical(ref.watch(provider), access);
+    if (provider != null) {
       ref.listen(provider, (_, _) => _invalidate());
     }
     ref.watch(lookupPreferencesProvider);
@@ -259,16 +332,25 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
           (section) => _available(section, requirePermission: false),
         )
         .toList();
+    final t = context.t.post.cross_profile;
     return Scaffold(
-      appBar: KurumiAppBar(title: Text(context.t.post.cross_profile.action)),
+      appBar: KurumiAppBar(
+        title: Text(nativePixiv == null ? t.action : t.shared_pixiv_title),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             if (request.source case final source?)
               Text('#${source.sitePostId ?? source.id}'),
+            if (nativePixiv != null)
+              Text(t.pixiv_artwork(id: nativePixiv.artwork.id)),
             if (sections.isEmpty)
-              Text(context.t.post.cross_profile.no_profiles),
+              Text(
+                nativePixiv != null && !sourceAvailable
+                    ? context.t.navigation.unavailable_profile
+                    : t.no_profiles,
+              ),
             for (final target in request.targets)
               if (profiles.contains(target.profile) &&
                   sections.any((section) => section.$1 == target)) ...[
@@ -293,16 +375,24 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
     final visibility = ref.watch(blacklistTagsProvider(target.profile.filter));
     final tags = visibility.isLoading ? null : visibility.asData?.value;
     final row = _rows[section];
+    final artwork = row?.artwork;
+    final access = artwork == null
+        ? null
+        : ref.watch(contentAccessContextProvider(artwork.access));
+    final available = _available(section);
     return CrossProfileResultSection(
       key: ValueKey((target.profile.id, method)),
       showMethod: true,
       result: CrossProfileResult(
         profile: target.profile,
-        status: _available(section)
-            ? row?.status ?? CrossProfileResultStatus.loading
-            : CrossProfileResultStatus.permissionRequired,
+        status: !available
+            ? CrossProfileResultStatus.permissionRequired
+            : artwork != null && access == null
+            ? CrossProfileResultStatus.error
+            : row?.status ?? CrossProfileResultStatus.loading,
         matchKind: method,
-        posts: tags == null || !_available(section)
+        artwork: available && access != null ? artwork : null,
+        posts: tags == null || !available
             ? []
             : [
                 for (final post in row?.posts ?? <Post>[])
@@ -310,11 +400,15 @@ class _SelectedLookupPageState extends ConsumerState<SelectedLookupPage> {
                     post,
               ],
         hasMore: row?.hasMore,
+        coverageIssue: row?.coverageIssue,
         scores: row?.scores ?? {},
       ),
       onSelect: () => unawaited(_load(section)),
       onMore: () => unawaited(_load(section, more: true)),
       onOpen: (post) => unawaited(_open(section, post)),
+      onOpenArtwork: artwork == null
+          ? null
+          : () => _openArtwork(section, artwork),
     );
   }
 }

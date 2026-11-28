@@ -6,6 +6,8 @@ import '../../blacklists/providers.dart';
 import '../../boorus/booru/types.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
+import '../../content/content_access.dart';
+import '../../content/content_access_provider.dart';
 import '../post/providers.dart';
 import '../post/types.dart';
 import '../sources/types.dart';
@@ -14,6 +16,7 @@ import 'data.dart';
 import 'types.dart';
 import 'pixiv_original_hashes_provider.dart';
 import 'src/data/pixiv_lookup_capabilities.dart';
+import 'src/data/pixiv_original_hashes.dart';
 import 'src/data/shared_pixiv_lookup_session.dart';
 
 import 'src/data/post_lookup_visibility.dart';
@@ -285,27 +288,52 @@ bool supportsSharedPixivLookup(BooruConfig profile) =>
 final sharedPixivLookupSessionProvider = Provider.autoDispose
     .family<SharedPixivLookupSession, PixivArtworkReference>((ref, artwork) {
       final resolver = ref.watch(pixivOriginalHashResolverProvider(artwork));
-      var disposed = false;
-      ref.onDispose(() => disposed = true);
-      void validate(BooruConfig target) {
-        if (disposed || !ref.read(booruConfigProvider).contains(target)) {
-          throw StateError('Target profile changed');
-        }
-      }
+      return _sharedPixivLookupSession(ref, artwork, resolver);
+    });
 
-      return SharedPixivLookupSession(
-        artwork: artwork,
-        resolveHashes: resolver.resolve,
-        lookup: (target) {
-          validate(target);
-          return ref.read(sourcePostLookupProvider(target).future);
-        },
-        exactLookup: (target) {
-          validate(target);
-          return ref.read(exactPostLookupProvider(target).future);
-        },
+final nativePixivLookupSessionProvider = Provider.autoDispose
+    .family<SharedPixivLookupSession, NativePixivLookupRequest>((ref, request) {
+      final resolver = ref.watch(
+        nativePixivOriginalHashResolverProvider(request),
+      );
+      return _sharedPixivLookupSession(
+        ref,
+        request.artwork,
+        resolver,
+        sourceAccess: request.sourceAccess,
       );
     });
+
+SharedPixivLookupSession _sharedPixivLookupSession(
+  Ref ref,
+  PixivArtworkReference artwork,
+  PixivOriginalHashResolver resolver, {
+  ContentAccessKey? sourceAccess,
+}) {
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
+  void validate(BooruConfig target) {
+    if (disposed ||
+        (sourceAccess != null &&
+            ref.read(contentAccessContextProvider(sourceAccess)) == null) ||
+        !ref.read(booruConfigProvider).contains(target)) {
+      throw StateError('Lookup profile changed');
+    }
+  }
+
+  return SharedPixivLookupSession(
+    artwork: artwork,
+    resolveHashes: resolver.resolve,
+    lookup: (target) {
+      validate(target);
+      return ref.read(sourcePostLookupProvider(target).future);
+    },
+    exactLookup: (target) {
+      validate(target);
+      return ref.read(exactPostLookupProvider(target).future);
+    },
+  );
+}
 
 typedef LocalFileHashLookup = Future<PostLookupResult> Function(
   BooruConfig target,

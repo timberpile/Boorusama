@@ -6,6 +6,8 @@ import '../../blacklists/providers.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
+import '../../configs/manage/widgets.dart';
+import '../../content/content_entry.dart';
 import '../../images/booru_image.dart';
 import '../details/routes.dart';
 import '../details/src/types/viewer_entry.dart';
@@ -39,6 +41,7 @@ class CrossProfileResult {
     this.coverageIssue,
     this.hasMore,
     this.scores = const {},
+    this.artwork,
   });
 
   final BooruConfig profile;
@@ -49,6 +52,7 @@ class CrossProfileResult {
   final PixivLookupCoverageIssue? coverageIssue;
   final bool? hasMore;
   final Map<int, double> scores;
+  final PixivArtworkMatch? artwork;
   bool get canLoadMore => hasMore ?? !complete;
 }
 
@@ -204,6 +208,7 @@ class CrossProfileResultSection extends StatelessWidget {
     required this.onOpen,
     required this.onMore,
     this.showMethod = false,
+    this.onOpenArtwork,
     super.key,
   });
   final bool showMethod;
@@ -211,6 +216,7 @@ class CrossProfileResultSection extends StatelessWidget {
   final VoidCallback onSelect;
   final ValueChanged<Post> onOpen;
   final VoidCallback onMore;
+  final VoidCallback? onOpenArtwork;
 
   @override
   Widget build(BuildContext context) {
@@ -282,6 +288,12 @@ class CrossProfileResultSection extends StatelessWidget {
                 kindLabel,
                 style: Theme.of(context).textTheme.labelLarge,
               ),
+            ),
+          if (result.artwork case final artwork?)
+            _PixivArtworkTile(
+              target: result.profile,
+              artwork: artwork,
+              onTap: onOpenArtwork,
             ),
           if (result.posts.isNotEmpty)
             GridView.builder(
@@ -376,4 +388,55 @@ class _ProfileIcon extends StatelessWidget {
       customIconUrl: profile.profileIcon?.url,
     ),
   );
+}
+
+class _PixivArtworkTile extends StatelessWidget {
+  const _PixivArtworkTile({
+    required this.target,
+    required this.artwork,
+    required this.onTap,
+  });
+
+  final BooruConfig target;
+  final PixivArtworkMatch artwork;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (id, title, thumbnail) = switch (artwork.entry) {
+      GroupContentEntry(:final summary) => (
+        summary.reference.sourceKey.split(':').last,
+        summary.title,
+        summary.cover?.thumbnail.toString(),
+      ),
+      PostContentEntry(:final post, :final title) => (
+        post.sitePostId ?? post.id.toString(),
+        title,
+        post.thumbnailImageUrl,
+      ),
+    };
+    return CurrentBooruConfigScope(
+      config: target,
+      accessKey: artwork.access,
+      requireAccess: true,
+      unavailable: const SizedBox.shrink(),
+      child: ListTile(
+        key: ValueKey(('pixiv-match', target.id, id)),
+        title: Text(
+          title ?? context.t.post.cross_profile.pixiv_artwork(id: id),
+        ),
+        leading: thumbnail == null || thumbnail.isEmpty
+            ? const Icon(Icons.image_outlined)
+            : SizedBox.square(
+                dimension: 48,
+                child: BooruImage(
+                  config: target.auth,
+                  imageUrl: thumbnail,
+                  fit: BoxFit.cover,
+                ),
+              ),
+        onTap: onTap,
+      ),
+    );
+  }
 }

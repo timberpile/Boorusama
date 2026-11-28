@@ -5,10 +5,13 @@ import 'package:foundation/foundation.dart';
 
 import '../../../boorus/pixiv/client_provider.dart';
 import '../../../boorus/pixiv/posts/parser.dart';
+import '../../../boorus/pixiv/posts/types.dart';
 import '../../blacklists/providers.dart';
 import '../../boorus/booru/types.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
+import '../../content/content_access.dart';
+import '../../content/content_access_provider.dart';
 import '../../proxy/client.dart';
 import '../../proxy/types.dart';
 import 'src/data/post_lookup_visibility.dart';
@@ -59,58 +62,93 @@ final pixivOriginalHashResolverProvider = Provider.autoDispose
     .family<PixivOriginalHashResolver, PixivArtworkReference>((ref, artwork) {
       final source = ref
           .watch(pixivLookupSourceProfilesProvider)
-          .where(
-            (profile) => profile.auth.apiKey?.trim().isNotEmpty ?? false,
-          )
+          .where((profile) => profile.auth.apiKey?.trim().isNotEmpty ?? false)
           .firstOrNull;
-      var disposed = false;
-      bool current() =>
-          !disposed &&
-          (source == null || ref.read(booruConfigProvider).contains(source));
-      final resolver = PixivOriginalHashResolver(
-        artworkId: artwork.id,
-        isSourceCurrent: current,
-        loadArtwork: source == null
-            ? null
-            : () async {
-                if (!current()) return null;
-                final blocked = await ref.read(
-                  blacklistTagsProvider(source.filter).future,
-                );
-                if (!current()) return null;
-                final client = ref.read(pixivClientProvider(source.auth));
-                final dto = await client.getIllustDetail(
-                  illustId: int.parse(artwork.id),
-                );
-                if (!current() || dto == null || (dto.pageCount ?? 0) > 20) {
-                  return null;
-                }
-                if (dto.visible == false || (dto.isMuted ?? false)) {
-                  throw const PixivOriginalAccessDenied();
-                }
-                final posts = illustDtoToPosts(dto);
-                if (!current() || posts.isEmpty) {
-                  return null;
-                }
-                if (posts.any(
-                  (post) => !isExactLookupPostVisible(post, source, blocked),
-                )) {
-                  throw const PixivOriginalAccessDenied();
-                }
-                return dto;
-              },
-        hashOriginal: (uri, maxBytes, consume, cancellation) {
-          if (source == null || !current()) {
-            throw StateError('Pixiv source changed');
-          }
-          return ref
-              .read(_mediaHasherProvider(source.auth.proxySettings))
-              .hash(uri, maxBytes, consume, cancellation);
-        },
-      );
-      ref.onDispose(() {
-        disposed = true;
-        resolver.dispose();
-      });
-      return resolver;
+      return _createHashResolver(ref, artwork, source: source);
     });
+
+final nativePixivOriginalHashResolverProvider = Provider.autoDispose
+    .family<PixivOriginalHashResolver, NativePixivLookupRequest>((
+      ref,
+      request,
+    ) {
+      final access = ref.watch(
+        contentAccessContextProvider(request.sourceAccess),
+      );
+      return _createHashResolver(
+        ref,
+        request.artwork,
+        source: access?.config,
+        access: access,
+        pageIndex: request.pageIndex,
+      );
+    });
+
+PixivOriginalHashResolver _createHashResolver(
+  Ref ref,
+  PixivArtworkReference artwork, {
+  required BooruConfig? source,
+  ContentAccessContext? access,
+  int? pageIndex,
+}) {
+  var disposed = false;
+  bool current() =>
+      !disposed &&
+      (source == null || ref.read(booruConfigProvider).contains(source)) &&
+      (access == null ||
+          identical(
+            ref.read(contentAccessContextProvider(access.key)),
+            access,
+          ));
+
+  final resolver = PixivOriginalHashResolver(
+    artworkId: artwork.id,
+    pageIndex: pageIndex,
+    isSourceCurrent: current,
+    loadArtwork: source?.auth.apiKey?.trim().isNotEmpty != true
+        ? null
+        : () async {
+            final profile = source!;
+            if (!current()) return null;
+            final blocked = await ref.read(
+              blacklistTagsProvider(profile.filter).future,
+            );
+            final artworkId = int.tryParse(artwork.id);
+            if (!current() || artworkId == null) return null;
+            final client = ref.read(pixivClientProvider(profile.auth));
+            final dto = await client.getIllustDetail(illustId: artworkId);
+            if (!current() ||
+                dto == null ||
+                dto.id != artworkId ||
+                (pageIndex == null && (dto.pageCount ?? 0) > 20)) {
+              return null;
+            }
+            if (dto.visible == false || (dto.isMuted ?? false)) {
+              throw const PixivOriginalAccessDenied();
+            }
+            final posts = illustDtoToPosts(dto, onlyPage: pageIndex);
+            if (!current() || posts.isEmpty) return null;
+            if (posts.any(
+              (post) =>
+                  !isExactLookupPostVisible(post, profile, blocked) ||
+                  (pageIndex != null && post.isRestricted),
+            )) {
+              throw const PixivOriginalAccessDenied();
+            }
+            return dto;
+          },
+    hashOriginal: (uri, maxBytes, consume, cancellation) {
+      if (source == null || !current()) {
+        throw StateError('Pixiv source changed');
+      }
+      return ref
+          .read(_mediaHasherProvider(source.auth.proxySettings))
+          .hash(uri, maxBytes, consume, cancellation);
+    },
+  );
+  ref.onDispose(() {
+    disposed = true;
+    resolver.dispose();
+  });
+  return resolver;
+}

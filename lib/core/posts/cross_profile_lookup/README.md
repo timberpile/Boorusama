@@ -91,6 +91,23 @@ initial/warm deliveries while that artwork's page remains open. No Pixiv account
 source-post refresh, synthetic post or active-profile switch is required for
 source matching.
 
+## Pixiv source lookup from posts (#123)
+
+A booru post with a recognized Pixiv source can select a signed-in Pixiv
+profile using **Pixiv Artwork ID**. The selected profile looks up the artwork
+by ID, checks its visibility, and shows one native Work or Ugoira result.
+Opening that result uses the selected profile's viewer scope.
+
+A native Pixiv Page, Ugoira or Work opens **Matching Profiles** with the
+compatible accounts and search modes for its artwork ID. **Pixiv Artwork ID**
+uses the verified artwork source queries below. **Exact MD5** uses originals
+from the originating profile for still images. Each selected mode searches
+independently after confirmation, without saving changes to the global matching
+preferences. Page lookups hash only the selected Page.
+Work lookups hash the entire artwork within the existing limits. Removing the
+originating profile or changing its authorization invalidates native lookup
+results. Shared Android artwork links retain the automatic search below.
+
 ## Shared Pixiv artwork lookup (#54)
 
 | Target | Artwork-specific source query | Exact-file fallback |

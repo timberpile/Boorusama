@@ -1,4 +1,6 @@
 // Project imports:
+import '../../../../content/content_access.dart';
+import '../../../../content/content_entry.dart';
 import '../../../post/types.dart';
 
 enum PostLookupMatchKind { exactFile, pixivSource, sourceUrl, similarImage }
@@ -40,6 +42,17 @@ final class PostLookupPage extends PostLookupResult {
   /// A single item on an incomplete or later page is not a unique result.
   bool get canOpenDirectly =>
       page == 1 && posts.length == 1 && !hasMore && coverageIssue == null;
+}
+
+/// One native artwork, shown as a Work or an animated Post.
+final class PixivArtworkMatch extends PostLookupResult {
+  const PixivArtworkMatch({
+    required this.entry,
+    required this.access,
+  });
+
+  final ContentEntry entry;
+  final ContentAccessKey access;
 }
 
 enum PostLookupUnavailableReason {

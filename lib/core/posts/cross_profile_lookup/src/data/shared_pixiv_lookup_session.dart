@@ -17,8 +17,8 @@ final class _TargetCursor {
   final seen = <int>{};
 }
 
-/// Source candidates precede optional original-byte matching. Cursors preserve
-/// each query's continuation separately from the results UI's page number.
+/// Automatic artwork search checks source candidates before matching original
+/// bytes. Explicit methods have independent cursors and share the hash cache.
 class SharedPixivLookupSession {
   SharedPixivLookupSession({
     required this.artwork,
@@ -30,29 +30,35 @@ class SharedPixivLookupSession {
   final Future<SourcePostLookup> Function(BooruConfig) lookup;
   final Future<ExactPostLookup> Function(BooruConfig)? exactLookup;
   final Future<PixivOriginalHashes> Function()? resolveHashes;
-  final _cursors = <String, _TargetCursor>{};
+  final _cursors = <(String, PostLookupMatchKind?), _TargetCursor>{};
   Future<PixivOriginalHashes>? _hashes;
 
   Future<PostLookupResult> find(
     BooruConfig target, {
     int page = 1,
     required PostLookupCancellation cancellation,
+    PostLookupMatchKind? method,
   }) async {
     if (page < 1) throw ArgumentError.value(page, 'page', 'Must be positive');
     if (cancellation.isCancelled) return const PostLookupCancelled();
     final origin = postOriginFromConfig(target);
-    if (!supportsSharedPixivOrigin(origin)) {
+    final queries = pixivSourceQueries(origin, artwork.id);
+    if (!supportsSharedPixivOrigin(origin) ||
+        (method == PostLookupMatchKind.pixivSource && queries.isEmpty) ||
+        (method != null &&
+            method != PostLookupMatchKind.pixivSource &&
+            method != PostLookupMatchKind.exactFile)) {
       return const PostLookupUnavailable(
         PostLookupUnavailableReason.unsupported,
       );
     }
-    if (page == 1) _cursors[target.id] = _TargetCursor();
-    final cursor = _cursors[target.id];
+    final key = (target.id, method);
+    if (page == 1) _cursors[key] = _TargetCursor();
+    final cursor = _cursors[key];
     if (cursor == null || cursor.nextPage != page) {
       return const PostLookupInvalidResponse();
     }
-    bool cancelled() =>
-        cancellation.isCancelled || _cursors[target.id] != cursor;
+    bool cancelled() => cancellation.isCancelled || _cursors[key] != cursor;
     PostLookupPage wrap(
       PostLookupPage result,
       bool hasMore, {
@@ -79,8 +85,8 @@ class SharedPixivLookupSession {
       matchKind: kind,
     );
     try {
-      final queries = pixivSourceQueries(origin, artwork.id);
-      while (cursor.sourceVariant < queries.length) {
+      while (method != PostLookupMatchKind.exactFile &&
+          cursor.sourceVariant < queries.length) {
         final service = await lookup(target);
         if (cancelled()) return const PostLookupCancelled();
         final result = await service.findArtwork(
@@ -103,7 +109,7 @@ class SharedPixivLookupSession {
           return wrap(result, cursor.sourceVariant < queries.length);
         }
       }
-      if (cursor.sourceMatched) {
+      if (cursor.sourceMatched || method == PostLookupMatchKind.pixivSource) {
         return wrap(empty(PostLookupMatchKind.pixivSource), false);
       }
       final resolve = resolveHashes;

@@ -7,6 +7,7 @@ import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/posts/cross_profile_lookup/pixiv_original_hashes_provider.dart';
 import 'package:boorusama/core/posts/cross_profile_lookup/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,60 @@ class _Client extends Fake implements PixivClient {
 }
 
 void main() {
+  test(
+    'a Page above the whole-Work cap uses its originating account',
+    () async {
+      final source = config(
+        'https://pixiv.net',
+        type: BooruType.pixiv,
+      ).copyWith(apiKey: 'fixture-origin-refresh-token');
+      final other = config(
+        'https://pixiv.net',
+        type: BooruType.pixiv,
+        id: '00000000-0000-4000-8000-000000000005',
+      ).copyWith(apiKey: 'fixture-alternate-refresh-token');
+      final client = _Client(
+        const PixivIllustDto(
+          id: 141607376,
+          type: 'illust',
+          visible: false,
+          pageCount: 24,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          booruConfigProvider.overrideWith(() => Profiles([other, source])),
+          blacklistTagsProvider.overrideWith((_, _) => <String>{}),
+          pixivClientProvider.overrideWith((_, auth) {
+            expect(auth, source.auth);
+            return client;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      final policy = container.listen(
+        blacklistTagsProvider(source.filter),
+        (_, _) {},
+      );
+      addTearDown(policy.close);
+      await container.read(blacklistTagsProvider(source.filter).future);
+      final access = container.read(contentProfileAccessProvider(source.id))!;
+      final artwork = PixivArtworkReference.fromId(141607376)!;
+      final resolverProvider = nativePixivOriginalHashResolverProvider((
+        artwork: artwork,
+        sourceAccess: access.key,
+        pageIndex: 21,
+      ));
+      final resolver = container.listen(resolverProvider, (_, _) {});
+      addTearDown(resolver.close);
+
+      final result = await container.read(resolverProvider).resolve();
+      expect(result.issue, PixivLookupCoverageIssue.restricted);
+      expect(result.hashes, isEmpty);
+      expect(client.calls, 1);
+    },
+  );
+
   test(
     'pending blacklist data stays alive until source metadata is read',
     () async {

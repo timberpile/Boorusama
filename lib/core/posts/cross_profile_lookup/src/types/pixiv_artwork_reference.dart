@@ -4,6 +4,9 @@ import 'source_reference.dart';
 final class PixivArtworkReference {
   const PixivArtworkReference._(this.id);
 
+  static PixivArtworkReference? fromId(int id) =>
+      id > 0 ? PixivArtworkReference._(id.toString()) : null;
+
   final String id;
   String get url => 'https://www.pixiv.net/artworks/$id';
 

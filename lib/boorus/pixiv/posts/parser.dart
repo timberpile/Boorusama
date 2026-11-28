@@ -27,10 +27,11 @@ const _kPlaceholderBasenames = <String>{
 ///
 /// Returns an empty list when the illust is missing an id/author, is hidden
 /// (`visible == false` or `is_muted == true`), or has no resolvable original
-/// image URL.
+/// image URL. [onlyPage] restricts the conversion to an original page index.
 List<Post> illustDtoToPosts(
   PixivIllustDto dto, {
   PostMetadata? metadata,
+  int? onlyPage,
 }) {
   final illustId = dto.id;
   final userId = dto.user?.id;
@@ -46,6 +47,12 @@ List<Post> illustDtoToPosts(
   final originals = isMultiPage
       ? [for (final page in dto.metaPages) page.imageUrls?.original]
       : [dto.metaSinglePage?.originalImageUrl];
+  if (onlyPage != null && (onlyPage < 0 || onlyPage >= originals.length)) {
+    return const [];
+  }
+  final pages = onlyPage == null
+      ? originals.indexed
+      : [(onlyPage, originals[onlyPage])];
   final pageCount = switch (dto.pageCount) {
     final count? when count > 0 => count,
     _ => originals.length,
@@ -61,7 +68,7 @@ List<Post> illustDtoToPosts(
   final userAccount = dto.user?.account ?? '';
 
   return [
-    for (final (index, original) in originals.indexed)
+    for (final (index, original) in pages)
       if (original != null && _isUsableOriginal(original))
         _toPost(
           dto: dto,

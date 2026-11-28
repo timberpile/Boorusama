@@ -26,6 +26,8 @@ Future<List<LookupTarget>?> selectLookupTargets(
   bool settings = false,
   bool enriching = false,
   bool useSourceDefaults = false,
+  PostLookupMatchKind? preferredMethod,
+  bool rememberChoices = true,
 }) async {
   final profiles = container.read(orderedProfileConfigsProvider);
   final preferences = container.read(lookupPreferencesProvider);
@@ -79,14 +81,27 @@ Future<List<LookupTarget>?> selectLookupTargets(
   }
 
   Set<PostLookupMatchKind> defaultsFor(Set<PostLookupMatchKind> available) {
+    if (preferredMethod != null && available.contains(preferredMethod)) {
+      return {preferredMethod};
+    }
     if (available.contains(PostLookupMatchKind.exactFile)) {
       return {PostLookupMatchKind.exactFile};
     }
     return available.difference({PostLookupMatchKind.similarImage});
   }
 
-  if (preferences.profiles == null && useSourceDefaults) {
+  if (preferences.profiles == null) {
     for (final entry in methodsByProfile.entries) {
+      if (preferredMethod != null) {
+        choices[entry.key.id] = (
+          endpoint: lookupEndpoint(entry.key),
+          methods: defaultsFor(entry.value),
+        );
+        continue;
+      }
+      if (!useSourceDefaults && !supportsPixivArtworkTarget(entry.key)) {
+        continue;
+      }
       final defaults = entry.value.difference({
         PostLookupMatchKind.exactFile,
         PostLookupMatchKind.similarImage,
@@ -122,9 +137,9 @@ Future<List<LookupTarget>?> selectLookupTargets(
       builder: (context, setState) {
         final t = context.t.post.cross_profile;
         final targets = selectedTargets();
-        final all = selectableMethods.values
-            .where((set) => set.isNotEmpty)
-            .length;
+        final hasUnselectedMethods = selectableMethods.entries.any(
+          (entry) => !methodsFor(entry.key).containsAll(entry.value),
+        );
         return FractionallySizedBox(
           heightFactor: 0.85,
           child: Padding(
@@ -141,26 +156,18 @@ Future<List<LookupTarget>?> selectLookupTargets(
                 Wrap(
                   children: [
                     TextButton(
-                      onPressed: all == 0 || targets.length == all
-                          ? null
-                          : () => setState(() {
+                      onPressed: hasUnselectedMethods
+                          ? () => setState(() {
                               for (final entry in selectableMethods.entries) {
-                                if (entry.value.isEmpty) continue;
                                 final current = methodsFor(entry.key);
-                                if (current
-                                    .intersection(entry.value)
-                                    .isNotEmpty) {
-                                  continue;
-                                }
-                                final defaults = defaultsFor(entry.value);
+                                if (current.containsAll(entry.value)) continue;
                                 setMethods(entry.key, {
                                   ...current,
-                                  ...(defaults.isEmpty
-                                      ? entry.value
-                                      : defaults),
+                                  ...entry.value,
                                 });
                               }
-                            }),
+                            })
+                          : null,
                       child: Text(t.select_all_profiles),
                     ),
                     TextButton(
@@ -265,6 +272,7 @@ Future<List<LookupTarget>?> selectLookupTargets(
     ),
   );
   if (confirmed == null || !context.mounted) return null;
+  if (!rememberChoices) return selectedTargets();
   try {
     await container
         .read(lookupPreferencesProvider.notifier)

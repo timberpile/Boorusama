@@ -133,6 +133,55 @@ void main() {
           await harness.settle(tester);
           expectHidden();
           final workRoute = binding.currentRoute!;
+          if (!reduced && visit == 0) {
+            final workPager = tester
+                .widget<PostDetailsPageView>(
+                  find.byType(PostDetailsPageView).hitTestable(),
+                )
+                .controller!;
+            await harness.pumpUntilComplete(
+              tester,
+              workPager.expandToSnapPoint(),
+            );
+            final more = find.byIcon(Icons.more_horiz).hitTestable();
+            await harness.pumpUntilFound(tester, more);
+            await tester.tap(more);
+            final lookup = find.text('Find on Other Profiles');
+            await harness.pumpUntilFound(tester, lookup);
+            await tester.ensureVisible(lookup);
+            await tester.tap(lookup.hitTestable());
+
+            await harness.pumpUntilFound(
+              tester,
+              find.text('Matching Profiles'),
+            );
+            await harness.settle(tester);
+            final artwork = find
+                .widgetWithText(FilterChip, 'Pixiv Artwork ID')
+                .hitTestable();
+            expect(artwork, findsOneWidget);
+            if (!tester.widget<FilterChip>(artwork).selected) {
+              await tester.tap(artwork);
+              await tester.pump();
+            }
+            await tester.tap(
+              find.widgetWithText(FilledButton, 'Search').hitTestable(),
+            );
+            await harness.pumpUntilFound(
+              tester,
+              find.text('Find Pixiv Artwork'),
+            );
+            await harness.settle(tester);
+            await tester.pageBack();
+            await harness.pumpUntil(
+              tester,
+              () => binding.currentRoute == workRoute,
+            );
+            await harness.settle(tester);
+            expect(find.text('Matching Profiles'), findsNothing);
+            expect(find.text('Find Pixiv Artwork'), findsNothing);
+            expectHidden();
+          }
           binding.currentNavigator!.pop();
           await tester.pump();
           // Sample the real reverse transition on the controlled widget clock.

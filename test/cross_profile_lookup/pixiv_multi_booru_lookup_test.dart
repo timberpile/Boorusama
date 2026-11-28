@@ -275,6 +275,77 @@ void main() {
   );
 
   test(
+    'selected artwork and exact modes keep independent queries and cursors',
+    () async {
+      final target = _targets.first;
+      var hasSourceMatch = false;
+      var resolutions = 0;
+      final sources = _Repository(
+        (_, page) => _page(
+          hasSourceMatch && page == 1
+              ? [
+                  post(
+                    target,
+                    sourceUrl: 'https://www.pixiv.net/artworks/12345',
+                  ),
+                ]
+              : [],
+          more: hasSourceMatch && page == 1,
+        ),
+      );
+      final exact = _Repository(
+        (_, page) => _page([post(target, id: 42 + page)], more: page == 1),
+      );
+      final session = SharedPixivLookupSession(
+        artwork: _artwork,
+        lookup: (_) async => _source(target, sources),
+        exactLookup: (_) async => _exact(target, exact),
+        resolveHashes: () async {
+          resolutions++;
+          return const PixivOriginalHashes([hash]);
+        },
+      );
+      Future<PostLookupPage> find(PostLookupMatchKind method, int page) async =>
+          await session.find(
+            target,
+            method: method,
+            page: page,
+            cancellation: PostLookupCancellation(),
+          ) as PostLookupPage;
+
+      final empty = await find(PostLookupMatchKind.pixivSource, 1);
+      expect(empty.matchKind, PostLookupMatchKind.pixivSource);
+      expect(empty.hasMore, isFalse);
+      expect(resolutions, 0);
+      expect(exact.calls, isEmpty);
+
+      hasSourceMatch = true;
+      const methods = [
+        PostLookupMatchKind.pixivSource,
+        PostLookupMatchKind.exactFile,
+      ];
+      for (final page in [1, 2]) {
+        final results = await Future.wait(
+          methods.map((method) => find(method, page)),
+        );
+        expect(results.map((result) => result.matchKind), methods);
+        expect(results.map((result) => result.page), everyElement(page));
+        expect(
+          results.map((result) => result.hasMore),
+          everyElement(page == 1),
+        );
+      }
+      expect(sources.calls, [
+        ('pixiv_id:12345', 1),
+        ('pixiv_id:12345', 1),
+        ('pixiv_id:12345', 2),
+      ]);
+      expect(exact.calls, [('md5:$hash', 1), ('md5:$hash', 2)]);
+      expect(resolutions, 1);
+    },
+  );
+
+  test(
     'multi-page original digests retain independent remote pagination',
     () async {
       final target = _targets.last;
