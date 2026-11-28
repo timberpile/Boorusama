@@ -16,7 +16,7 @@ final blacklistTagsRefRepoProvider =
     Provider.family<BlacklistTagRefRepository, BooruConfigAuth>(
       (ref, config) {
         if (config.anonymousReadScope != null) {
-          return EmptyBooruSpecificBlacklistTagRefRepository(ref);
+          return const EmptyBooruSpecificBlacklistTagRefRepository();
         }
         final repo = ref
             .watch(booruEngineRegistryProvider)
@@ -28,7 +28,7 @@ final blacklistTagsRefRepoProvider =
           return blacklistTagRefRepo;
         }
 
-        return EmptyBooruSpecificBlacklistTagRefRepository(ref);
+        return const EmptyBooruSpecificBlacklistTagRefRepository();
       },
     );
 
@@ -50,7 +50,8 @@ class BlacklistedTagsNotifier
   @override
   FutureOr<BlacklistedTagsState> build(BooruConfigFilter arg) async {
     final repo = ref.watch(blacklistTagsRefRepoProvider(arg.auth));
-    final booruSpecificBlacklistedTags = await repo.getBlacklistedTags(
+    final booruSpecificBlacklistedTags = repo.getBlacklistedTags(
+      ref,
       arg.auth,
     );
 
@@ -137,13 +138,10 @@ final blacklistTagsProvider = FutureProvider.autoDispose
 
 class EmptyBooruSpecificBlacklistTagRefRepository
     implements BlacklistTagRefRepository {
-  EmptyBooruSpecificBlacklistTagRefRepository(this.ref);
+  const EmptyBooruSpecificBlacklistTagRefRepository();
 
   @override
-  final Ref ref;
-
-  @override
-  Future<Set<String>> getBlacklistedTags(BooruConfigAuth config) async {
+  Set<String> getBlacklistedTags(Ref ref, BooruConfigAuth config) {
     return {};
   }
 }

@@ -15,7 +15,5 @@ abstract class GlobalBlacklistedTagRepository {
 }
 
 abstract class BlacklistTagRefRepository {
-  Ref get ref;
-
-  Future<Set<String>> getBlacklistedTags(BooruConfigAuth config);
+  Set<String> getBlacklistedTags(Ref ref, BooruConfigAuth config);
 }

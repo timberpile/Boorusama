@@ -61,7 +61,7 @@ abstract class BooruRepositoryDefault implements BooruRepository {
 
   @override
   BlacklistTagRefRepository blacklistTagRef(BooruConfigAuth config) {
-    return EmptyBooruSpecificBlacklistTagRefRepository(ref);
+    return const EmptyBooruSpecificBlacklistTagRefRepository();
   }
 
   @override

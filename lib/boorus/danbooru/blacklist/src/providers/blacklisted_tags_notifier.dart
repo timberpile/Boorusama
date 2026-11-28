@@ -126,17 +126,10 @@ class BlacklistedTagsNotifier
 }
 
 class DanbooruBlacklistTagRepository implements BlacklistTagRefRepository {
-  DanbooruBlacklistTagRepository(
-    this.ref,
-    this.config,
-  );
+  const DanbooruBlacklistTagRepository();
 
   @override
-  final Ref ref;
-  final BooruConfigAuth config;
-
-  @override
-  Future<Set<String>> getBlacklistedTags(BooruConfigAuth config) async {
+  Set<String> getBlacklistedTags(Ref ref, BooruConfigAuth config) {
     // Server preferences enrich local filtering; they are not permission to
     // read an already cached image. Never hold the local library behind a
     // pending/failed current-user request. Watching the AsyncValue still updates

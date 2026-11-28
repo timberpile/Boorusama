@@ -176,10 +176,7 @@ class DanbooruRepository extends BooruRepositoryDefault
 
   @override
   BlacklistTagRefRepository blacklistTagRef(BooruConfigAuth config) {
-    return DanbooruBlacklistTagRepository(
-      ref,
-      config,
-    );
+    return const DanbooruBlacklistTagRepository();
   }
 
   @override

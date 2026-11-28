@@ -7,9 +7,11 @@ import 'package:boorusama/boorus/danbooru/danbooru.dart';
 import 'package:boorusama/boorus/danbooru/users/user/providers.dart';
 import 'package:boorusama/boorus/danbooru/users/user/src/types/user.dart';
 import 'package:boorusama/boorus/danbooru/users/user/src/types/user_level.dart';
+import 'package:boorusama/boorus/registry.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/manage/widgets.dart';
@@ -60,7 +62,7 @@ List<Override> _overrides(
   ),
   globalBlacklistedTagsProvider.overrideWith(_GlobalBlacklist.new),
   blacklistTagsRefRepoProvider.overrideWith(
-    (ref, auth) => danbooru_blacklist.DanbooruBlacklistTagRepository(ref, auth),
+    (ref, auth) => const danbooru_blacklist.DanbooruBlacklistTagRepository(),
   ),
   danbooruCurrentUserProvider.overrideWith((ref, auth) => user()),
   danbooruProvider.overrideWithValue(DanbooruParser().parse() as Danbooru),
@@ -168,6 +170,61 @@ void main() {
       await container.read(blacklistTagsProvider(profile.filter).future),
       {'global_rule', 'profile_rule', 'server_rule'},
     );
+  });
+
+  test('first Danbooru user response refreshes rules without rebuilding the engine', () async {
+    final profile = _profile();
+    final remote = Completer<UserSelf?>();
+    final components = createBooruRegistry();
+    final booru = components.parseFromConfig(BooruType.danbooru.yamlName);
+    final db = BooruDb(boorus: {BooruType.danbooru: booru});
+    final container = ProviderContainer(
+      overrides: [
+        booruEngineRegistryProvider.overrideWith(
+          (ref) => ref.watch(
+            booruInitEngineProvider((db: db, registry: components)),
+          ),
+        ),
+        danbooruProvider.overrideWithValue(booru as Danbooru),
+        globalBlacklistedTagsProvider.overrideWith(_GlobalBlacklist.new),
+        danbooruCurrentUserProvider.overrideWith((_, _) => remote.future),
+      ],
+    );
+    addTearDown(container.dispose);
+    final builder = container.listen(
+      booruBuilderProvider(profile.auth),
+      (_, _) {},
+    );
+    addTearDown(builder.close);
+    final registry = container.read(booruEngineRegistryProvider);
+    final firstBuilder = builder.read();
+    expect(firstBuilder, isNotNull);
+    final effectiveTags = blacklistTagsProvider(profile.filter);
+    final tags = container.listen(effectiveTags, (_, _) {});
+    addTearDown(tags.close);
+    expect(await container.read(effectiveTags.future), {
+      'global_rule',
+      'profile_rule',
+    });
+
+    remote.complete(
+      const UserSelf(
+        id: 1,
+        level: UserLevel.gold,
+        name: 'fixture',
+        blacklistedTags: {'server_rule'},
+      ),
+    );
+    await container.read(danbooruCurrentUserProvider(profile.auth).future);
+    await container.pump();
+
+    expect(await container.read(effectiveTags.future), {
+      'global_rule',
+      'profile_rule',
+      'server_rule',
+    });
+    expect(container.read(booruEngineRegistryProvider), same(registry));
+    expect(builder.read(), same(firstBuilder));
   });
 
   for (final failed in [false, true]) {
