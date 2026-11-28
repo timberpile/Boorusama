@@ -21,6 +21,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/scoped_bookmark_button.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/details_parts/src/toolbars/bookmark_post_button.dart';
@@ -196,6 +197,51 @@ void main() {
     await _unmount(tester);
   });
 
+  for (final (memberships, ignore, visible) in [
+    (1, true, 0),
+    (2, true, 1),
+    (1, false, 1),
+    (2, false, 2),
+  ]) {
+    testWidgets(
+      'single-image status counts $visible memberships with exclusion $ignore',
+      (tester) async {
+        await _pump(
+          tester,
+          scoped: true,
+          memberships: memberships,
+          ignoreSyncedGroup: ignore,
+        );
+        expect(
+          tester.widget<Icon>(find.byIcon(Symbols.bookmark)).fill,
+          visible > 0 ? 1 : 0,
+        );
+        final badge = tester.widget<Badge>(find.byType(Badge));
+        expect(badge.isLabelVisible, visible > 1);
+        expect((badge.label! as Text).data, '$visible');
+
+        await tester.tap(find.byTooltip('Bookmark image'));
+        await tester.pumpAndSettle();
+        final row = find.ancestor(
+          of: find.text('Saved'),
+          matching: find.byType(KurumiPopupMenuItem),
+        );
+        expect(
+          tester
+              .widget<Icon>(
+                find.descendant(
+                  of: row,
+                  matching: find.byIcon(Symbols.bookmarks),
+                ),
+              )
+              .fill,
+          1,
+        );
+        await _unmount(tester);
+      },
+    );
+  }
+
   testWidgets('Recent stays below the hierarchy and toggles a nested group', (
     tester,
   ) async {
@@ -370,6 +416,7 @@ Future<_Library> _pump(
   bool twoRecentGroups = false,
   bool manyGroups = false,
   bool modal = false,
+  bool scoped = false,
   bool ignoreSyncedGroup = false,
   int memberships = 1,
   double textScale = 1,
@@ -460,6 +507,15 @@ Future<_Library> _pump(
                         config: BooruConfig.empty.auth,
                         post: bookmark.toPost(),
                       ),
+                    )
+                  : scoped
+                  ? ScopedBookmarkButton(
+                      request: PostBookmarkPickerRequest(
+                        config: BooruConfig.empty.auth,
+                        post: bookmark.toPost(),
+                      ),
+                      scope: BookmarkTargetScope.member,
+                      label: 'Bookmark image',
                     )
                   : likeButton
                   ? BookmarkPostLikeButtonButton(post: bookmark.toPost())

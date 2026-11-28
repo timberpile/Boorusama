@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../navigation/destination_activity.dart';
 import '../data/bookmark_convert.dart';
+import '../providers/bookmark_button_state_provider.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_library_state.dart';
 import 'bookmark_group_picker.dart';
@@ -90,7 +91,12 @@ class ScopedBookmarkButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider);
-    final memberships = _memberships(library.valueOrNull);
+    final actualMemberships = _memberships(library.valueOrNull);
+    final memberships = request is PostBookmarkPickerRequest
+        ? actualMemberships.difference(
+            ref.watch(ignoredFavoritesBookmarkGroupsProvider),
+          )
+        : actualMemberships;
     Widget button(VoidCallback? show) => IconButton(
       tooltip: label,
       constraints: const BoxConstraints(minWidth: 48, minHeight: 48),

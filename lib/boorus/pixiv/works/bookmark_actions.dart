@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/bookmarks/providers.dart';
+import '../../../core/bookmarks/src/providers/bookmark_button_state_provider.dart';
 import '../../../core/bookmarks/src/widgets/scoped_bookmark_button.dart';
 import '../../../core/bookmarks/src/data/bookmark_convert.dart';
 import '../../../core/bookmarks/src/types/bookmark_library_state.dart';
@@ -233,8 +234,12 @@ class _PixivWorkBookmarkButtonState
     final enabled = !library.isLoading && _isCurrent(data, owner);
     final alternatives = !_isSinglePage(data);
     final page = _pageRequest(data, statusOnly: true);
+    final ignoredGroups = ref.watch(ignoredFavoritesBookmarkGroupsProvider);
     final pageSaved =
-        page != null && _memberships(library.valueOrNull, page).isNotEmpty;
+        page != null &&
+        _memberships(library.valueOrNull, page).any(
+          (id) => !ignoredGroups.contains(id),
+        );
     final status =
         '${context.t.content_viewer.bookmark_work}: '
         '${groups.isNotEmpty ? context.t.content_viewer.bookmark_saved : context.t.content_viewer.bookmark_unsaved}; '

@@ -22,13 +22,23 @@ class BookmarkButtonState extends Equatable {
   List<Object?> get props => [isLoading, presentation];
 }
 
+final ignoredFavoritesBookmarkGroupsProvider =
+    Provider.autoDispose<Set<String>>(
+      (ref) {
+        final settings = ref.watch(serverFavoriteSettingsProvider).valueOrNull;
+        return settings != null && settings.ignoreBookmarkStatus
+            ? settings.assignedGroupIds
+            : const {};
+      },
+      dependencies: [serverFavoriteSettingsProvider],
+    );
+
 final bookmarkButtonStateProvider = Provider.autoDispose
     .family<BookmarkButtonState, BookmarkUniqueId>(
       (ref, identity) {
         final asyncLibrary = ref.watch(bookmarkProvider);
         final library = asyncLibrary.valueOrNull;
         if (library == null) return const BookmarkButtonState(isLoading: true);
-        final favorites = ref.watch(serverFavoriteSettingsProvider).valueOrNull;
         return BookmarkButtonState(
           isLoading: asyncLibrary.isLoading,
           presentation: ref
@@ -36,15 +46,15 @@ final bookmarkButtonStateProvider = Provider.autoDispose
               .presentationFor(
                 library,
                 identity,
-                ignoredGroupIds: favorites?.ignoreBookmarkStatus ?? false
-                    ? favorites!.assignedGroupIds
-                    : const {},
+                ignoredGroupIds: ref.watch(
+                  ignoredFavoritesBookmarkGroupsProvider,
+                ),
               ),
         );
       },
       dependencies: [
         bookmarkProvider,
         bookmarkDetailsMutationProvider,
-        serverFavoriteSettingsProvider,
+        ignoredFavoritesBookmarkGroupsProvider,
       ],
     );
