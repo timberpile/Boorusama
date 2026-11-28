@@ -5,6 +5,7 @@ import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
 import 'support/group_view_driver.dart';
 
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/posts/related/related_posts_order.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
@@ -17,6 +18,7 @@ import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/pool_order_s
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/pools/widgets.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
+import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/details_pageview/widgets.dart';
@@ -144,6 +146,80 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Related order on a received record stays with the open viewer',
+    (tester) async {
+      late _SavedRelatedOrderNotifier notifier;
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        bookmarkNotifierFactory: (config) =>
+            notifier = _SavedRelatedOrderNotifier(
+              _savedRelatedState(
+                config: config,
+                firstOrder: RelatedPostsOrder.oldest,
+                secondOrder: RelatedPostsOrder.oldest,
+                withReceivedMembership: true,
+              ),
+            ),
+      );
+      final harness = setup.harness;
+      Navigator.of(tester.element(postTile(101).first)).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              const BookmarkGroupBrowserPage(groupId: _receivedRelatedGroupId),
+        ),
+      );
+      final card = find.byWidgetPredicate(
+        (widget) => widget is BookmarkPoolCard && widget.pool.referenceId == 10,
+      );
+      Future<void> openTimelineWithFirstPost(int id) async {
+        await harness.pumpUntilFound(tester, card);
+        tester.widget<BookmarkPoolCard>(card.first).onOpen!();
+        await showGroupTimeline(tester, harness, find.byType(RelatedGallery));
+        await harness.pumpUntil(
+          tester,
+          () => tester
+              .widgetList<PostGrid<Post>>(
+                find.descendant(
+                  of: find.byType(RelatedGallery),
+                  matching: find.byType(PostGrid<Post>),
+                ),
+              )
+              .any((grid) => grid.controller.items.firstOrNull?.id == id),
+        );
+      }
+
+      await openTimelineWithFirstPost(10);
+      await tester.ensureVisible(find.text('Oldest').last);
+      await tester.tap(find.text('Oldest').last);
+      await harness.settle(tester);
+      await tester.tap(find.text('Latest').last);
+      await harness.settle(tester);
+      expect(
+        tester
+            .widget<PostGrid<Post>>(
+              find
+                  .descendant(
+                    of: find.byType(RelatedGallery),
+                    matching: find.byType(PostGrid<Post>),
+                  )
+                  .last,
+            )
+            .controller
+            .items
+            .first
+            .id,
+        129,
+      );
+      expect(notifier.orderUpdates, isEmpty);
+      await tester.binding.handlePopRoute();
+      await openTimelineWithFirstPost(10);
+      await _drainNotifications(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'saved Related order survives reopening without changing global fallback',
@@ -3281,11 +3357,16 @@ _mount(
   );
 }
 
+const _receivedRelatedGroupId = '550e8400-e29b-41d4-a716-446655440004';
+
 BookmarkLibraryState _savedRelatedState({
   required BooruConfig config,
   required RelatedPostsOrder firstOrder,
   required RelatedPostsOrder secondOrder,
+  bool withReceivedMembership = false,
 }) {
+  const received = _receivedRelatedGroupId;
+  const publisher = '550e8400-e29b-41d4-a716-446655440009';
   final first = _nativeRelatedRecord(
     config: config,
     id: 901,
@@ -3306,8 +3387,24 @@ BookmarkLibraryState _savedRelatedState({
         name: 'Pool target',
         bookmarkIds: {first.id, second.id},
       ),
+      if (withReceivedMembership)
+        BookmarkGroup(id: received, name: 'Received', bookmarkIds: {first.id}),
     ],
     records: [first, second],
+    mirrors: withReceivedMembership
+        ? BookmarkMirrorState(
+            epoch: 1,
+            owners: {
+              received: BookmarkMirrorOwner(
+                publisher: publisher,
+                source: received,
+                revision: 1,
+                payloadDigest: 'a' * 64,
+                groupDigest: 'b' * 64,
+              ),
+            },
+          )
+        : const BookmarkMirrorState.empty(),
   );
 }
 

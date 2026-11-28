@@ -11,6 +11,7 @@ import '../../../../configs/config/types.dart';
 import '../../../../boorus/booru/types.dart';
 
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
+import '../../../../bookmarks/src/types/bookmark_mirror_state.dart';
 import '../../../../bookmarks/src/types/content_group_bookmark.dart';
 import '../../../../bookmarks/src/types/legacy_group_bookmark.dart';
 import '../../../../content/groups/group_capability.dart';
@@ -413,28 +414,9 @@ class GroupReadingController
       }
       attempt.phase = GroupSortPhase.persisting;
       _publish();
-      if (related) {
-        final library = ref.read(bookmarkProvider).valueOrNull;
-        final id = library?.idByContent[reference.identity];
-        final record = library?.byId[id];
-        if (id != null && record != null) {
-          final result = await ref
-              .read(bookmarkProvider.notifier)
-              .commitRelatedOrder(
-                id,
-                RelatedPostsOrder.values.byName(order),
-                reader: access.config,
-                expectedRecord: record,
-                callerCurrent: attempt.isCurrent,
-                callerCancellation: attempt.cancellation,
-              );
-          if (result == RelatedOrderCommitResult.stale) {
-            if (attempt.isCurrent()) {
-              throw StateError('Related bookmark changed');
-            }
-            return GroupOrderResult.unchanged;
-          }
-        }
+      if (related &&
+          !await _saveRelatedOrder(attempt, reference, order, access)) {
+        return GroupOrderResult.unchanged;
       }
       if (!await _waitForIdle(attempt, checkpoint, timeline)) {
         return GroupOrderResult.unchanged;
@@ -470,6 +452,45 @@ class GroupReadingController
         }
         attempt.cancel();
       }
+    }
+  }
+
+  Future<bool> _saveRelatedOrder(
+    _GroupOrderAttempt attempt,
+    ContentReference reference,
+    String order,
+    ContentAccessContext access,
+  ) async {
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    if (library == null) return true;
+    final id = library.idByContent[reference.identity];
+    final record = library.byId[id];
+    if (id == null || record == null) return true;
+    bool isReceived() {
+      final current = ref.read(bookmarkProvider).valueOrNull;
+      return current?.membershipsForId(id).any(current.mirrors.isReceived) ??
+          false;
+    }
+
+    if (isReceived()) return true;
+    try {
+      final result = await ref
+          .read(bookmarkProvider.notifier)
+          .commitRelatedOrder(
+            id,
+            RelatedPostsOrder.values.byName(order),
+            reader: access.config,
+            expectedRecord: record,
+            callerCurrent: attempt.isCurrent,
+            callerCancellation: attempt.cancellation,
+          );
+      if (result != RelatedOrderCommitResult.stale) return true;
+      if (!attempt.isCurrent()) return false;
+      if (isReceived()) return true;
+      throw StateError('Related bookmark changed');
+    } on BookmarkMirrorReadOnly {
+      // A subscription can claim the same record while the write is pending.
+      return attempt.isCurrent();
     }
   }
 
